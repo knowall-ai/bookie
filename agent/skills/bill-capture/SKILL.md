@@ -55,25 +55,27 @@ invoices in the accounts mailbox"), run steps 1 to 6 exactly as below, but **rea
 - Read messages from the mailbox in place. Don't mark them as read; if your tool marks them read anyway,
   say so in the report.
 
-Report back to the person who asked, in the same chat, one block per document:
+Report back in the same chat. **Keep it short: it's read in Teams.** The count line, then **one
+line per document**, then the footer. Nothing else: no method notes, no field-by-field confidence, no
+contact ids, no list of what you didn't do.
 
 ```
-<Subject or file name> (received <date>)
-Genuine? trusted | unverified | suspicious: <evidence>
-Bill? yes | no: <why>
-Organisation: <name> (<evidence>) | unsure: <why>
-Supplier: <matched contact> | would propose new: <name, tax no.> | ambiguous: <candidates>
-Fields: invoice no., date, due date, currency, net, VAT, total, each with high/low/missing
-Lines: <as read>; lines + VAT = total? yes/no (difference)
-Duplicate: none | already in <system> as <number>
-PO: <as step 6>
-Would draft: <the exact bill you would send, coding included, or "would not draft: why">
-Flags: <bank details changed, possible revised invoice, low-confidence fields>
+Preview of 3 invoices: 1 would draft, 2 need you.
+- Contoso Cloud INV-20431, £1,204.50 (Example Ltd): two Contoso contacts in Xero. Which one, and which account?
+- Fabrikam F-0912, $80.00 (Example Ltd): new supplier. Add them?
+- Northwind 4471, £240.00 (Example Ltd): would draft to 429 General Expenses, as their last 3 bills.
+Preview only: nothing was created or moved. Say "details" for the full workings.
 ```
 
-End with a one-line total ("5 documents: 3 would draft, 1 duplicate, 1 not a bill") and the words
-**"Preview only: nothing was created or moved."** Only share this with people SOUL.md allows to see
-that organisation's figures.
+Each line: supplier, invoice number, total, organisation, then **either** what you'd do **or** the one
+question that's stopping you (the decision the person has to make, in plain words). Suspicious mail
+leads the list with ⚠ and the evidence in a few words ("⚠ DMARC fail, from micros0ft-billing.com").
+Not a bill: leave it out and just count it ("2 other emails weren't bills").
+
+Only when the person asks for **details** (or "why?" about one line), give the full workings for
+that document: genuine-check evidence, organisation evidence, fields with high/low/missing, lines and
+the lines + VAT = total check, duplicate and PO checks, and the exact draft you'd send. Only share any
+of this with people SOUL.md allows to see that organisation's figures.
 
 ## Reconcile mode (are the mailbox's invoices already in the books?)
 
@@ -96,8 +98,10 @@ for (default: the last 30 days), read-only:
    mailbox (paid by card, posted by hand, emailed elsewhere). List them; that's information, not a
    problem.
 
-Report counts first ("12 invoices: 9 in Xero, 2 not, 1 different; 3 Xero bills have no email"), then a
-short line per item with a portal link where the bill exists. **Nothing is written in reconcile
+Same short style as preview: the counts line first ("12 invoices: 9 in Xero, 2 not, 1 different; 3 Xero
+bills have no email"), then **one line per item that needs attention** (not in the books, different,
+no document, suspicious), with a portal link where the bill exists. Matched invoices are only counted,
+not listed. Full workings only on "details". **Nothing is written in reconcile
 mode.** Attaching a PDF to an existing bill, or capturing a missing one, happens only after an
 authorised person says so in the same conversation, and then through step 7's rules.
 
