@@ -222,10 +222,24 @@ function fromXeroAddress(addresses?: XeroAddress[]): Address | undefined {
   };
 }
 
-export function fromXeroContact(contact: XeroContact): Contact {
-  const phone = contact.Phones?.find((p) => p.PhoneNumber);
+/** Xero's "Phone" is the DEFAULT phone; fall back to mobile, then direct dial. */
+const PHONE_PREFERENCE = ['DEFAULT', 'MOBILE', 'DDI'];
+
+/**
+ * Xero contacts. `Balances` is only returned with `summaryOnly=false` (lists)
+ * or on a single GET, and Xero omits it entirely when both balances are zero,
+ * so pass `zeroWhenMissing` when the response is known to be a full one.
+ */
+export function fromXeroContact(contact: XeroContact, zeroWhenMissing = false): Contact {
+  const phone = [...(contact.Phones ?? [])]
+    .filter((p) => p.PhoneNumber)
+    .sort(
+      (a, b) =>
+        rank(PHONE_PREFERENCE, a.PhoneType ?? '') - rank(PHONE_PREFERENCE, b.PhoneType ?? '')
+    )[0];
   const ar = contact.Balances?.AccountsReceivable;
   const ap = contact.Balances?.AccountsPayable;
+  const hasBalances = !!(ar || ap) || zeroWhenMissing;
   return {
     id: contact.ContactID,
     name: contact.Name,
@@ -243,12 +257,21 @@ export function fromXeroContact(contact: XeroContact): Contact {
     isSupplier: !!contact.IsSupplier,
     status: contact.ContactStatus === 'ARCHIVED' ? 'archived' : 'active',
     currency: contact.DefaultCurrency || undefined,
-    balances:
-      ar || ap
-        ? { receivable: ar?.Outstanding, payable: ap?.Outstanding, overdueReceivable: ar?.Overdue }
-        : undefined,
+    balances: hasBalances
+      ? {
+          receivable: ar?.Outstanding ?? 0,
+          payable: ap?.Outstanding ?? 0,
+          overdueReceivable: ar?.Overdue ?? 0,
+          overduePayable: ap?.Overdue ?? 0,
+        }
+      : undefined,
     updatedAt: xeroTimestamp(contact.UpdatedDateUTC),
   };
+}
+
+function rank(order: string[], value: string) {
+  const i = order.indexOf(value);
+  return i === -1 ? order.length : i;
 }
 
 export function toXeroContact(input: ContactInput, id?: string): Record<string, unknown> {
@@ -261,7 +284,18 @@ export function toXeroContact(input: ContactInput, id?: string): Record<string, 
     Website: input.website,
     AccountNumber: input.accountNumber,
     TaxNumber: input.taxNumber,
-    Phones: input.phone ? [{ PhoneType: 'DEFAULT', PhoneNumber: input.phone }] : undefined,
+    // The whole number goes in PhoneNumber, so clear any old area/country code.
+    Phones:
+      input.phone !== undefined
+        ? [
+            {
+              PhoneType: 'DEFAULT',
+              PhoneNumber: input.phone,
+              PhoneAreaCode: '',
+              PhoneCountryCode: '',
+            },
+          ]
+        : undefined,
     Addresses: input.address
       ? [
           {
