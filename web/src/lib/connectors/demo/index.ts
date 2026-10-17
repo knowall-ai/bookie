@@ -34,6 +34,7 @@ import { demoCurrencies, demoInBase, seedForeignCurrency } from './modules/curre
 import { demoUsers } from './modules/users';
 import { demoHistory } from './modules/history';
 import { demoInvoiceExtras } from './modules/invoice-extras';
+import { seedForecastFixtures } from './modules/forecast';
 
 export const DEMO_ORGS: OrgRef[] = [
   {
@@ -300,6 +301,7 @@ function demoContacts(data: DemoData): ContactsModule {
 export function createDemoConnector(org: OrgRef): AccountingConnector {
   const data = demoData(org.key.split('.')[1]);
   seedForeignCurrency(data);
+  seedForecastFixtures(data);
   return {
     kind: 'demo',
     org,

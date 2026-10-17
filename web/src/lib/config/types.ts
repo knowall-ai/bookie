@@ -3,6 +3,8 @@
  * accounting data. Stored, sealed, in the tenant's own Microsoft 365.
  */
 
+import type { PlannedItem } from '@/lib/forecast/types';
+
 export interface XeroCustomConnectionAuth {
   type: 'custom-connection';
   clientId: string;
@@ -66,6 +68,11 @@ export interface TenantSettings {
     liveUpdates?: boolean;
   };
   access: AccessSettings;
+  /**
+   * Cash flow forecast assumptions the user typed in, per org key. These are the
+   * user's own plans (rent, salaries, a new contract), never accounting data.
+   */
+  forecast?: Record<string, { planned: PlannedItem[] }>;
 }
 
 export const DEFAULT_SETTINGS: TenantSettings = {

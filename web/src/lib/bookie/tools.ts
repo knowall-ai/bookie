@@ -3,6 +3,9 @@ import type { AccountingConnector } from '@/lib/connectors/types';
 import { isConnectorError } from '@/lib/connectors/types';
 import { ATTACHMENT_ENTITIES, type ReportId } from '@/lib/domain/types';
 import { isAttachmentEntity } from '@/lib/attachments';
+import { forecastForBookie } from '@/lib/forecast/summary';
+import { ForecastUnavailableError, loadForecast } from '@/lib/forecast/load';
+import { FORECAST_HORIZONS, type ForecastHorizon, type PlannedItem } from '@/lib/forecast/types';
 import type { ToolDefinition } from './llm';
 
 /**
@@ -12,10 +15,18 @@ import type { ToolDefinition } from './llm';
 
 type Args = Record<string, unknown>;
 
+/** What a tool may need besides the connector (read-only). */
+export interface ToolContext {
+  /** The open org's planned forecast items (the user's own assumptions). */
+  plannedItems?: () => Promise<PlannedItem[]>;
+  /** "Xero", "Business Central"...: used in "not available" reasons. */
+  sourceName?: string;
+}
+
 interface Tool {
   definition: ToolDefinition;
   available: (c: AccountingConnector) => boolean;
-  run: (c: AccountingConnector, args: Args) => Promise<unknown>;
+  run: (c: AccountingConnector, args: Args, context: ToolContext) => Promise<unknown>;
 }
 
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
@@ -246,6 +257,51 @@ const TOOLS: Tool[] = [
       currencies: await c.currencies!.list(),
     }),
   },
+  {
+    definition: fn(
+      'cash_flow_forecast',
+      "Cash flow forecast in one currency: opening balance from the real bank balances, then per week (13w) or month (6m, 12m) the money in and out from approved invoices and bills by due date (Known), the user's own planned items (Planned, an assumption they entered), and optionally drafts/awaiting approval and a projection from average past spending. Returns the running balance and the lowest point. Overdue documents are listed apart (timing unknown) and documents with no amount available are never added. Always tell the user which layers you used (`layersUsed`) and which you left out.",
+      {
+        horizon: {
+          type: 'string',
+          enum: FORECAST_HORIZONS,
+          description: '13w = 13 weeks (default), 6m or 12m = monthly',
+        },
+        include_drafts: { type: 'boolean', description: 'Add drafts and awaiting approval' },
+        include_projection: {
+          type: 'boolean',
+          description: 'Add average spending and income not already in invoices or bills',
+        },
+        projection_months: { type: 'number', enum: [3, 6, 12] },
+        currency: { type: 'string', description: 'ISO code; defaults to the base currency' },
+      }
+    ),
+    available: (c) => !!c.bank && !!c.invoices,
+    run: async (c, a, ctx) => {
+      const horizon = FORECAST_HORIZONS.includes(a.horizon as ForecastHorizon)
+        ? (a.horizon as ForecastHorizon)
+        : '13w';
+      const months =
+        a.projection_months === 6 || a.projection_months === 12 ? a.projection_months : 3;
+      try {
+        const result = await loadForecast(
+          c,
+          (await ctx.plannedItems?.()) ?? [],
+          {
+            horizon,
+            currency: str(a.currency)?.toUpperCase(),
+            includeDrafts: a.include_drafts === true,
+            projectionMonths: a.include_projection === true ? months : undefined,
+          },
+          ctx.sourceName ?? 'the source'
+        );
+        return forecastForBookie(result.forecast, result);
+      } catch (error) {
+        if (error instanceof ForecastUnavailableError) return { error: error.message };
+        throw error;
+      }
+    },
+  },
 ];
 
 export function toolsFor(connector: AccountingConnector | undefined): ToolDefinition[] {
@@ -289,6 +345,7 @@ const FIGURE_KEYS = new Set([
   'baseCurrency',
   'profitAndLoss',
   'quantityOnHand',
+  'closingBalance',
 ]);
 
 /** JSON for the model, with "not available" markers instead of silently missing figures. */
@@ -305,7 +362,8 @@ export function toolJson(value: unknown): string {
 export async function runTool(
   connector: AccountingConnector | undefined,
   name: string,
-  rawArgs: string
+  rawArgs: string,
+  context: ToolContext = {}
 ): Promise<string> {
   const tool = TOOLS.find((t) => t.definition.name === name);
   if (!connector || !tool || !tool.available(connector))
@@ -317,7 +375,7 @@ export async function runTool(
     return JSON.stringify({ error: 'Arguments were not valid JSON.' });
   }
   try {
-    const result = toolJson(await tool.run(connector, args));
+    const result = toolJson(await tool.run(connector, args, context));
     return result.length > MAX_RESULT_CHARS
       ? `${result.slice(0, MAX_RESULT_CHARS)}… [truncated: ask for a narrower search, a filter or the next page]`
       : result;
@@ -357,6 +415,8 @@ export function toolStatus(name: string, rawArgs: string): string {
       return 'Looking at the attached files…';
     case 'list_currencies':
       return 'Checking your currencies…';
+    case 'cash_flow_forecast':
+      return 'Working out your cash flow forecast…';
     case 'list_credit_notes':
     case 'get_credit_note':
       return 'Checking credit notes…';
