@@ -6,7 +6,10 @@ height = canvas x plate.scale anchored bottom and centred, eyes drawn on a separ
 transparent face layer (glass patch, radial halo, core lamp, eye_hot centre, rim),
 blink by squashing ry, glow = 0.8 + 0.12 sin(1.1 t) + level x 0.3. No lashes, no mouth.
 
-usage: plate_test_render.py ASSETS_DIR OUT_DIR [--opaque-lamp]
+usage: plate_test_render.py ASSETS_DIR OUT_DIR [--opaque-lamp] [--bg FILE] [--size WxH]
+
+--bg previews another backdrop (a file name in ASSETS_DIR or a path) without editing
+bookie-avatar.json; --size sets the canvas (default 1280x720, Teams sends up to 1920x1080).
 """
 import json, math, sys
 from pathlib import Path
@@ -14,7 +17,9 @@ from PIL import Image, ImageDraw
 
 assets, out = Path(sys.argv[1]), Path(sys.argv[2]); out.mkdir(parents=True, exist_ok=True)
 cfg = json.loads((assets / "bookie-avatar.json").read_text()); P = cfg["plate"]
-CW, CH = 1280, 720
+def opt(name, default):
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
+CW, CH = map(int, opt("--size", "1280x720").split("x"))
 GLOW, CORE = tuple(P["eye_color"]), tuple(P["eye_core"]); GLASS = tuple(P["glass"]) + (255,)
 HALO, HALO_A, HOT = P["eye_halo"], P["eye_halo_alpha"], P.get("eye_hot", False)
 # --opaque-lamp previews a proposed renderer tweak: lamp drawn at alpha 255 with a hot centre.
@@ -28,7 +33,7 @@ def cover_fit(im, w, h):
     x, y = (im.width - w) // 2, (im.height - h) // 2
     return im.crop((x, y, x + w, y + h))
 
-bg = cover_fit(Image.open(assets / cfg["backdrop"]["bg"]).convert("RGBA"), CW, CH)
+bg = cover_fit(Image.open(assets / opt("--bg", cfg["backdrop"]["bg"])).convert("RGBA"), CW, CH)
 agent = Image.open(assets / P["agent"]).convert("RGBA")
 ah = round(CH * P.get("scale", 1.0)); aw = int(agent.width * ah / agent.height)
 agent = agent.resize((aw, ah), Image.LANCZOS)
@@ -77,6 +82,7 @@ for i in range(70):
     level = max(0.0, math.sin((t - 1.4) * 3.0)) * 0.9 if t > 1.4 else 0.0
     bp = (t - 0.8) / 0.14
     blink = abs(math.cos(math.pi * bp)) if 0 <= bp <= 1 else 1.0
-    frames.append(frame(t, blink, level).crop((340, 60, 940, 510)).resize((480, 360), Image.LANCZOS))
+    k = CW / 1280
+    frames.append(frame(t, blink, level).crop(tuple(round(v * k) for v in (340, 60, 940, 510))).resize((480, 360), Image.LANCZOS))
 frames[0].save(out / "bookie-plate-test.gif", save_all=True, append_images=frames[1:], duration=50, loop=0)
 print("eye px:", {k: round(v, 1) for k, v in g.items()})
