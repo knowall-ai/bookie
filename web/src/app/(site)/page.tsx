@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -5,6 +7,7 @@ import { buttonClass } from '@/components/ui/Button';
 import { ConnectorDemo } from '@/components/site/ConnectorDemo';
 import { Faq, type FaqItem } from '@/components/site/Faq';
 import { Hero } from '@/components/site/Hero';
+import { IntroVideo } from '@/components/site/IntroVideo';
 import { OrgSwitcherMock } from '@/components/site/OrgSwitcherMock';
 import { PortalScreenshots } from '@/components/site/PortalScreenshots';
 import {
@@ -16,7 +19,7 @@ import {
   display,
 } from '@/components/site/ui';
 import { cn } from '@/lib/ui/cn';
-import banner from '../../../public/bookie/banner.webp';
+import { parseVtt } from '@/lib/ui/vtt';
 import teams from '../../../public/bookie/teams.webp';
 import ledger from '../../../public/bookie/ledger.webp';
 
@@ -87,7 +90,14 @@ const FAQ: FaqItem[] = [
   },
 ];
 
+/** The intro video's captions, read once at build time for the transcript. */
+const INTRO_CUES = parseVtt(
+  readFileSync(path.join(process.cwd(), 'public/bookie/bookie-intro.vtt'), 'utf8')
+);
+
 const HAIRLINE = 'border-line/70 border-t';
+/** Bookie's sunlit pictures sit in a thin gold frame, like the trim on his chassis. */
+const PICTURE_FRAME = 'rounded-[16px] ring-1 ring-[#d4a64a]/35';
 
 export default function Landing() {
   return (
@@ -189,34 +199,30 @@ export default function Landing() {
         </Container>
       </section>
 
-      {/* Meet Bookie. */}
-      <section aria-labelledby="bookie" className={cn(HAIRLINE, 'scroll-mt-16')}>
-        <div className="relative">
-          <Image
-            src={banner}
-            alt="Bookie at a desk at night, writing in a ledger whose pages glow green, beside a brass lamp"
-            placeholder="blur"
-            sizes="100vw"
-            className="h-[260px] w-full object-cover sm:h-auto sm:max-h-[520px]"
-          />
-          <div
-            aria-hidden="true"
-            className="from-night absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t to-transparent"
-          />
-        </div>
-        <Container className="pt-10 pb-24 sm:pb-32">
+      {/* Meet Bookie: his 30-second introduction, then what he does. */}
+      <section
+        aria-labelledby="bookie"
+        className={cn(HAIRLINE, 'relative isolate scroll-mt-16 overflow-hidden py-24 sm:py-32')}
+      >
+        {/* The same lamplight as the hero, falling from behind the video. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-40 -z-10 mx-auto h-[640px] max-w-5xl rounded-[50%] bg-[radial-gradient(closest-side,rgb(255_200_90/0.13),transparent)] blur-2xl"
+        />
+        <Container>
           <SectionHeading
             id="bookie"
             title="Meet Bookie, the bookkeeper who reads every line"
             lead="Bookie knows double entry, your chart of accounts and what an aged debtors report is trying to tell you. Ask him anything about the books in front of you, in plain English."
           />
-          <div className="mt-14 grid items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
+          <IntroVideo cues={INTRO_CUES} className="mt-12 sm:mt-14" />
+          <div className="mt-20 grid items-center gap-12 sm:mt-24 lg:grid-cols-[1.1fr_1fr]">
             <Image
               src={teams}
-              alt="Bookie on a Teams video call, explaining a ledger to four colleagues on screen"
+              alt="Bookie waving hello from a Teams call on a colleague’s monitor, beside three other people on the call"
               placeholder="blur"
               sizes="(min-width: 1024px) 560px, 100vw"
-              className="border-line w-full rounded-(--radius-card) border"
+              className={cn(PICTURE_FRAME, 'w-full')}
             />
             <ul className="space-y-8">
               <Point title="In the portal, by chat or voice">
@@ -282,10 +288,13 @@ export default function Landing() {
           </div>
           <Image
             src={ledger}
-            alt="Bookie examining an open ledger through a brass loupe"
+            alt="Bookie at his desk in his sunlit study, reading a large leather-bound ledger"
             placeholder="blur"
             sizes="(min-width: 1024px) 600px, 100vw"
-            className="border-line order-1 w-full rounded-(--radius-card) border lg:order-2"
+            className={cn(
+              PICTURE_FRAME,
+              'order-1 aspect-[5/4] w-full object-cover object-[50%_35%] lg:order-2'
+            )}
           />
         </Container>
       </section>
