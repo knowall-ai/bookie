@@ -3,6 +3,9 @@
 #   infra/web/deploy.sh [ref]          (default: origin/main)
 # Env: APP (bookie-knowall), RG (ka-bookie-prod), PUBLIC_URL (https://bookie.knowall.ai), AGENT_UPN.
 # A clean worktree means no local .env files can leak into the bundle.
+# Needs git, bun, zip, curl and a signed-in az. Runs locally and in GitHub Actions
+# (.github/workflows/deploy-production.yml: full-history checkout, az via OIDC), where it
+# also writes the deployed build to the job summary.
 set -euo pipefail
 REF="${1:-origin/main}"
 APP="${APP:-bookie-knowall}"; RG="${RG:-ka-bookie-prod}"
@@ -29,7 +32,15 @@ echo "==> Deploying $(du -h "$ZIP" | cut -f1) to $APP"
 az webapp deploy -n "$APP" -g "$RG" --src-path "$ZIP" --type zip --clean true --restart true -o none
 # Done when the live site serves this build, not merely when Azure says the deploy finished.
 for _ in $(seq 1 60); do
-  curl -fs -m 20 "$PUBLIC_URL/" | grep -q "$BUILD_ID" && { echo "==> $PUBLIC_URL is up ($SHA)"; exit 0; }
+  # Read the whole page first: with pipefail, `curl | grep -q` fails when grep stops early.
+  PAGE="$(curl -fs -m 20 "$PUBLIC_URL/" || true)"
+  if grep -qF "$BUILD_ID" <<<"$PAGE"; then
+    echo "==> $PUBLIC_URL is up ($SHA)"
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+      echo "Deployed \`$SHA\` (build \`$BUILD_ID\`) to $PUBLIC_URL" >>"$GITHUB_STEP_SUMMARY"
+    fi
+    exit 0
+  fi
   sleep 10
 done
 echo "$PUBLIC_URL is not serving build $BUILD_ID ($SHA) after 10 minutes" >&2
