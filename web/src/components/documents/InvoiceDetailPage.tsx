@@ -10,6 +10,7 @@ import { ButtonLink } from '@/components/ui/Button';
 import { Money } from '@/components/ui/Money';
 import { DocumentFacts, DocumentLines, DocumentTotals } from './DocumentParts';
 import { InvoiceActions } from './InvoiceActions';
+import { PaymentPanel } from '@/components/sales/PaymentPanel';
 
 export async function InvoiceDetailPage({
   orgParam,
@@ -33,6 +34,11 @@ export async function InvoiceDetailPage({
   const noun = isSales ? 'Invoice' : 'Bill';
   const m = connector.invoices;
   const editable = (invoice.status === 'draft' || invoice.status === 'submitted') && !!m.update;
+  // "Make a payment" needs a payments writer and the bank accounts to pay into or from.
+  const bankAccounts =
+    invoice.status === 'authorised' && invoice.amountDue > 0 && connector.payments?.create
+      ? await (connector.bank?.accounts().catch(() => []) ?? Promise.resolve([]))
+      : [];
 
   return (
     <>
@@ -105,7 +111,18 @@ export async function InvoiceDetailPage({
         <DocumentLines lines={invoice.lineItems ?? []} currency={invoice.currency} />
 
         <div className="flex flex-col gap-6 lg:flex-row">
-          <div className="flex-1">
+          <div className="flex-1 space-y-5">
+            {bankAccounts.length > 0 && (
+              <PaymentPanel
+                key={invoice.amountDue}
+                orgKey={org.key}
+                invoiceId={invoice.id}
+                amountDue={invoice.amountDue}
+                currency={invoice.currency}
+                isSales={isSales}
+                bankAccounts={bankAccounts.map((b) => ({ id: b.id, name: b.name, code: b.code }))}
+              />
+            )}
             {invoice.payments && invoice.payments.length > 0 && (
               <div className="card p-5">
                 <h2 className="text-ink mb-3 text-sm font-semibold">Payments</h2>

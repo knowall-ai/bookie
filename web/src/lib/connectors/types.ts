@@ -44,6 +44,7 @@ import type {
   PurchaseOrderInput,
   Quote,
   QuoteInput,
+  QuoteStatus,
   Report,
   ReportId,
   ReportParams,
@@ -71,9 +72,17 @@ export interface QuotesModule {
   get(id: string): Promise<Quote>;
   create?(input: QuoteInput): Promise<Quote>;
   update?(id: string, input: QuoteInput): Promise<Quote>;
-  setStatus?(id: string, status: 'sent' | 'accepted' | 'declined' | 'deleted'): Promise<Quote>;
+  setStatus?(id: string, status: QuoteStatusChange): Promise<Quote>;
+  /** The status changes `setStatus` supports here (Business Central, for one, has no "declined"). */
+  readonly statusChanges?: QuoteStatusChange[];
+  /** Turn the quote into a draft sales invoice. Resolves to the new invoice's id when known. */
+  convertToInvoice?(id: string): Promise<{ invoiceId?: string }>;
+  /** Quote statuses from which `convertToInvoice` works. */
+  readonly convertibleStatuses?: QuoteStatus[];
   pdf?(id: string): Promise<ArrayBuffer>;
 }
+
+export type QuoteStatusChange = 'sent' | 'accepted' | 'declined' | 'deleted';
 
 export interface CreditNotesModule {
   list(type: CreditNoteType, query?: ListQuery): Promise<Page<CreditNote>>;
@@ -102,6 +111,8 @@ export interface ItemsModule {
   get(id: string): Promise<Item>;
   create?(input: ItemInput): Promise<Item>;
   update?(id: string, input: ItemInput): Promise<Item>;
+  /** False when items post through posting groups, not per-item accounts (Business Central). */
+  readonly perItemAccounts?: boolean;
 }
 
 export interface PaymentsModule {

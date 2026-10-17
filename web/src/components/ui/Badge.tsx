@@ -46,6 +46,7 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   declined: { label: 'Declined', tone: 'red' },
   invoiced: { label: 'Invoiced', tone: 'violet' },
   billed: { label: 'Billed', tone: 'violet' },
+  approved: { label: 'Approved', tone: 'blue' },
   posted: { label: 'Posted', tone: 'green' },
   registered: { label: 'Registered', tone: 'green' },
   disposed: { label: 'Disposed', tone: 'neutral' },
