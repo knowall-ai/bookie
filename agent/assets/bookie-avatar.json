@@ -35,20 +35,29 @@
       0.6201
     ],
     "mouth": [
-      0.5,
-      -1.0
+      0.4948,
+      0.587
     ],
-    "mouth_style": "none",
+    "mouth_style": "vertical",
     "mouth_backing": 0,
     "scale": 1.0,
     "anchor": "bottom",
     "offset_y": 0,
-    "mouth_note": "Bookie's mouth is the dotted LED line in the plate art. Presence always draws a mouth (mouth_style 'none' falls back to 'bar'), so it is placed off the canvas."
+    "mouth_w": 0.075,
+    "mouth_h": 0.042,
+    "mouth_bars": 11,
+    "mouth_bar_gap": 0.45,
+    "mouth_bar_glow": true
   },
   "backdrop": {
-    "bg": "bookie-bg-study.png",
+    "bg": "backdrops/bookie-bg-lights.png",
     "stars": false,
-    "rain": null
+    "rain": null,
+    "city_lights": {
+      "windows": 0.4,
+      "neon": 0.4,
+      "beacons": 0
+    }
   },
   "badge_style": {
     "show_version": false
