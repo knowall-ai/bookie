@@ -257,20 +257,12 @@ Restarts with a live call are refused by `./safe-deploy.sh "<command>"`. Use it 
 
 ## Avatar
 
-House style (T-Minus-15 `agent-avatar` skill): Sallie's rig, four axes of difference.
-
-| Axis | Bookie |
-|---|---|
-| Chassis tint | Dark gunmetal, satin, cool rim light |
-| Eyes | KnowAll green `#22c55e` `(34,197,94)` visor discs, soft bloom, near-black visor glass |
-| Silhouette | A green accountant's eyeshade (visor cap) in place of antennae |
-| Backdrop | A quiet ledger office at night: desk lamp off, an open ledger glowing softly, a monitor with a spreadsheet |
-| Animation | A blinking spreadsheet cursor (`backdrop.flicker_zones`, about once a second); backdrop only |
-
-`assets/avatar/bookie-avatar.json` uses plate "b" geometry (eyes, visor, mouth), so a plate derived from
-Sallie's rig lines up without re-measuring. Art still to produce with the `agent-avatar` skill and commit
-here: `bookie-agent.png` (plate), `bookie-bg-ledger-office.png` (backdrop, cursor at about x 0.78, y 0.46),
-`bookie-badge.png`, and a 512x512 Teams profile photo. Re-measure the JSON if the plate differs.
+Bookie's look, voice and the recipe for new images and video are in
+[`assets/bookie-character.md`](assets/bookie-character.md): an ivory and gold robot from the Sallie family, with
+a translucent KnowAll-green banker's eyeshade, round gold wire glasses and warm gold eyes, in a sunlit study.
+The approved profile photo is `assets/bookie-profile-512.png` (the Teams/Microsoft 365 photo); the Presence plate,
+backdrop and renderer identity are `assets/bookie-agent.png`, `assets/bookie-bg-study.png` and
+`assets/bookie-avatar.json`. The website copies live in `web/public/bookie/`.
 
 ## Open questions
 

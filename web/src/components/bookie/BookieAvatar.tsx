@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/ui/cn';
 
 /**
- * Bookie's face for small spaces. Uses the rendered portrait
- * (`public/bookie/avatar-64.png`, or the 512px version for larger sizes);
- * if the image cannot load, falls back to a drawn visor with two green eyes,
- * so there is never a broken image or stray alt text.
+ * Bookie's face for small spaces: a head-and-shoulders crop of his profile
+ * photo (`public/bookie/avatar-64.png`, with `avatar-192.png` for sharp
+ * screens and larger sizes), framed so the green eyeshade and gold eyes still
+ * read inside a 28px circle. If the image cannot load, falls back to a drawn
+ * ivory helmet with the eyeshade and two gold eyes, so there is never a broken
+ * image or stray alt text.
  *
  * Decorative by default (the surrounding control carries the label); pass
  * `label` when the avatar stands alone.
@@ -18,7 +20,7 @@ export function BookieAvatar({
   label,
 }: {
   className?: string;
-  /** `sm` loads the 64px image; `lg` the 512px portrait. */
+  /** `sm` loads the 64px image (192px on high-density screens); `lg` the 192px one. */
   size?: 'sm' | 'lg';
   label?: string;
 }) {
@@ -29,7 +31,8 @@ export function BookieAvatar({
     const el = img.current;
     if (el?.complete && el.naturalWidth === 0) setFailed(true);
   }, []);
-  const src = size === 'lg' ? '/bookie/avatar.png' : '/bookie/avatar-64.png';
+  const src = size === 'lg' ? '/bookie/avatar-192.png' : '/bookie/avatar-64.png';
+  const srcSet = size === 'lg' ? undefined : '/bookie/avatar-64.png 1x, /bookie/avatar-192.png 2x';
 
   return (
     <span
@@ -49,6 +52,7 @@ export function BookieAvatar({
         <img
           ref={img}
           src={src}
+          srcSet={srcSet}
           alt=""
           draggable={false}
           decoding="async"
@@ -60,31 +64,32 @@ export function BookieAvatar({
   );
 }
 
-/** Vector fallback: helmet, green eyeshade and two glowing eyes. */
+/** Vector fallback: ivory helmet, green eyeshade, dark visor and two gold eyes. */
 function BookieFace() {
   return (
     <svg viewBox="0 0 32 32" className="h-full w-full" aria-hidden="true">
       <defs>
         <radialGradient id="bookie-eye" r="0.5">
-          <stop offset="0" stopColor="#bbf7d0" />
-          <stop offset="0.45" stopColor="#4ade80" />
-          <stop offset="1" stopColor="#22c55e" stopOpacity="0" />
+          <stop offset="0" stopColor="#fff1c2" />
+          <stop offset="0.55" stopColor="#ffc85a" />
+          <stop offset="1" stopColor="#ffc85a" stopOpacity="0" />
         </radialGradient>
       </defs>
-      <rect width="32" height="32" fill="#0d1424" />
-      <path d="M7 31c0-7 4-11 9-11s9 4 9 11z" fill="#2a3140" />
-      <path d="M8.5 6.5 7.6 3.4M23.5 6.5l.9-3.1" stroke="#4b5566" strokeWidth="1.1" />
-      <circle cx="7.5" cy="3" r="1.2" fill="#6b7586" />
-      <circle cx="24.5" cy="3" r="1.2" fill="#6b7586" />
-      <ellipse cx="16" cy="14" rx="10" ry="9.5" fill="#3a4252" />
-      <rect x="8.2" y="11" width="15.6" height="8" rx="4" fill="#070b12" />
+      <rect width="32" height="32" fill="#3b2a1c" />
+      <path d="M6 32c0-6 4.5-9.5 10-9.5S26 26 26 32z" fill="#f2e8d8" />
+      <rect x="12.5" y="20" width="7" height="3.5" rx="1" fill="#19110b" />
+      <path d="M11 6.5 10.4 3.2M21 6.5l.6-3.3" stroke="#d4a64a" strokeWidth="0.9" />
+      <circle cx="10.3" cy="2.8" r="1" fill="#d4a64a" />
+      <circle cx="21.7" cy="2.8" r="1" fill="#d4a64a" />
+      <ellipse cx="16" cy="13.5" rx="9.5" ry="9" fill="#f2e8d8" />
+      <rect x="8.6" y="10.6" width="14.8" height="7.6" rx="3.6" fill="#110b06" />
       <path
-        d="M6.5 9.6c3-2.2 16-2.2 19 0l-1.2 2.2c-3-1.4-13.6-1.4-16.6 0z"
+        d="M7 9.2c3-2.4 15-2.4 18 0l-1 2c-3-1.3-13-1.3-16 0z"
         fill="#22c55e"
-        fillOpacity="0.85"
+        fillOpacity="0.9"
       />
-      <circle cx="12.6" cy="15" r="2.6" fill="url(#bookie-eye)" />
-      <circle cx="19.4" cy="15" r="2.6" fill="url(#bookie-eye)" />
+      <circle cx="12.6" cy="14.4" r="2.4" fill="url(#bookie-eye)" />
+      <circle cx="19.4" cy="14.4" r="2.4" fill="url(#bookie-eye)" />
     </svg>
   );
 }

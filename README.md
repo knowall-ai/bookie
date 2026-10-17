@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="Bookie, the AI bookkeeper, at his desk with a glowing ledger" src="web/public/bookie/banner.webp" width="100%">
+  <img alt="Bookie, the AI bookkeeper: an ivory robot with gold trim and a green eyeshade, at his desk in a sunlit study with an open ledger" src="web/public/bookie/banner.webp" width="100%">
 </p>
 
 <h1 align="center">Bookie</h1>
@@ -72,7 +72,9 @@ Real pages, read live through Bookie's own connector code from **Microsoft's CRO
 
 **Full read and write.** Draft, approve, email and void invoices and bills; quotes, purchase orders, contacts, payments, bank transactions and manual journals. Anything that posts to the books asks you to confirm first.
 
-**Bookie, the AI bookkeeper.**
+<img align="right" alt="Bookie's profile picture: an ivory robot with round gold glasses and a green banker's eyeshade" src="web/public/bookie/avatar.png" width="120">
+
+**Bookie, the AI bookkeeper.** Meet him in his [30-second introduction](https://getbook.ie/#bookie).
 
 - **In the portal:** ask him anything about the open organisation ("who owes us the most?"). He looks it up live with read-only tools and explains it. **Bookie's take** on the Home page gives three live points worth your attention (hidden when Bookie isn't configured).
 - **By voice:** talk to him in the browser, or **Call on Teams** from the Ask Bookie panel.

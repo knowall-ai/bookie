@@ -70,6 +70,39 @@ test.describe('public site', () => {
     });
   }
 
+  test('meet Bookie: the intro video waits for a click, then plays with sound and captions', async ({
+    page,
+  }) => {
+    const videoRequests: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().endsWith('.mp4')) videoRequests.push(r.url());
+    });
+    await page.goto('/');
+    const section = page.locator('section[aria-labelledby="bookie"]');
+    const video = section.locator('video');
+    await expect(video).toHaveAttribute('preload', 'none');
+    await expect(video).toHaveAttribute('poster', '/bookie/bookie-intro-poster.jpg');
+    await expect(video).not.toHaveAttribute('autoplay', /.*/);
+    await expect(video.locator('track[kind="captions"]')).toHaveAttribute(
+      'src',
+      '/bookie/bookie-intro.vtt'
+    );
+    // The hero uses a still, so nothing has fetched a video yet.
+    expect(videoRequests).toEqual([]);
+
+    const toggle = section.getByRole('button', { name: 'Show transcript' });
+    await toggle.click();
+    await expect(section.getByRole('button', { name: 'Hide transcript' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+    await expect(section.getByText('Shall we have a look?')).toBeVisible();
+
+    await section.getByRole('button', { name: /Play Bookie’s 30-second introduction/ }).click();
+    await expect(video).toHaveJSProperty('muted', false);
+    await expect(video).toHaveJSProperty('controls', true);
+  });
+
   test('mobile: no horizontal scroll, menu opens', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 760 });
     await page.goto('/');
