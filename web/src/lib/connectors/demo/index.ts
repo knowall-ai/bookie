@@ -268,8 +268,7 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
             (x) =>
               x.type === 'sales' &&
               x.date.startsWith(month) &&
-              x.status !== 'voided' &&
-              x.status !== 'deleted'
+              (x.status === 'authorised' || x.status === 'paid')
           )
           .reduce((s, x) => s + x.subTotal, 0);
         const expenses =
@@ -278,8 +277,7 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
               (x) =>
                 x.type === 'purchase' &&
                 x.date.startsWith(month) &&
-                x.status !== 'voided' &&
-                x.status !== 'deleted'
+                (x.status === 'authorised' || x.status === 'paid')
             )
             .reduce((s, x) => s + x.subTotal, 0) + 4200;
         return { month, income, expenses };
@@ -315,7 +313,7 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
     journals: demoJournals(data),
     taxRates: demoTaxRates(data),
     assets: demoAssets(data),
-    reports: demoReports(data),
+    reports: demoReports(data, org.name),
     payroll: demoPayroll(data),
     projects: demoProjects(data),
   };
