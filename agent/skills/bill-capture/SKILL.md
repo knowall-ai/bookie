@@ -127,7 +127,7 @@ node ~/bookie/agent/hermes/scripts/mail-trust.mjs --mailbox "$ACCOUNTS_MAILBOX" 
 It prints the sender, reply-to and return-path domains, and Exchange Online's own SPF, DKIM, DMARC and
 composite-auth results. Then decide **trusted**, **unverified** or **suspicious**:
 
-- **Suspicious** (any one is enough): DMARC `fail`, or compauth `fail`; the from domain is a lookalike
+- **Suspicious** (any one is enough): DMARC `fail`, or compauth `fail`; `flaggedByMicrosoft` (Microsoft scored it as spam, phishing, spoofing or impersonation); the from domain is a lookalike
   of a known supplier or of knowall.ai (swapped or added letters, `rn` for `m`, a different TLD,
   extra words such as `-billing`); reply-to on a different domain from the sender; bank details that
   differ from the supplier's record in Xero/BC; a payment link to a site that isn't the supplier's;

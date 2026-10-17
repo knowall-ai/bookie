@@ -32,8 +32,9 @@ const domain = (addr) => (addr ?? '').split('@')[1]?.toLowerCase() ?? null;
 const headers = m.internetMessageHeaders ?? [];
 const all = (name) =>
   headers.filter((h) => h.name.toLowerCase() === name.toLowerCase()).map((h) => h.value);
-// Only Exchange Online's own verdicts count: senders can add their own Authentication-Results.
-const authResults = all('Authentication-Results').filter((v) => /protection\.outlook\.com/i.test(v));
+// Only Exchange Online's own verdict counts (authserv-id mx.microsoft.com): a sender can add their
+// own Authentication-Results header claiming anything.
+const authResults = all('Authentication-Results').filter((v) => /^\s*mx\.microsoft\.com\b/i.test(v));
 const auth = authResults.join('; ');
 const pick = (re) => auth.match(re)?.[1]?.toLowerCase() ?? 'none';
 
@@ -51,6 +52,12 @@ const result = {
   compositeAuth: pick(/compauth=(\w+)/i),
   exchangeVerdictPresent: authResults.length > 0,
 };
+// Microsoft's spam verdict: SCL 5+ is spam, CAT names the filter (PHSH phishing, SPOOF, SPM, BULK...).
+const antispam = all('X-Forefront-Antispam-Report')[0] ?? '';
+result.spamConfidence = Number(antispam.match(/SCL:(-?\d+)/)?.[1] ?? NaN);
+result.spamCategory = antispam.match(/CAT:([A-Z]+)/)?.[1] ?? null;
+result.flaggedByMicrosoft =
+  result.spamConfidence >= 5 || ['PHSH', 'HPHSH', 'SPOOF', 'GIMP', 'UIMP', 'DIMP', 'MALW'].includes(result.spamCategory ?? '');
 result.replyToDiffers = result.replyToDomains.some((d) => d && d !== result.fromDomain);
 result.authenticated =
   result.dmarc === 'pass' ||
