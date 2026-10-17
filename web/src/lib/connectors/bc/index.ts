@@ -33,6 +33,7 @@ import {
 } from './modules/reports';
 import { bcPayroll } from './modules/payroll';
 import { bcProjects } from './modules/projects';
+import { bcActivity } from './modules/activity';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -815,6 +816,7 @@ export function createBcConnector({
       };
     },
 
+    activity: bcActivity(client),
     invoices: bcInvoices(client, lcy, link),
     contacts: bcContacts(client),
     quotes: bcQuotes(client, lcy),

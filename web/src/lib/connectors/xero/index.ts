@@ -37,6 +37,7 @@ import { xeroAssets } from './modules/assets';
 import { xeroReports } from './modules/reports';
 import { xeroPayroll } from './modules/payroll';
 import { xeroProjects } from './modules/projects';
+import { xeroActivity } from './modules/activity';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -372,6 +373,7 @@ export function createXeroConnector({
       };
     },
 
+    activity: xeroActivity(client),
     invoices: xeroInvoices(client, shortCode),
     contacts: xeroContacts(client),
     quotes: xeroQuotes(client, shortCode),

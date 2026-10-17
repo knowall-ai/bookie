@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { ExternalLink, Landmark } from 'lucide-react';
 import { getAuthContext } from '@/lib/auth/context';
 import { orgContext, sourceName } from '@/lib/portal/context';
@@ -6,6 +7,8 @@ import { ButtonLink } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { EmptyState, ErrorPanel } from '@/components/ui/States';
 import { BookieInsights } from '@/components/bookie/BookieInsights';
+import { OrgActivity } from '@/components/home/OrgActivity';
+import { ActivityChartSkeleton } from '@/components/home/ActivityChart';
 import {
   BankAccountCard,
   DocumentsCard,
@@ -55,6 +58,10 @@ export default async function Home({ params }: { params: Promise<{ org: string }
           </ButtonLink>
         )}
       </div>
+
+      <Suspense fallback={<ActivityChartSkeleton />}>
+        <OrgActivity orgParam={orgParam} />
+      </Suspense>
 
       <BookieInsights orgKey={org.key} />
 

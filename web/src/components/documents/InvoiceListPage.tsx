@@ -1,4 +1,5 @@
-import { FileText, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { FileText, Plus, X } from 'lucide-react';
 import { orgContext } from '@/lib/portal/context';
 import type { Invoice, InvoiceType } from '@/lib/domain/types';
 import { formatDate } from '@/lib/ui/format';
@@ -17,7 +18,13 @@ export interface ListSearchParams {
   status?: string;
   search?: string;
   page?: string;
+  /** Document date range, `YYYY-MM-DD` (e.g. one day from the Home activity chart). */
+  from?: string;
+  to?: string;
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isoOrUndefined = (value?: string) => (value && ISO_DATE.test(value) ? value : undefined);
 
 const COPY = {
   sales: {
@@ -57,13 +64,22 @@ export async function InvoiceListPage({
 
   const status = searchParams.status ?? 'all';
   const page = Math.max(1, Number(searchParams.page) || 1);
+  const from = isoOrUndefined(searchParams.from);
+  const to = isoOrUndefined(searchParams.to);
   const result = await connector.invoices.list(type, {
     status,
     search: searchParams.search,
+    from,
+    to,
     page,
     pageSize: 50,
   });
   const listPath = `${base}${copy.path}`;
+  const clearDates = new URLSearchParams(
+    Object.entries({ status: searchParams.status, search: searchParams.search }).filter(
+      (e): e is [string, string] => !!e[1]
+    )
+  );
 
   const columns: Column<Invoice>[] = [
     {
@@ -129,7 +145,7 @@ export async function InvoiceListPage({
       <StatusTabs
         basePath={listPath}
         current={status}
-        params={{ search: searchParams.search }}
+        params={{ search: searchParams.search, from, to }}
         tabs={[
           { value: 'all', label: 'All' },
           { value: 'draft', label: 'Draft' },
@@ -144,6 +160,20 @@ export async function InvoiceListPage({
           placeholder={`Search ${copy.noun} by number, reference or contact`}
           className="w-full max-w-md"
         />
+        {(from || to) && (
+          <span className="border-line text-body inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs whitespace-nowrap">
+            {from === to
+              ? `Dated ${formatDate(from)}`
+              : `Dated ${from ? formatDate(from) : '…'} to ${to ? formatDate(to) : '…'}`}
+            <Link
+              href={`${listPath}${clearDates.size ? `?${clearDates}` : ''}`}
+              className="text-muted hover:text-ink"
+              aria-label="Clear date filter"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Link>
+          </span>
+        )}
       </div>
       <DataTable
         columns={columns}
@@ -156,7 +186,11 @@ export async function InvoiceListPage({
             title={
               searchParams.search
                 ? `No ${copy.noun} match “${searchParams.search}”`
-                : `No ${copy.noun} here yet`
+                : from && from === to
+                  ? `No ${copy.noun} dated ${formatDate(from)}`
+                  : from || to
+                    ? `No ${copy.noun} in this date range`
+                    : `No ${copy.noun} here yet`
             }
             action={
               canCreate && (
@@ -172,7 +206,7 @@ export async function InvoiceListPage({
         page={result.page}
         hasMore={result.hasMore}
         basePath={listPath}
-        params={{ status: searchParams.status, search: searchParams.search }}
+        params={{ status: searchParams.status, search: searchParams.search, from, to }}
       />
     </>
   );

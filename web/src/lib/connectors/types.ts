@@ -14,6 +14,7 @@
 import type {
   Account,
   AccountInput,
+  ActivityDay,
   BankAccount,
   BankTransaction,
   BankTransactionInput,
@@ -27,6 +28,7 @@ import type {
   Invoice,
   InvoiceInput,
   InvoiceType,
+  IsoDate,
   Item,
   ItemInput,
   LedgerEntry,
@@ -172,6 +174,8 @@ export interface AccountingConnector {
 
   organisation(): Promise<OrgDetails>;
   dashboard(): Promise<DashboardSummary>;
+  /** Documents and payments per day from `from` to `to` (inclusive), one entry per day. */
+  activity?(from: IsoDate, to: IsoDate): Promise<ActivityDay[]>;
 
   invoices?: InvoicesModule;
   quotes?: QuotesModule;
