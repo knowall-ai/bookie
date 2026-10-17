@@ -159,6 +159,8 @@ Checklist for every new image. Reject and regenerate on any failure:
 | Wide 3:1 banner | `bookie-banner.webp` | ✓ | ✓ | ✓ | ✓ | ✓ discs | ✓ | ✓ | ✓ |
 | Teams call section image | `bookie-section-teams.webp` | ✓ | ✓ | ✓ | ✓ | ✓ discs | ✓ | ✓ | ✓ |
 | 2:3 portrait | `bookie-portrait.webp` | ✓ | ✓ | ✓ | ✓ | ✓ arcs | ✓ | ✓ | ✓ |
+| Security band: low-key close-up by a vault door, on dark navy, empty left | `bookie-security.webp` | ✓ | ✓ | ✓ | ✓ | ✓ discs | ✓ | ✓ | ✓ |
+| Security band, 2:3 phone version (separate render) | `bookie-security-portrait.webp` | ✓ | ✓ | ✓ | ✓ | ✓ discs | ✓ | ✓ | ✓ |
 | Poses: welcome, ledger, chart, thumbs up, thinking, video call | `bookie-*.webp` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 The first hero attempt failed check "empty left": his raised hand reached into the
