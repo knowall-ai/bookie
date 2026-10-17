@@ -10,7 +10,10 @@ test.describe('public site', () => {
       'href',
       '/install'
     );
-    await expect(page.locator('#screenshots')).toContainText('Portal screenshots coming soon');
+    const shots = page.locator('#screenshots');
+    await expect(shots).toContainText(/Microsoft.s CRONUS sample company/);
+    await shots.getByRole('tab', { name: 'Ask Bookie' }).click();
+    await expect(shots.getByRole('img', { name: /Ask Bookie panel/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /knowall-ai\/bookie on GitHub/ })).toHaveAttribute(
       'href',
       'https://github.com/knowall-ai/bookie'

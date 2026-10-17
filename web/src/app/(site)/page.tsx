@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ImageIcon } from 'lucide-react';
 import { buttonClass } from '@/components/ui/Button';
 import { ConnectorDemo } from '@/components/site/ConnectorDemo';
 import { Faq, type FaqItem } from '@/components/site/Faq';
 import { Hero } from '@/components/site/Hero';
 import { OrgSwitcherMock } from '@/components/site/OrgSwitcherMock';
+import { PortalScreenshots } from '@/components/site/PortalScreenshots';
 import {
   Container,
   DoubleRule,
@@ -290,34 +290,15 @@ export default function Landing() {
         </Container>
       </section>
 
-      {/* Screenshots: the lead drops portal screenshots in here later. */}
+      {/* Screenshots: real portal pages on Microsoft's CRONUS sample company. */}
       <section aria-labelledby="screenshots-title" className={cn(HAIRLINE, 'py-24 sm:py-32')}>
         <Container>
           <SectionHeading
             id="screenshots-title"
             title="See the portal"
-            lead="Sales, purchases, contacts, bank and reports, in the layout you already know."
+            lead="Sales, purchases, contacts, reports and Bookie himself, in the layout you already know."
           />
-          <div
-            id="screenshots"
-            className="border-line-strong bg-surface/60 mt-12 overflow-hidden rounded-(--radius-card) border"
-          >
-            <div
-              className="border-line flex items-center gap-2 border-b px-4 py-3"
-              aria-hidden="true"
-            >
-              <span className="bg-line-strong h-2.5 w-2.5 rounded-full" />
-              <span className="bg-line-strong h-2.5 w-2.5 rounded-full" />
-              <span className="bg-line-strong h-2.5 w-2.5 rounded-full" />
-              <span className="bg-night text-faint ml-4 rounded-md px-3 py-1 text-xs">
-                getbook.ie/portal
-              </span>
-            </div>
-            <div className="grid-glow flex aspect-[4/3] flex-col items-center justify-center gap-3 px-6 text-center sm:aspect-[16/7]">
-              <ImageIcon aria-hidden="true" className="text-faint h-8 w-8" />
-              <p className="text-muted text-base">Portal screenshots coming soon</p>
-            </div>
-          </div>
+          <PortalScreenshots />
         </Container>
       </section>
 
