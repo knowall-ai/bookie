@@ -9,6 +9,7 @@ declare module 'next-auth' {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      userType?: 'Member' | 'Guest';
     };
   }
 }
@@ -18,5 +19,7 @@ declare module 'next-auth/jwt' {
     refreshToken?: string;
     tenantId?: string;
     oid?: string;
+    /** From Graph `/me` at sign-in. Sessions without it must sign in again. */
+    userType?: 'Member' | 'Guest';
   }
 }

@@ -1,5 +1,6 @@
 import 'server-only';
 import { cache } from 'react';
+import { filterOrgsByAccess } from '@/lib/auth/access';
 import type { AuthContext } from '@/lib/auth/context';
 import { configStoreFor } from '@/lib/config';
 import {
@@ -95,7 +96,13 @@ function xeroOrgs(connections: XeroConnection[]): OrgRef[] {
 }
 
 export interface OrgDirectory {
+  /** The orgs this user may open: reachable, not hidden, and allowed by the tenant's access entries. */
   orgs: OrgRef[];
+  /**
+   * Every reachable, non-hidden org before access entries are applied. Only for
+   * Settings (members only) and tenant-wide jobs; never to authorise a request.
+   */
+  allOrgs: OrgRef[];
   /** BC companies the user can see but chose to hide in Settings. */
   hiddenBcOrgs: OrgRef[];
   store: ConfigStore;
@@ -105,10 +112,23 @@ export interface OrgDirectory {
   storeError?: string;
 }
 
-/** Every org the signed-in user can switch to. Memoised per request. */
+/**
+ * Every org the signed-in user can switch to. Memoised per request. This is
+ * the single gate for org access: `getConnector`, `orgContext`, Bookie's
+ * routes and the Live feed all resolve org keys against `orgs` here.
+ */
 export const listOrgs = cache(async (auth: AuthContext): Promise<OrgDirectory> => {
   const store = configStoreFor(auth);
-  if (auth.mode === 'demo') return { orgs: DEMO_ORGS, hiddenBcOrgs: [], store };
+  if (auth.mode === 'demo') {
+    const settings = await store.getSettings();
+    return {
+      orgs: filterOrgsByAccess(DEMO_ORGS, auth.user, settings.access),
+      allOrgs: DEMO_ORGS,
+      hiddenBcOrgs: [],
+      store,
+      settings,
+    };
+  }
 
   let settings = structuredClone(DEFAULT_SETTINGS);
   let connections: Awaited<ReturnType<ConfigStore['listConnections']>> = [];
@@ -122,11 +142,14 @@ export const listOrgs = cache(async (auth: AuthContext): Promise<OrgDirectory> =
   const xero = settings.xero.enabled ? xeroOrgs(connections.filter((c) => c.kind === 'xero')) : [];
   const bc = settings.businessCentral.enabled ? await discoverBcOrgs(auth) : [];
   const hidden = new Set(settings.businessCentral.hiddenCompanies);
+  const allOrgs = [
+    ...xero.sort((a, b) => a.name.localeCompare(b.name)),
+    ...bc.filter((o) => !hidden.has(o.key)).sort((a, b) => a.name.localeCompare(b.name)),
+  ];
   return {
-    orgs: [
-      ...xero.sort((a, b) => a.name.localeCompare(b.name)),
-      ...bc.filter((o) => !hidden.has(o.key)).sort((a, b) => a.name.localeCompare(b.name)),
-    ],
+    // When the settings store can't be read, access entries are unknown: guests see nothing.
+    orgs: filterOrgsByAccess(allOrgs, auth.user, settings.access),
+    allOrgs,
     hiddenBcOrgs: bc.filter((o) => hidden.has(o.key)),
     store,
     settings,

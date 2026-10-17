@@ -4,9 +4,51 @@ import { defineConfig, devices } from '@playwright/test';
  * End-to-end tests run against the fictional demo organisations only
  * (BOOKIE_DEV_AUTH=demo), never real books. Set BASE_URL to point at an
  * already-running server; otherwise Playwright starts one on port 3120.
+ *
+ * The guest specs (*.guest.spec.ts) need a second server signed in as the demo
+ * guest accountant (BOOKIE_DEV_AUTH=demo-guest): GUEST_BASE_URL, or one that
+ * Playwright starts on port 3121.
  */
 const PORT = 3120;
+const GUEST_PORT = 3121;
 const baseURL = process.env.BASE_URL ?? `http://localhost:${PORT}`;
+const guestBaseURL = process.env.GUEST_BASE_URL ?? `http://localhost:${GUEST_PORT}`;
+
+const serverEnv = (url: string, auth: string, distDir: string) => ({
+  NEXT_DIST_DIR: distDir,
+  BOOKIE_DEV_AUTH: auth,
+  BOOKIE_CONFIG_STORE: 'file',
+  // Bookie's take and chat would call Azure OpenAI from .env.local: keep e2e offline.
+  BOOKIE_DISABLE_AI: '1',
+  NEXTAUTH_URL: url,
+  NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? 'e2e-only-secret-not-used-in-production',
+  BOOKIE_CONFIG_KEY: process.env.BOOKIE_CONFIG_KEY ?? Buffer.alloc(32, 7).toString('base64'),
+});
+
+const servers = [
+  ...(process.env.BASE_URL
+    ? []
+    : [
+        {
+          command: `bunx next dev --port ${PORT}`,
+          url: `${baseURL}/`,
+          reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
+          env: serverEnv(baseURL, 'demo', '.next-e2e'),
+        },
+      ]),
+  ...(process.env.GUEST_BASE_URL
+    ? []
+    : [
+        {
+          command: `bunx next dev --port ${GUEST_PORT}`,
+          url: `${guestBaseURL}/`,
+          reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
+          env: serverEnv(guestBaseURL, 'demo-guest', '.next-e2e-guest'),
+        },
+      ]),
+];
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -29,23 +71,5 @@ export default defineConfig({
     },
     { name: 'mobile', use: { ...devices['Pixel 7'] }, grep: /@mobile/ },
   ],
-  webServer: process.env.BASE_URL
-    ? undefined
-    : {
-        command: `bunx next dev --port ${PORT}`,
-        url: `${baseURL}/`,
-        reuseExistingServer: !process.env.CI,
-        timeout: 180_000,
-        env: {
-          NEXT_DIST_DIR: '.next-e2e',
-          BOOKIE_DEV_AUTH: 'demo',
-          BOOKIE_CONFIG_STORE: 'file',
-          // Bookie's take and chat would call Azure OpenAI from .env.local: keep e2e offline.
-          BOOKIE_DISABLE_AI: '1',
-          NEXTAUTH_URL: baseURL,
-          NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? 'e2e-only-secret-not-used-in-production',
-          BOOKIE_CONFIG_KEY:
-            process.env.BOOKIE_CONFIG_KEY ?? Buffer.alloc(32, 7).toString('base64'),
-        },
-      },
+  webServer: servers.length ? servers : undefined,
 });

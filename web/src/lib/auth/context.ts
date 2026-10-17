@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { devAuthMode, devAuthContext } from './dev';
 import { redeemRefreshToken } from './tokens';
+import type { UserType } from './access';
 import type { ResourceName } from './resources';
 
 export interface BookieUser {
@@ -14,6 +15,8 @@ export interface BookieUser {
   tenantId: string;
   name: string;
   email: string;
+  /** Entra `userType`: guests (B2B, e.g. an external accountant) see only organisations they're granted. */
+  userType: UserType;
 }
 
 export interface AuthContext {
@@ -37,7 +40,8 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   const token = await decode({ token: raw, secret: process.env.NEXTAUTH_SECRET ?? '' }).catch(
     () => null
   );
-  if (!token?.refreshToken || !token.tenantId || !token.oid) return null;
+  // Sessions from before userType was recorded sign in again rather than guess it.
+  if (!token?.refreshToken || !token.tenantId || !token.oid || !token.userType) return null;
 
   const { refreshToken, tenantId } = token;
   return {
@@ -47,6 +51,7 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
       tenantId,
       name: token.name ?? token.email ?? 'Signed-in user',
       email: token.email ?? '',
+      userType: token.userType,
     },
     getToken: (resource) => redeemRefreshToken(tenantId, refreshToken, resource),
   };

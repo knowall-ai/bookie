@@ -1,8 +1,9 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
+import { assertCanManageSettings, removeAccessPerson, upsertAccessPerson } from '@/lib/auth/access';
 import type { AuthContext } from '@/lib/auth/context';
 import { configStoreFor } from '@/lib/config';
-import type { XeroConnection, XeroOrgMeta } from '@/lib/config/types';
+import type { AccessPerson, XeroConnection, XeroOrgMeta } from '@/lib/config/types';
 import { forgetBcDiscovery } from '@/lib/connectors/registry';
 import { ConnectorError } from '@/lib/connectors/types';
 import { XeroClient } from '@/lib/connectors/xero/client';
@@ -82,6 +83,7 @@ export async function addXeroCustomConnection(
   auth: AuthContext,
   input: { label?: string; clientId: string; clientSecret: string }
 ): Promise<XeroConnection> {
+  assertCanManageSettings(auth.user);
   const store = configStoreFor(auth);
   const connection = newConnection(auth, input.label || 'Custom Connection', {
     type: 'custom-connection',
@@ -115,6 +117,7 @@ export async function addXeroOAuthConnection(
   auth: AuthContext,
   tokens: { accessToken: string; refreshToken: string }
 ): Promise<XeroConnection> {
+  assertCanManageSettings(auth.user);
   const store = configStoreFor(auth);
   const orgs = await describeXeroOrgs(tokens.accessToken);
   if (orgs.length === 0)
@@ -144,6 +147,7 @@ export async function addXeroOAuthConnection(
 }
 
 export async function removeConnection(auth: AuthContext, id: string): Promise<void> {
+  assertCanManageSettings(auth.user);
   const store = configStoreFor(auth);
   const connection = await store.getConnection(id);
   if (!connection) return;
@@ -165,6 +169,7 @@ export async function updateConnectorSettings(
   auth: AuthContext,
   patch: { xeroEnabled?: boolean; bcEnabled?: boolean; hiddenCompanies?: string[] }
 ): Promise<void> {
+  assertCanManageSettings(auth.user);
   const store = configStoreFor(auth);
   const settings = await store.getSettings();
   if (patch.xeroEnabled !== undefined) settings.xero.enabled = patch.xeroEnabled;
@@ -172,4 +177,27 @@ export async function updateConnectorSettings(
   if (patch.hiddenCompanies) settings.businessCentral.hiddenCompanies = patch.hiddenCompanies;
   await store.saveSettings(settings);
   forgetBcDiscovery(auth);
+}
+
+/**
+ * Settings › People and access. Members only, so a guest can never widen their
+ * own access. Changes take effect on the next request (listOrgs re-reads them).
+ */
+export async function updateAccessSettings(
+  auth: AuthContext,
+  change:
+    | { type: 'upsert'; person: AccessPerson }
+    | { type: 'remove'; email: string }
+    | { type: 'membersSeeAll'; value: boolean }
+): Promise<void> {
+  assertCanManageSettings(auth.user);
+  const store = configStoreFor(auth);
+  const settings = await store.getSettings();
+  settings.access =
+    change.type === 'upsert'
+      ? upsertAccessPerson(settings.access, change.person)
+      : change.type === 'remove'
+        ? removeAccessPerson(settings.access, change.email)
+        : { ...settings.access, membersSeeAll: change.value };
+  await store.saveSettings(settings);
 }

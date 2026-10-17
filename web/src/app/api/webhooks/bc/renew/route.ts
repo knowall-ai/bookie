@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { canManageSettings } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { listOrgs } from '@/lib/connectors/registry';
 import { isConnectorError } from '@/lib/connectors/types';
@@ -16,6 +17,10 @@ export const dynamic = 'force-dynamic';
 export async function POST() {
   const auth = await getAuthContext();
   if (!auth) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
+  // Subscriptions are tenant-wide settings: guests leave them to the host's members.
+  if (!canManageSettings(auth.user)) {
+    return NextResponse.json({ error: 'Members only.' }, { status: 403 });
+  }
   if (!bcWebhooksConfigured()) {
     return NextResponse.json({ error: 'Live updates are not configured.' }, { status: 503 });
   }

@@ -37,7 +37,18 @@ describe('Bookie tool output', () => {
   });
 
   it('tells Bookie never to estimate a figure marked not available', () => {
-    const prompt = bookieInstructions(undefined, { name: 'Alex Morgan' }, 'chat');
+    const prompt = bookieInstructions(
+      undefined,
+      { name: 'Alex Morgan', userType: 'Member' },
+      'chat'
+    );
     expect(prompt).toContain('If a figure is marked not available, say so; never estimate it.');
+    expect(prompt).not.toContain('is a guest');
+  });
+
+  it('tells Bookie a guest is an external adviser limited to the switcher', () => {
+    const prompt = bookieInstructions(undefined, { name: 'Jordan Lee', userType: 'Guest' }, 'chat');
+    expect(prompt).toContain('Jordan is a guest: an external adviser');
+    expect(prompt).toContain('only the organisations listed in their organisation switcher');
   });
 });

@@ -10,7 +10,11 @@ const connectionRecord = (id: string) => `connection:${id}`;
 /** Shared logic: every store is a set of named, sealed records for one tenant. */
 abstract class SealedRecordStore implements ConfigStore {
   abstract readonly location: string;
-  constructor(protected readonly tenantId: string) {}
+  constructor(
+    protected readonly tenantId: string,
+    /** Settings used until the tenant saves its own (the demo store seeds an access entry). */
+    protected readonly defaults: TenantSettings = DEFAULT_SETTINGS
+  ) {}
 
   protected abstract readAll(): Promise<Map<string, string>>;
   protected abstract write(name: string, sealed: string): Promise<void>;
@@ -44,11 +48,16 @@ abstract class SealedRecordStore implements ConfigStore {
 
   async getSettings(): Promise<TenantSettings> {
     const sealed = (await this.readAll()).get(SETTINGS_RECORD);
-    if (!sealed) return structuredClone(DEFAULT_SETTINGS);
+    if (!sealed) return structuredClone(this.defaults);
     const stored = open<Partial<TenantSettings>>(this.tenantId, SETTINGS_RECORD, sealed);
     return {
       xero: { ...DEFAULT_SETTINGS.xero, ...stored.xero },
       businessCentral: { ...DEFAULT_SETTINGS.businessCentral, ...stored.businessCentral },
+      access: {
+        ...DEFAULT_SETTINGS.access,
+        ...stored.access,
+        people: Array.isArray(stored.access?.people) ? stored.access.people : [],
+      },
     };
   }
 

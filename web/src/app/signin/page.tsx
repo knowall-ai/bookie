@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthContext } from '@/lib/auth/context';
+import { guestTenants } from '@/lib/auth/guest-tenants';
 import { Logo } from '@/components/brand/Logo';
-import { SignInButton } from './SignInButton';
+import { GuestSignIn, SignInButton } from './SignInButton';
 
 export const metadata = { title: 'Sign in' };
 export const dynamic = 'force-dynamic';
@@ -42,6 +43,14 @@ export default async function SignInPage({
           </p>
         )}
         <SignInButton callbackUrl={target} />
+        {guestTenants().map((t) => (
+          <GuestSignIn
+            key={t.providerId}
+            callbackUrl={target}
+            providerId={t.providerId}
+            name={t.name}
+          />
+        ))}
         <p className="text-faint mt-6 text-xs">
           First time for your organisation?{' '}
           <Link href="/install" className="text-brand-bright hover:underline">

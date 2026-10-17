@@ -1,4 +1,5 @@
 import 'server-only';
+import { assertCanManageSettings } from '@/lib/auth/access';
 import type { AuthContext } from '@/lib/auth/context';
 import { listOrgs } from '@/lib/connectors/registry';
 import {
@@ -23,15 +24,18 @@ function companiesByEnvironment(keys: string[]): Map<string, string[]> {
 /**
  * Bring the tenant's BC webhook subscriptions in line with "Live updates":
  * on = every visible company subscribed (created, renewed or kept);
- * off = all of Bookie's subscriptions removed. Runs as the signed-in user.
+ * off = all of Bookie's subscriptions removed. Runs as the signed-in user,
+ * who must be a member: subscriptions are tenant-wide, so they cover every
+ * visible company, not only the ones this person's access entry grants.
  */
 export async function syncBcLiveUpdates(
   auth: AuthContext,
   enabled: boolean
 ): Promise<SubscriptionSummary> {
-  const { orgs } = await listOrgs(auth);
+  assertCanManageSettings(auth.user);
+  const { allOrgs } = await listOrgs(auth);
   const byEnvironment = companiesByEnvironment(
-    orgs.filter((o) => o.kind === 'business-central').map((o) => o.key)
+    allOrgs.filter((o) => o.kind === 'business-central').map((o) => o.key)
   );
   const token = await auth.getToken('bc');
   const total: SubscriptionSummary = { created: 0, renewed: 0, kept: 0, removed: 0 };

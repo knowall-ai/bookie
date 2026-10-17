@@ -1,9 +1,12 @@
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, UserLock } from 'lucide-react';
+import { canManageSettings } from '@/lib/auth/access';
 import { requireAuth } from '@/lib/auth/context';
+import { tenantDisplayName } from '@/lib/auth/tenant-name';
 import { listOrgs } from '@/lib/connectors/registry';
 import { xeroOAuthConfigured } from '@/lib/connectors/xero/oauth';
 import { DEFAULT_SETTINGS } from '@/lib/config/types';
-import { ErrorPanel } from '@/components/ui/States';
+import { EmptyState, ErrorPanel } from '@/components/ui/States';
+import { ButtonLink } from '@/components/ui/Button';
 import { TopBar } from '@/components/portal/TopBar';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ConnectorCard } from '@/components/settings/ConnectorCard';
@@ -11,6 +14,7 @@ import { XeroConnections, type ConnectionSummary } from '@/components/settings/X
 import { BcCompanies } from '@/components/settings/BcCompanies';
 import { XeroStatusToast } from '@/components/settings/XeroStatusToast';
 import { BcLiveUpdates } from '@/components/settings/BcLiveUpdates';
+import { PeopleAccess } from '@/components/settings/PeopleAccess';
 import { bcWebhooksConfigured } from '@/lib/webhooks/config';
 
 export const metadata = { title: 'Settings' };
@@ -44,7 +48,35 @@ export default async function SettingsPage({
 }) {
   const auth = await requireAuth('/portal/settings');
   const { xero: xeroStatus } = await searchParams;
-  const { orgs, hiddenBcOrgs, store, storeError } = await listOrgs(auth);
+  const orgName = await tenantDisplayName(auth);
+  const devMode = auth.mode === 'entra' ? undefined : auth.mode;
+
+  // Guests (such as an external accountant) can't change connections or access.
+  if (!canManageSettings(auth.user)) {
+    const { orgs } = await listOrgs(auth);
+    return (
+      <>
+        <TopBar orgs={orgs} user={auth.user} devMode={devMode} />
+        <main className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
+          <PageHeader title="Settings" crumbs={[{ label: 'My organisations', href: '/portal' }]} />
+          <div data-testid="settings-guest">
+            <EmptyState
+              icon={<UserLock className="h-6 w-6" />}
+              title={`Ask an administrator at ${orgName ?? 'the organisation that invited you'} to change connections`}
+              body={`You're signed in as a guest, so Bookie's connections and access are managed by ${orgName ?? 'that organisation'}. They choose which organisations you can see.`}
+              action={
+                <ButtonLink href="/portal" variant="secondary">
+                  Back to my organisations
+                </ButtonLink>
+              }
+            />
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  const { orgs, allOrgs, hiddenBcOrgs, store, storeError } = await listOrgs(auth);
   const [settings, connections] = storeError
     ? [structuredClone(DEFAULT_SETTINGS), []]
     : await Promise.all([store.getSettings(), store.listConnections()]);
@@ -57,7 +89,7 @@ export default async function SettingsPage({
     createdBy: c.createdBy,
     createdAt: c.createdAt,
   }));
-  const bcCompanies = [...orgs.filter((o) => o.kind === 'business-central'), ...hiddenBcOrgs]
+  const bcCompanies = [...allOrgs.filter((o) => o.kind === 'business-central'), ...hiddenBcOrgs]
     .map((o) => ({
       key: o.key,
       name: o.name,
@@ -65,14 +97,16 @@ export default async function SettingsPage({
       hidden: hiddenBcOrgs.some((h) => h.key === o.key),
     }))
     .sort((a, b) => a.environment.localeCompare(b.environment) || a.name.localeCompare(b.name));
+  const accessOrgs = [...allOrgs, ...hiddenBcOrgs].map((o) => ({
+    key: o.key,
+    name: o.name,
+    sourceLabel: o.sourceLabel,
+    hidden: hiddenBcOrgs.some((h) => h.key === o.key),
+  }));
 
   return (
     <>
-      <TopBar
-        orgs={orgs}
-        user={auth.user}
-        devMode={auth.mode === 'entra' ? undefined : auth.mode}
-      />
+      <TopBar orgs={orgs} user={auth.user} devMode={devMode} />
       <XeroStatusToast status={xeroStatus} />
       <main className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6">
         <PageHeader
@@ -113,6 +147,15 @@ export default async function SettingsPage({
             />
           )}
         </ConnectorCard>
+
+        {!storeError && (
+          <PeopleAccess
+            orgName={orgName}
+            people={settings.access.people}
+            membersSeeAll={settings.access.membersSeeAll}
+            orgs={accessOrgs}
+          />
+        )}
 
         <section className="card p-5" aria-labelledby="data-title">
           <div className="flex items-start gap-4">

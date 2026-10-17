@@ -1,0 +1,115 @@
+= People, guests and organisation access
+:toc: left
+:icons: font
+
+Bookie decides which organisations each person can open. By default everyone in your Microsoft 365
+sees every organisation you have connected. *Guests*, such as your external accountant, see nothing
+until someone in your organisation gives them access.
+
+== Members and guests
+
+Bookie reads the person's Microsoft Entra `userType` when they sign in:
+
+[cols="1,3"]
+|===
+| Type | Who and what they see
+
+| Member | Someone in your own Microsoft 365. Sees every organisation while _Everyone in <org> can see
+all organisations_ is on (the default); otherwise only the organisations ticked for them.
+Members can always open Settings.
+| Guest | Someone from another company invited to your Microsoft 365 (Entra B2B), such as your
+accountant. Sees only the organisations ticked for them. No entry means no organisations. Guests
+can't open Settings; they're asked to contact an administrator instead.
+|===
+
+Bookie looks the type up with Microsoft Graph (`GET /me?$select=userType,mail,userPrincipalName`)
+using the sign-in token, and keeps it with the person's email in the encrypted session cookie. If
+Graph can't say, the person is treated as a guest. Sessions from before this feature sign in again.
+
+== Access entries
+
+*Settings › People and access* (members only) lists one entry per person:
+
+[source,json]
+----
+{
+  "email": "accountant@example.com",
+  "name": "Robin Example",
+  "orgKeys": ["xero.{connectionId}.{xeroTenantId}"]
+}
+----
+
+* `email` is matched case-insensitively with the address the person signs in with (their `mail`,
+  or their home email for a guest).
+* `orgKeys` lists the organisation keys they may open (the same keys as in portal URLs), or `"all"`
+  for every organisation, including ones connected later.
+* The list of organisations to tick includes Business Central companies hidden from the switcher.
+  Hidden companies stay hidden for everyone until they're shown again.
+* _Everyone in <org> can see all organisations_ (`membersSeeAll`, on by default) controls members.
+
+Entries are part of the tenant's settings, sealed with the tenant's key and stored in the tenant's own
+SharePoint like every other setting. No accounting data is involved.
+
+Business Central still applies each person's own Business Central permissions: an entry can't give
+anyone more than Business Central allows them. Xero connections are shared, so the entry is what
+limits a guest's view of a Xero organisation.
+
+== Where it's enforced
+
+`listOrgs()` (`web/src/lib/connectors/registry.ts`) applies the entries for every request, and every
+org key from a URL or request body is resolved against its result:
+
+* the portal (`orgContext()`) and every server action that uses it;
+* `getConnector()` (PDF downloads, attachments);
+* Bookie's chat, tool and voice routes (`bookieContext()`);
+* the Live feed's events route (`liveSource()`).
+
+An organisation that doesn't exist and one the person can't open look the same: 404.
+
+Every settings write (connections, Business Central, Live updates, people and access, the Xero
+connect and callback routes) refuses guests, so a guest can't widen their own access.
+
+== Signing in as a guest
+
+A guest who signs in with the main *Sign in with Microsoft* button lands in their *home* tenant
+(their own firm), not yours, because Bookie signs in through the multi-tenant `organizations`
+authority. To sign in to your tenant they need a sign-in that uses your tenant's own authority.
+
+Set `BOOKIE_GUEST_TENANTS` to the host tenants guests can sign in to:
+
+----
+BOOKIE_GUEST_TENANTS=<tenantId>:<Display Name>;<tenantId2>:<Name 2>
+----
+
+For each entry Bookie:
+
+. registers an extra Microsoft Entra provider, `azure-ad-<first 8 characters of the tenant id>`,
+  with that tenant as its authority and the same client id and secret;
+. shows *Accountant or guest of <Name>? Sign in to <Name>* under the main button on the sign-in page.
+
+Signing in through it gives a token for the host tenant, so Bookie opens the host's settings and
+organisations, filtered by the guest's access entry.
+
+Each provider needs its own redirect URI on the app registration:
+
+----
+https://<host>/api/auth/callback/azure-ad-<first 8 characters of the tenant id>
+----
+
+Add one per deployment address (for example the local dev server, the production site and any
+custom domain).
+
+== Giving your accountant access
+
+. In Microsoft Entra, invite the accountant as a guest user.
+. In Bookie, *Settings › People and access*, add them by email and tick the organisations they need.
+. Send them to Bookie's sign-in page and ask them to use *Sign in to <your organisation>*.
+
+== Testing
+
+* Unit tests: `web/src/lib/auth/access.test.ts` (the rules) and
+  `web/src/lib/connectors/registry-access.test.ts` (listOrgs, getConnector, Bookie, the Live feed and
+  the settings actions, as a demo member and a demo guest).
+* End to end: `web/tests/e2e/access.spec.ts` runs against a second dev server started with
+  `BOOKIE_DEV_AUTH=demo-guest`: a fictional guest accountant whose seeded entry grants Contoso
+  Coffee Roasters only. Like the other dev sign-ins, `demo-guest` is refused in production.

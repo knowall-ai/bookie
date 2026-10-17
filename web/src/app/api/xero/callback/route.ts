@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { canManageSettings } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { addXeroOAuthConnection } from '@/lib/connections';
 import { exchangeCode, verifyState } from '@/lib/connectors/xero/oauth';
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
   const auth = await getAuthContext();
   if (!auth)
     return NextResponse.redirect(new URL('/signin?callbackUrl=/portal/settings', request.url));
+  if (!canManageSettings(auth.user)) return back('invalid');
   if (url.searchParams.get('error')) return back('cancelled');
 
   const code = url.searchParams.get('code');
