@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { bookieContext, rateLimit } from '@/lib/bookie/session';
+import { bookieToolContext } from '@/lib/bookie/tool-context';
 import { runTool } from '@/lib/bookie/tools';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,11 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Too many lookups. Try again in a minute.' }, { status: 429 });
   }
   return Response.json({
-    output: await runTool(context.connector, parsed.data.name, parsed.data.arguments),
+    output: await runTool(
+      context.connector,
+      parsed.data.name,
+      parsed.data.arguments,
+      bookieToolContext(context.auth, context.org)
+    ),
   });
 }

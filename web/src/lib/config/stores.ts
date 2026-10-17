@@ -49,6 +49,7 @@ abstract class SealedRecordStore implements ConfigStore {
     return {
       xero: { ...DEFAULT_SETTINGS.xero, ...stored.xero },
       businessCentral: { ...DEFAULT_SETTINGS.businessCentral, ...stored.businessCentral },
+      forecast: stored.forecast,
     };
   }
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { bookieConfigured, respond, type ResponseItem } from '@/lib/bookie/llm';
 import { bookieInstructions } from '@/lib/bookie/prompt';
 import { bookieContext, rateLimit } from '@/lib/bookie/session';
+import { bookieToolContext } from '@/lib/bookie/tool-context';
 import { runTool, toolsFor, toolStatus } from '@/lib/bookie/tools';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       ? [{ role: 'user', content: 'What should I know about these books today?' }]
       : messages.slice(-20).map((m) => ({ role: m.role, content: m.content }));
   const tools = toolsFor(connector);
+  const toolContext = bookieToolContext(auth, org);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -72,7 +74,7 @@ export async function POST(request: Request) {
             conversation.push({
               type: 'function_call_output',
               call_id: call.call_id,
-              output: await runTool(connector, call.name, call.arguments),
+              output: await runTool(connector, call.name, call.arguments, toolContext),
             });
           }
         }

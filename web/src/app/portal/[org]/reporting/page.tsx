@@ -6,6 +6,7 @@ import {
   Clock3,
   Landmark,
   Scale,
+  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
@@ -35,6 +36,26 @@ export default async function ReportsPage({ params }: { params: Promise<{ org: s
   return (
     <>
       <PageHeader title="All reports" crumbs={[{ label: 'Reporting' }]} meta={org.name} />
+      {connector.bank && connector.invoices && (
+        <Link
+          href={`${base}/reporting/cash-flow-forecast`}
+          className="card hover:bg-surface-2 group mb-4 flex items-center justify-between gap-4 px-5 py-4 transition-colors"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <TrendingUp className="text-brand-bright h-4 w-4 shrink-0" aria-hidden />
+            <span className="min-w-0">
+              <span className="text-ink group-hover:text-brand-bright block font-medium transition-colors">
+                Cash flow forecast
+              </span>
+              <span className="text-muted mt-0.5 block text-sm">
+                Your bank balance over the next 13 weeks or 12 months, from unpaid invoices and
+                bills and the items you plan
+              </span>
+            </span>
+          </span>
+          <ChevronRight className="text-faint h-4 w-4 shrink-0" aria-hidden />
+        </Link>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
         {REPORT_GROUPS.map((group) => {
           const reports = connector.reports!.available.filter((id) => REPORTS[id].group === group);

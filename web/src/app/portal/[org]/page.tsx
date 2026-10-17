@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
-import { ExternalLink, Landmark } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronRight, ExternalLink, Landmark, TrendingUp } from 'lucide-react';
 import { getAuthContext } from '@/lib/auth/context';
 import { orgContext, sourceName } from '@/lib/portal/context';
 import { isConnectorError } from '@/lib/connectors/types';
@@ -128,6 +129,23 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                       `${sourceName(org)} didn't return any bank accounts for this organisation.`
                     }
                   />
+                )}
+                {modules.bank && modules.invoices && (
+                  <Link
+                    href={`${base}/reporting/cash-flow-forecast`}
+                    className="border-line hover:border-brand/40 hover:bg-surface-2 group mt-4 flex items-center gap-3 rounded-xl border border-dashed px-4 py-3 text-sm transition-colors"
+                    data-testid="home-forecast-link"
+                  >
+                    <TrendingUp className="text-brand-bright h-4 w-4 shrink-0" aria-hidden />
+                    <span className="text-ink font-medium">Cash flow forecast</span>
+                    <span className="text-muted hidden sm:inline">
+                      Where these balances are heading, from your unpaid invoices and bills
+                    </span>
+                    <ChevronRight
+                      className="text-faint group-hover:text-brand-bright ml-auto h-4 w-4"
+                      aria-hidden
+                    />
+                  </Link>
                 )}
               </section>
 

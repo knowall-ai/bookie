@@ -94,6 +94,7 @@ export const NAV: NavTab[] = [
     href: '/reporting',
     items: [
       { label: 'All reports', href: '/reporting', module: 'reports' },
+      { label: 'Cash flow forecast', href: '/reporting/cash-flow-forecast', module: 'bank' },
       { label: 'Profit and loss', href: '/reporting/profit-and-loss', module: 'reports' },
       { label: 'Balance sheet', href: '/reporting/balance-sheet', module: 'reports' },
       { label: 'Aged receivables', href: '/reporting/aged-receivables', module: 'reports' },
