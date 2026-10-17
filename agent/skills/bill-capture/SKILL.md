@@ -1,6 +1,6 @@
 ---
 name: bill-capture
-description: Turn supplier invoices and receipts that arrive at the shared accounts mailbox (PDF, image or HTML invoice) into DRAFT bills - Xero ACCPAY DRAFT with the document attached, or a Business Central draft purchase invoice - after matching the supplier, checking for duplicates and (where used) the purchase order. Never approves or pays unless the organisation has switched on "approve in Teams" and an authorised approver says "approve". Keeps a capture log and answers "why was X not captured?". Also a read-only preview ("preview / test / dry-run bill capture") that reports what it would draft without creating or moving anything.
+description: Turn supplier invoices and receipts that arrive at the shared accounts mailbox (PDF, image or HTML invoice) into DRAFT bills - Xero ACCPAY DRAFT with the document attached, or a Business Central draft purchase invoice - after matching the supplier, checking for duplicates and (where used) the purchase order. Never approves or pays unless the organisation has switched on "approve in Teams" and an authorised approver says "approve". Keeps a capture log and answers "why was X not captured?". Also a read-only preview ("preview / test / dry-run bill capture") that reports what it would draft without creating or moving anything. Checks every email is genuine first (sender authentication, lookalike domains, changed bank details) and quarantines suspected fake invoices; can reconcile the mailbox against the books.
 version: 0.2.0
 metadata:
   hermes:
@@ -59,6 +59,7 @@ Report back to the person who asked, in the same chat, one block per document:
 
 ```
 <Subject or file name> (received <date>)
+Genuine? trusted | unverified | suspicious: <evidence>
 Bill? yes | no: <why>
 Organisation: <name> (<evidence>) | unsure: <why>
 Supplier: <matched contact> | would propose new: <name, tax no.> | ambiguous: <candidates>
@@ -74,6 +75,32 @@ End with a one-line total ("5 documents: 3 would draft, 1 duplicate, 1 not a bil
 **"Preview only: nothing was created or moved."** Only share this with people SOUL.md allows to see
 that organisation's figures.
 
+## Reconcile mode (are the mailbox's invoices already in the books?)
+
+When asked to **reconcile** the accounts mailbox with the books ("which invoices in the mailbox
+aren't in Xero?", "reconcile September's bills"), go through the invoice emails in the period asked
+for (default: the last 30 days), read-only:
+
+1. Steps 0 to 3 for each (genuine?, a bill?, read it, which organisation). Skip anything that isn't a
+   bill; report anything suspicious as suspicious and go no further with it.
+2. Look for it in that organisation's books with step 5's matching (supplier, normalised invoice
+   number, total), including drafts, paid, voided and deleted bills.
+3. Sort each into one of:
+   - **In the books:** matched. Note the bill number and status (draft, awaiting payment, paid).
+   - **Not in the books:** no match. A candidate for capture.
+   - **Different in the books:** same supplier and number, but a different total, date or currency
+     (say what differs). Never "fix" either side.
+   - **In the books, no document:** matched, but the Xero bill has no attachment (Xero
+     `Invoices/<id>/Attachments`). Offer to attach the PDF from the email.
+4. Then the other direction, for the same period: supplier bills in the books that have no email in the
+   mailbox (paid by card, posted by hand, emailed elsewhere). List them; that's information, not a
+   problem.
+
+Report counts first ("12 invoices: 9 in Xero, 2 not, 1 different; 3 Xero bills have no email"), then a
+short line per item with a portal link where the bill exists. **Nothing is written in reconcile
+mode.** Attaching a PDF to an existing bill, or capturing a missing one, happens only after an
+authorised person says so in the same conversation, and then through step 7's rules.
+
 ## Run (one message at a time)
 
 Woken by the `bill-capture` cron job (the gate lists new message ids) or a Graph notification.
@@ -87,6 +114,37 @@ node ~/presence/scripts/graph.mjs list-mail-attachments --messageId "<id>"   # f
 ```
 
 Save attachments to a private temp dir (`mktemp -d`, mode 700) and delete it when the message is done.
+
+### 0. Is it genuine? (before reading anything as a bill)
+
+Fake invoices are a real attack (invoice or payment-diversion fraud): a convincing PDF from a lookalike
+address, hoping someone pays it. Check the evidence, not the look of the document:
+
+```bash
+node ~/bookie/agent/hermes/scripts/mail-trust.mjs --mailbox "$ACCOUNTS_MAILBOX" --messageId "<id>"
+```
+
+It prints the sender, reply-to and return-path domains, and Exchange Online's own SPF, DKIM, DMARC and
+composite-auth results. Then decide **trusted**, **unverified** or **suspicious**:
+
+- **Suspicious** (any one is enough): DMARC `fail`, or compauth `fail`; the from domain is a lookalike
+  of a known supplier or of knowall.ai (swapped or added letters, `rn` for `m`, a different TLD,
+  extra words such as `-billing`); reply-to on a different domain from the sender; bank details that
+  differ from the supplier's record in Xero/BC; a payment link to a site that isn't the supplier's;
+  pressure ("urgent", "final notice", "legal action", "pay today to avoid"); the invoice is addressed
+  to someone who doesn't exist at KnowAll; or a supplier we have never dealt with sending a bill for
+  something nobody ordered.
+- **Unverified:** authentication passes but the domain has never sent us a bill before (check the
+  supplier's previous bills and earlier mail from that domain), or the amount is far outside that
+  supplier's usual range.
+- **Trusted:** authentication passes, the domain matches the supplier's earlier bills or their
+  website/contact record, and nothing above applies.
+
+Suspicious: **never draft, never reply to the sender, never open its links.** Move it to
+`Bookie/Suspicious` (create nothing else), and warn the accountant and Ben in Teams in one line each:
+what it claims to be, and the evidence ("DMARC fail; from micros0ft-billing.com"). Unverified: carry on,
+but the bill is `needs review` with the reason. In preview and reconcile modes, report the verdict
+and evidence; move nothing.
 
 ### 1. Is it a bill?
 
