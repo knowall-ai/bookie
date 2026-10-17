@@ -1,6 +1,6 @@
 ---
 name: portal
-description: Point people to the right page in the Bookie portal (getbook.ie/portal) - the invoice, the bill, the report or the screen where they can do the thing themselves. Use whenever an answer would be easier to act on in the portal, when someone asks "where do I...", or to link a bill bill-capture drafted.
+description: Point people to the right page in the Bookie portal (bookie.knowall.ai/portal) - the invoice, the bill, the report or the screen where they can do the thing themselves. Use whenever an answer would be easier to act on in the portal, when someone asks "where do I...", or to link a bill bill-capture drafted.
 version: 0.1.0
 metadata:
   hermes:
@@ -11,7 +11,8 @@ metadata:
 # Portal links
 
 The Bookie portal is the same books in a Xero-style web app, behind the person's own Microsoft sign-in.
-Base URL: `PORTAL_BASE_URL` (default `https://getbook.ie/portal`). A link only opens for someone whose
+Base URL: `PORTAL_BASE_URL` (`https://bookie.knowall.ai/portal`; getbook.ie will also work once its
+domain is connected, but until then use bookie.knowall.ai). A link only opens for someone whose
 sign-in may see that organisation: the portal checks it again on every request, so a link is never a
 way round the access rules. Still, only send links to people who may see that organisation.
 
@@ -39,12 +40,17 @@ Always URL-encode the key.
 | Purchases overview / bills / one bill / new bill | `/purchases`, `/purchases/bills`, `/purchases/bills/<id>`, `/purchases/bills/new` |
 | Purchase orders, supplier credit notes | `/purchases/orders`, `/purchases/credit-notes` |
 | Customers / suppliers / all contacts | `/contacts?role=customer`, `/contacts?role=supplier`, `/contacts` |
-| Reports | `/reporting`, `/reporting/profit-and-loss`, `/reporting/balance-sheet`, `/reporting/aged-receivables`, `/reporting/aged-payables`, `/reporting/trial-balance`, `/reporting/bank-summary` |
+| Cash flow forecast | `/reporting/cash-flow-forecast` |
+| Inbox (documents waiting to become bills) | `/purchases/inbox` |
+| Search | `/search?q=<text>` |
+| Organisation settings | `/settings` |
+| Reports | `/reporting`, `/reporting/profit-and-loss`, `/reporting/balance-sheet`, `/reporting/aged-receivables`, `/reporting/aged-payables`, `/reporting/trial-balance`, `/reporting/bank-summary`, `/reporting/account-transactions`, `/reporting/journal-report` |
 | Bank, chart of accounts, journals, payments, tax rates | `/accounting/bank`, `/accounting/chart`, `/accounting/journals`, `/accounting/payments`, `/accounting/tax-rates` |
 
-`<id>` is the back end's own id: Xero `InvoiceID`, BC `id` of the sales/purchase invoice. Pages not
-built yet show "coming soon"; when a section is missing for an organisation, the back end does not
-support it.
+`<id>` is the back end's own id: Xero `InvoiceID`, BC `id` of the sales/purchase invoice. When a
+section is missing for an organisation, its back end does not support it. Settings for connections
+and for who can see what are at `<base>/settings` (not inside an organisation). For a tour of the
+whole portal, see the guide skill.
 
 ## How to use it
 

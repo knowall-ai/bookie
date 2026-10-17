@@ -73,7 +73,7 @@ declare -A SETTINGS=(
   [BC_ENVIRONMENT]="${BC_ENVIRONMENT}" [BROWSER_OUT_DIR]="${AGENT_HOME}/tmp/browser"
   [GRAPH_DEFAULT_AUTH]=delegated [INTERNAL_DOMAINS]="${M365_DOMAIN}" [XERO_SH]="${XERO_SH}"
   [XERO_SCOPE]="accounting.transactions.read accounting.reports.read accounting.contacts.read accounting.settings.read"
-  [ACCOUNTS_MAILBOX]="${ACCOUNTS_MAILBOX:-}" [PORTAL_BASE_URL]="${PORTAL_BASE_URL:-https://getbook.ie/portal}"
+  [ACCOUNTS_MAILBOX]="${ACCOUNTS_MAILBOX:-}" [PORTAL_BASE_URL]="${PORTAL_BASE_URL:-https://bookie.knowall.ai/portal}"
   [BILL_CAPTURE_PROCESSED_FOLDER]="${BILL_CAPTURE_PROCESSED_FOLDER:-Bookie/Processed}"
   [BILL_CAPTURE_REVIEW_FOLDER]="${BILL_CAPTURE_REVIEW_FOLDER:-Bookie/Needs review}"
   [PRINCIPAL_UPN]="${PRINCIPAL_UPN:-}" [HUD_BRAIN_MODEL]="${MODEL_MAIN}" [DEEP_FEED_PROVIDER]=hermes
