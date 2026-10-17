@@ -58,6 +58,17 @@ describe('public Bookie prompt hardening', () => {
     expect(prompts[0]).not.toMatch(/Use your tools/);
   });
 
+  it('calls the product Bookie and never reads a domain aloud', () => {
+    for (const prompt of prompts) {
+      expect(prompt).not.toMatch(/getbook/i);
+      expect(prompt).toMatch(/Call the product simply "Bookie"/);
+    }
+    const voice = publicBookieInstructions('voice');
+    expect(voice).toMatch(/Never say a web address, domain name or URL aloud/);
+    expect(voice).not.toMatch(/https?:\/\/bookie\.knowall\.ai/);
+    expect(publicBookieInstructions('chat')).toMatch(/https:\/\/bookie\.knowall\.ai/);
+  });
+
   it('carries the whole public FAQ', () => {
     for (const { q } of SITE_FAQ) expect(prompts[0]).toContain(q);
   });

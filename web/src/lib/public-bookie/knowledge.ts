@@ -35,7 +35,7 @@ export const SITE_FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'What does it cost?',
-    a: 'The portal is open source under the MIT licence: run it yourself for free, or use it at getbook.ie. Bookie the AI bookkeeper is a paid add-on, installed in your own Azure subscription or hosted by KnowAll AI on request. Get in touch for pricing.',
+    a: 'The portal is open source under the MIT licence: run it yourself for free, or use the hosted portal on the Bookie website. Bookie the AI bookkeeper is a paid add-on, installed in your own Azure subscription or hosted by KnowAll AI on request. Get in touch for pricing.',
   },
   {
     q: 'Which accounting systems are next?',
@@ -45,7 +45,7 @@ export const SITE_FAQ: { q: string; a: string }[] = [
 
 export const KNOWLEDGE = `
 # What Bookie is
-Bookie (getbook.ie) is a familiar, Xero-style accounting portal over Xero or Microsoft Dynamics 365 Business Central, made by KnowAll AI Ltd, a UK company. You switch between every client's books with one Microsoft sign-in, and you can ask Bookie the AI bookkeeper what the numbers mean. It is open source under the MIT licence: https://github.com/knowall-ai/bookie.
+Bookie is a familiar, Xero-style accounting portal over Xero or Microsoft Dynamics 365 Business Central, made by KnowAll AI Ltd, a UK company. You switch between every client's books with one Microsoft sign-in, and you can ask Bookie the AI bookkeeper what the numbers mean. It is open source under the MIT licence: https://github.com/knowall-ai/bookie.
 
 # How it works: three steps
 1. Install for your Microsoft 365 organisation. An administrator approves Bookie once, for everyone (about a minute). It asks for sign-in, your profile, Business Central as you, and permission to keep its settings in your own SharePoint. Nothing else.
@@ -69,7 +69,7 @@ Bookie reads each system through its official API and shows it in one familiar l
 - He can be wrong. His answers are information, not professional accounting, tax or legal advice.
 
 # The agent add-on and pricing
-- The portal is free and open source: self-host it, or use it at getbook.ie.
+- The portal is free and open source: self-host it, or use the hosted portal on the Bookie website.
 - Bookie the agent is a paid add-on, provided under a separate order with KnowAll AI. KnowAll AI installs him in the customer's own Azure subscription, so his account, memory and voice stay in their tenant; or KnowAll AI hosts him on request, with an isolated instance per customer.
 - There is no published price for the add-on. For pricing or a demo, contact KnowAll AI at https://knowall.ai.
 
@@ -80,7 +80,7 @@ Bookie reads each system through its official API and shows it in one familiar l
   - Microsoft Graph User.Read: your name, email and organisation.
   - Dynamics 365 Business Central Financials.ReadWrite.All (user_impersonation): open Business Central as you, only if you switch it on.
   - Microsoft Graph Sites.Manage.All: keep Bookie's sealed connection settings in a hidden list on your own SharePoint.
-- Then anyone in the organisation signs in at getbook.ie/portal and connects Xero or switches on Business Central.
+- Then anyone in the organisation signs in at /portal on the Bookie website and connects Xero or switches on Business Central.
 - To limit who can use it: in Microsoft Entra, Enterprise applications, set Assignment required to Yes and assign users or groups. Conditional access applies.
 - To remove it: delete Bookie from Enterprise applications and delete the hidden BookieConnections list on the root SharePoint site.
 
