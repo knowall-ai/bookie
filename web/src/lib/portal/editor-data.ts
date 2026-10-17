@@ -1,10 +1,7 @@
 import 'server-only';
 import type { AccountingConnector } from '@/lib/connectors/types';
-import type {
-  EditorItem,
-  EditorOption,
-  EditorTaxRate,
-} from '@/components/documents/DocumentEditor';
+import type { EditorItem, EditorOption } from '@/components/documents/DocumentEditor';
+import { taxRateOptions } from '@/components/accounting/options';
 
 /**
  * Reference data for the document editor. Every source is optional: if a
@@ -47,14 +44,8 @@ export async function editorData(connector: AccountingConnector, side: 'sales' |
     accounts: accounts
       .filter((a) => a.status === 'active' && !a.isBank)
       .map<EditorOption>((a) => ({ value: a.code, label: `${a.code} · ${a.name}` })),
-    taxRates: taxRates
-      .filter((t) => t.status === 'active')
-      .map<EditorTaxRate>((t) => ({
-        taxType: t.taxType,
-        // Some sources (BC tax groups) name a rate without exposing its percentage.
-        name: t.rateAvailable === false ? t.name : `${t.name} (${t.rate}%)`,
-        rate: t.rate,
-      })),
+    // Some sources (BC tax groups) name a rate without exposing its percentage.
+    taxRates: taxRateOptions(taxRates),
     items: items
       .filter((i) => (side === 'sales' ? i.isSold : i.isPurchased))
       .map<EditorItem>((i) => ({

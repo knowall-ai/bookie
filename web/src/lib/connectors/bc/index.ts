@@ -3,7 +3,6 @@ import type {
   Contact,
   ContactInput,
   DashboardSummary,
-  DocumentBucket,
   Invoice,
   InvoiceInput,
   InvoiceStatus,
@@ -43,7 +42,9 @@ import {
   type BookieExtension,
 } from './extension';
 import { bcCurrencies } from './modules/currencies';
-import { excludedNote, isForeign } from '@/lib/domain/currency';
+import { isForeign } from '@/lib/domain/currency';
+import { bcFiscalYear } from './fiscal-year';
+import { invoiceBuckets } from '../buckets';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -164,35 +165,8 @@ const BC_STATUS_FILTER: Record<string, string | undefined> = {
   voided: "(status eq 'Canceled' or status eq 'Corrective')",
 };
 
-const COUNTRY_CURRENCY: Record<string, string> = {
-  GB: 'GBP',
-  IE: 'EUR',
-  US: 'USD',
-  SV: 'USD',
-  CA: 'CAD',
-  AU: 'AUD',
-  NZ: 'NZD',
-  ZA: 'ZAR',
-  DE: 'EUR',
-  FR: 'EUR',
-  ES: 'EUR',
-  IT: 'EUR',
-  NL: 'EUR',
-  BE: 'EUR',
-  AT: 'EUR',
-  PT: 'EUR',
-  FI: 'EUR',
-  MX: 'MXN',
-  DK: 'DKK',
-  SE: 'SEK',
-  NO: 'NOK',
-  CH: 'CHF',
-  IN: 'INR',
-};
-
-export function currencyForCountry(country?: string): string | undefined {
-  return country ? COUNTRY_CURRENCY[country.toUpperCase()] : undefined;
-}
+export const BC_BILL_REMAINING_NOTE =
+  "Business Central doesn't report what's left to pay on posted bills. Install the Bookie BC extension to see amounts due.";
 
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -236,11 +210,28 @@ function toLine(line: InvoiceInput['lineItems'][number], type: InvoiceType) {
   };
 }
 
+/**
+ * Amount due / paid from what BC reports. Unposted documents (draft, in review)
+ * can't have been paid, and BC only marks a posted invoice Paid once it is
+ * closed, so those follow from the status. For Open invoices the figure must
+ * come from the source (`remaining`); without it both stay undefined.
+ */
+export function dueAndPaid(
+  status: InvoiceStatus,
+  total: number,
+  remaining: number | undefined
+): { amountDue?: number; amountPaid?: number } {
+  if (status === 'draft' || status === 'submitted') return { amountDue: total, amountPaid: 0 };
+  if (status === 'voided') return { amountDue: 0, amountPaid: 0 };
+  if (status === 'paid') return { amountDue: 0, amountPaid: total };
+  if (remaining === undefined) return { amountDue: undefined, amountPaid: undefined };
+  return { amountDue: remaining, amountPaid: Math.round((total - remaining) * 100) / 100 };
+}
+
 export function fromSalesInvoice(raw: BcSalesInvoice, lcy: string): Invoice {
   const status = STATUS[raw.status] ?? 'draft';
   const total = raw.totalAmountIncludingTax ?? 0;
-  const amountDue =
-    status === 'draft' || status === 'submitted' ? total : (raw.remainingAmount ?? 0);
+  const { amountDue, amountPaid } = dueAndPaid(status, total, raw.remainingAmount);
   const dueDate = bcDate(raw.dueDate);
   return {
     id: raw.id,
@@ -257,8 +248,13 @@ export function fromSalesInvoice(raw: BcSalesInvoice, lcy: string): Invoice {
     totalTax: raw.totalTaxAmount ?? 0,
     total,
     amountDue,
-    amountPaid: status === 'authorised' || status === 'paid' ? total - amountDue : 0,
-    isOverdue: status === 'authorised' && !!dueDate && dueDate < today() && amountDue > 0,
+    amountPaid,
+    // Open = posted and not fully paid, so past its due date it is overdue.
+    isOverdue:
+      status === 'authorised' &&
+      !!dueDate &&
+      dueDate < today() &&
+      (amountDue === undefined || amountDue > 0),
     lineItems: raw.salesInvoiceLines?.map(fromLine),
     updatedAt: raw.lastModifiedDateTime,
   };
@@ -266,7 +262,9 @@ export function fromSalesInvoice(raw: BcSalesInvoice, lcy: string): Invoice {
 
 /**
  * `remaining`: the bill's remaining amount from its vendor ledger entry, when the
- * Bookie BC extension is installed (see `billAmountDue` in ./extension).
+ * Bookie BC extension is installed (see `billAmountDue` in ./extension). BC's
+ * standard API v2.0 has no remaining amount on purchase invoices, so without the
+ * extension an open bill's amount due is undefined ("not available"), never a guess.
  */
 export function fromPurchaseInvoice(
   raw: BcPurchaseInvoice,
@@ -275,13 +273,7 @@ export function fromPurchaseInvoice(
 ): Invoice {
   const status = STATUS[raw.status] ?? 'draft';
   const total = raw.totalAmountIncludingTax ?? 0;
-  // BC's purchase invoice API has no remaining amount; Open means unpaid.
-  const amountDue =
-    status === 'paid' || status === 'voided'
-      ? 0
-      : status === 'authorised' && remaining !== undefined
-        ? remaining
-        : total;
+  const { amountDue, amountPaid } = dueAndPaid(status, total, remaining);
   const dueDate = bcDate(raw.dueDate);
   return {
     id: raw.id,
@@ -298,8 +290,13 @@ export function fromPurchaseInvoice(
     totalTax: raw.totalTaxAmount ?? 0,
     total,
     amountDue,
-    amountPaid: total - amountDue,
-    isOverdue: status === 'authorised' && !!dueDate && dueDate < today() && amountDue > 0,
+    amountPaid,
+    // Open = posted and not fully paid, so past its due date it is overdue.
+    isOverdue:
+      status === 'authorised' &&
+      !!dueDate &&
+      dueDate < today() &&
+      (amountDue === undefined || amountDue > 0),
     lineItems: raw.purchaseInvoiceLines?.map(fromLine),
     updatedAt: raw.lastModifiedDateTime,
   };
@@ -384,6 +381,11 @@ export function toParty(input: ContactInput) {
 /* ------------------------------------------------------------------ */
 /* Modules                                                             */
 /* ------------------------------------------------------------------ */
+
+/** The list note when some rows have no amount due from BC (open bills). */
+function remainingNote(items: Invoice[]): string | undefined {
+  return items.some((i) => i.amountDue === undefined) ? BC_BILL_REMAINING_NOTE : undefined;
+}
 
 function bcInvoices(
   client: BcClient,
@@ -514,6 +516,7 @@ function bcInvoices(
           pageSize,
           hasMore: merged.length > page * pageSize,
           total: merged.length,
+          note: remainingNote(items),
         };
       }
       const result = await client.request<ODataList<BcSalesInvoice | BcPurchaseInvoice>>(
@@ -530,7 +533,13 @@ function bcInvoices(
       const rows = result.value.slice(0, pageSize);
       const bills = await billsDue(type, rows);
       const items = await Promise.all(rows.map((raw) => map(type, raw, bills)));
-      return { items, page, pageSize, hasMore: result.value.length > pageSize };
+      return {
+        items,
+        page,
+        pageSize,
+        hasMore: result.value.length > pageSize,
+        note: remainingNote(items),
+      };
     },
     async get(id) {
       const { type, raw } = await locate(id);
@@ -672,25 +681,37 @@ function bcContacts(client: BcClient, lcy: () => Promise<string>): ContactsModul
           currency
         );
       }
-      const [vendor, overdue] = await Promise.all([
+      // BC's API v2.0 has no vendor overdue figure and bills carry no remaining amount.
+      // With the Bookie BC extension, sum the real remaining amounts of overdue open
+      // bills, only when every one is known and in the local currency; else unknown.
+      const [vendor, overdueBills] = await Promise.all([
         client.request<BcParty>(`vendors(${raw})`),
-        // BC's v2.0 API has no vendor overdue figure and purchase invoices carry no
-        // remaining amount: sum open bills past their due date, as the bills list does.
-        // Only when every one is in the local currency: no summing EUR with GBP.
         client
           .all<BcPurchaseInvoice>('purchaseInvoices', {
             $filter: `vendorId eq ${raw} and status eq 'Open' and dueDate lt ${today()}`,
-            $select: 'id,totalAmountIncludingTax,currencyCode',
+            $select: 'id,number,vendorNumber,currencyCode',
           })
-          .then((rows) =>
-            rows.some((r) => isForeign(r.currencyCode || undefined, currency))
-              ? undefined
-              : rows.reduce((s, r) => s + (r.totalAmountIncludingTax ?? 0), 0)
-          )
           .catch(() => undefined),
       ]);
       const contact = fromParty(vendor, entity, currency);
       if (!contact.balances) return contact;
+      let overdue: number | undefined;
+      if (
+        overdueBills &&
+        !overdueBills.some((b) => isForeign(b.currencyCode || undefined, currency))
+      ) {
+        const remaining = overdueBills.length
+          ? await extensionBillRemaining(
+              client,
+              overdueBills.map((b) => b.number)
+            ).catch(() => undefined)
+          : new Map<string, BcVendorLedgerEntry[]>();
+        const amounts = overdueBills.map((b) =>
+          billAmountDue(remaining?.get(b.number), b.vendorNumber)
+        );
+        if (amounts.every((a) => a !== undefined))
+          overdue = Math.round(amounts.reduce((sum, a) => sum + a!, 0) * 100) / 100;
+      }
       return { ...contact, balances: { ...contact.balances, overduePayable: overdue } };
     },
     async create(input) {
@@ -729,62 +750,45 @@ function bcContacts(client: BcClient, lcy: () => Promise<string>): ContactsModul
 /* Dashboard                                                           */
 /* ------------------------------------------------------------------ */
 
-function emptyBuckets() {
-  const b = (): DocumentBucket => ({ count: 0, total: 0 });
-  return { draft: b(), awaitingApproval: b(), awaitingPayment: b(), overdue: b() };
-}
-
-/**
- * Dashboard buckets in LCY. BC's invoice API gives amounts in the document
- * currency and no exchange rate, so foreign-currency documents can't be
- * converted: they are left out and counted for the note. Exported for tests.
- */
-export function summarise(invoices: Invoice[], lcy: string) {
-  const summary = emptyBuckets();
-  let excluded = 0;
-  const currencies = new Set<string>();
-  for (const invoice of invoices) {
-    const target =
-      invoice.status === 'draft'
-        ? summary.draft
-        : invoice.status === 'submitted'
-          ? summary.awaitingApproval
-          : invoice.status === 'authorised'
-            ? summary.awaitingPayment
-            : undefined;
-    if (!target) continue;
-    if (isForeign(invoice.currency, lcy)) {
-      excluded += 1;
-      currencies.add(invoice.currency);
-      continue;
-    }
-    target.count += 1;
-    target.total += invoice.status === 'authorised' ? invoice.amountDue : invoice.total;
-    if (invoice.isOverdue) {
-      summary.overdue.count += 1;
-      summary.overdue.total += invoice.amountDue;
-    }
-  }
-  return { buckets: summary, excluded, currencies: [...currencies].sort() };
-}
-
 interface BcStatementLine {
   display: string;
   netChange?: number;
   lineType: string;
 }
 
-async function incomeStatement(client: BcClient, from: string, to: string) {
-  const lines = await client.all<BcStatementLine>('incomeStatements', {
-    $filter: `dateFilter ge ${from} and dateFilter le ${to}`,
-  });
-  const find = (pattern: RegExp) => lines.find((l) => pattern.test(l.display))?.netChange;
+export const BC_INCOME_LINES_NOTE =
+  "Business Central's income statement has no Total Revenue and Net Income lines Bookie can read, so income and expenses aren't shown. Open the Income Statement report instead.";
+
+/**
+ * Income, expenses and net from BC's income statement. Undefined when the
+ * company's financial report has no recognisable revenue or net income line:
+ * a missing line is not a zero.
+ */
+export function incomeFromStatement(
+  lines: BcStatementLine[]
+): { income: number; expenses: number; net: number } | undefined {
+  const find = (pattern: RegExp) =>
+    lines.find((l) => pattern.test(l.display.trim()) && typeof l.netChange === 'number')?.netChange;
+  const income = find(/^Total Revenue$|^Total Income$|^Revenue$|^Income$/i);
+  const net = find(/^Net Income$|^Net Profit|^NET INCOME$/i);
+  if (income === undefined || net === undefined) return undefined;
   // BC's standard financial report shows income positive ("Show Opposite Sign"), but a
   // company can configure it credit-negative; detect that and flip so income is positive.
   const sign = incomeIsCreditNegative([lines as BcReportLine[]]) ? -1 : 1;
-  const income = sign * (find(/^Total Revenue$|^Total Income$|^Revenue$|^Income$/i) ?? 0);
-  const net = sign * (find(/^Net Income$|^Net Profit|^NET INCOME$/i) ?? 0);
-  return { income, expenses: income - net, net };
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    income: round(sign * income),
+    expenses: round(sign * (income - net)),
+    net: round(sign * net),
+  };
+}
+
+async function incomeStatement(client: BcClient, from: string, to: string) {
+  return incomeFromStatement(
+    await client.all<BcStatementLine>('incomeStatements', {
+      $filter: `dateFilter ge ${from} and dateFilter le ${to}`,
+    })
+  );
 }
 
 export interface BcConnectorOptions {
@@ -806,18 +810,16 @@ export function createBcConnector({
     (info ??= client
       .request<ODataList<BcCompanyInformation>>('companyInformation')
       .then((r) => r.value[0] ?? {}));
-  // BC leaves currencyCode blank when it is the local currency; infer it from the country.
-  // Bookie BC extension: General Ledger Setup's LCY Code comes before any inference.
+  /**
+   * The company's local currency (LCY), exactly as BC reports it: companyInformation,
+   * else General Ledger Setup's LCY Code from the Bookie BC extension. Empty when
+   * neither has one: never a currency inferred from the country.
+   */
   const lcy = async () => {
     const c = await companyInformation();
-    return (
-      c.currencyCode ||
-      (await bookieExtension(client))?.lcyCode ||
-      currencyForCountry(c.country) ||
-      org.baseCurrency ||
-      'GBP'
-    );
+    return c.currencyCode?.trim() || (await bookieExtension(client))?.lcyCode?.trim() || '';
   };
+  const fiscalYear = bcFiscalYear(client);
 
   const link = (invoice: Invoice): Invoice => {
     const posted = invoice.status !== 'draft' && invoice.status !== 'submitted';
@@ -841,11 +843,17 @@ export function createBcConnector({
     org,
 
     async organisation(): Promise<OrgDetails> {
-      const c = await companyInformation();
+      const [c, fy] = await Promise.all([companyInformation(), fiscalYear(today())]);
+      // The year end is the day before BC's current financial year starts (from its
+      // accounting periods); unset when BC has no financial year set up.
+      const yearEnd = fy.start ? new Date(`${fy.start}T00:00:00Z`) : undefined;
+      yearEnd?.setUTCDate(yearEnd.getUTCDate() - 1);
       return {
         name: c.displayName || org.name,
         country: c.country || undefined,
-        baseCurrency: await lcy(),
+        baseCurrency: (await lcy()) || undefined,
+        financialYearEndDay: yearEnd?.getUTCDate(),
+        financialYearEndMonth: yearEnd ? yearEnd.getUTCMonth() + 1 : undefined,
         taxNumber: c.taxRegistrationNumber || undefined,
         address: {
           line1: c.addressLine1 || undefined,
@@ -881,54 +889,50 @@ export function createBcConnector({
           to: end.toISOString().slice(0, 10),
         };
       });
-      // Bookie BC extension: the fiscal year from the Accounting Periods when API v2.0 has none.
-      const fyStart =
-        bcDate(info.currentFiscalYearStartDate) ??
-        ext?.fiscalYearStart ??
-        `${now.getUTCFullYear()}-01-01`;
+      // The real financial year start: companyInformation, else BC's accounting periods
+      // (API v2.0, or the Bookie BC extension). Never assume 1 January.
+      const fy = await fiscalYear(today());
+      const fyStart = bcDate(info.currentFiscalYearStartDate) ?? fy.start ?? ext?.fiscalYearStart;
+      const fyNote = fyStart ? undefined : fy.note;
       const [trend, ytd, bankAccounts, bills] = await Promise.all([
-        Promise.all(
-          months.map(async (m) => ({
-            month: m.month,
-            ...(await incomeStatement(client, m.from, m.to)),
-          }))
-        ),
-        incomeStatement(client, fyStart, today()),
-        bank?.accounts().catch(() => []) ?? Promise.resolve([]),
+        Promise.all(months.map((m) => incomeStatement(client, m.from, m.to))),
+        fyStart ? incomeStatement(client, fyStart, today()) : Promise.resolve(undefined),
+        bank?.accounts().catch(() => undefined) ?? Promise.resolve([]),
         extensionBillRemaining(
           client,
           purchases.filter((p) => p.status === 'Open').map((p) => p.number)
         ),
       ]);
-      const receivables = summarise(
+      const receivables = invoiceBuckets(
         sales.map((s) => fromSalesInvoice(s, currency)),
         currency
       );
-      const payables = summarise(
+      const payables = invoiceBuckets(
         purchases.map((p) =>
           fromPurchaseInvoice(p, currency, billAmountDue(bills?.get(p.number), p.vendorNumber))
         ),
         currency
       );
+      const trendKnown = trend.every((t) => t !== undefined);
       return {
         currency,
-        bankAccounts,
-        receivables: receivables.buckets,
-        payables: payables.buckets,
-        receivablesNote: excludedNote(
-          receivables.excluded,
-          receivables.currencies,
-          'invoice',
-          'Business Central'
-        ),
-        payablesNote: excludedNote(
-          payables.excluded,
-          payables.currencies,
-          'bill',
-          'Business Central'
-        ),
-        trend: trend.map(({ month, income, expenses }) => ({ month, income, expenses })),
-        profitAndLoss: { from: fyStart, to: today(), ...ytd },
+        bankAccounts: bankAccounts ?? [],
+        receivables,
+        payables,
+        trend: trendKnown
+          ? trend.map((t, i) => ({
+              month: months[i].month,
+              income: t!.income,
+              expenses: t!.expenses,
+            }))
+          : [],
+        profitAndLoss: fyStart && ytd ? { from: fyStart, to: today(), ...ytd } : undefined,
+        notes: {
+          bank: bankAccounts ? undefined : "Business Central didn't return the bank accounts.",
+          payables: payables.awaitingPayment.unknownCount ? BC_BILL_REMAINING_NOTE : undefined,
+          trend: trendKnown ? undefined : BC_INCOME_LINES_NOTE,
+          profitAndLoss: fyNote ?? (ytd ? undefined : BC_INCOME_LINES_NOTE),
+        },
       };
     },
 

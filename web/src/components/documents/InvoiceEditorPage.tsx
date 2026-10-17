@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { orgContext } from '@/lib/portal/context';
+import { orgContext, sourceName } from '@/lib/portal/context';
 import { editorData } from '@/lib/portal/editor-data';
 import { saveInvoice } from '@/lib/portal/actions/invoices';
 import type { InvoiceInput, InvoiceType } from '@/lib/domain/types';
@@ -37,6 +37,7 @@ export async function InvoiceEditorPage({
     <DocumentEditor
       heading={existing ? `Edit ${noun} ${existing.number}` : `New ${noun}`}
       currency={existing?.currency ?? details.baseCurrency}
+      source={sourceName(org)}
       contactLabel={type === 'sales' ? 'To' : 'From'}
       dateLabel="Date"
       secondDateLabel="Due date"

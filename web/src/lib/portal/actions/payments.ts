@@ -35,6 +35,12 @@ export async function recordPayment(
     if (invoice.status !== 'authorised') {
       return { ok: false, error: 'Only approved documents awaiting payment can be paid.' };
     }
+    if (invoice.amountDue === undefined) {
+      return {
+        ok: false,
+        error: "The amount due isn't available from the source, so the payment can't be checked.",
+      };
+    }
     if (parsed.amount > invoice.amountDue + 0.005) {
       return { ok: false, error: 'The payment is more than the amount due.' };
     }

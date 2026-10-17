@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronRight, Landmark } from 'lucide-react';
 import type { BankAccount, DashboardSummary, DocumentBucket } from '@/lib/domain/types';
 import { formatDate, formatMoney } from '@/lib/ui/format';
 import { Card, CardHeader } from '@/components/ui/Card';
+import { NotAvailableValue } from '@/components/ui/Money';
 import { cn } from '@/lib/ui/cn';
 
 /* ------------------------------------------------------------------ */
@@ -25,8 +26,17 @@ export function BankAccountCard({ account, href }: { account: BankAccount; href?
       </div>
       <p className="text-faint mt-5 text-xs tracking-wide uppercase">Balance in books</p>
       <p className="text-ink num mt-1 text-2xl font-semibold tracking-tight">
-        {formatMoney(account.balance, account.currency)}
+        {account.balance === undefined ? (
+          <NotAvailableValue reason="The source doesn't report this account's balance." />
+        ) : (
+          formatMoney(account.balance, account.balanceCurrency ?? account.currency)
+        )}
       </p>
+      {account.balanceCurrency && account.balance !== undefined && (
+        <p className="text-faint mt-0.5 text-xs">
+          In {account.balanceCurrency}, the base currency, as the source reports it
+        </p>
+      )}
       {(account.statementBalance !== undefined || account.unreconciledCount) && (
         <div className="border-line text-muted mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs">
           {account.statementBalance !== undefined && (
@@ -49,7 +59,7 @@ export function BankAccountCard({ account, href }: { account: BankAccount; href?
     <Link
       href={href}
       className={cn(className, 'hover:border-line-strong group transition-colors')}
-      aria-label={`${account.name}: ${formatMoney(account.balance, account.currency)}`}
+      aria-label={`${account.name}: ${account.balance === undefined ? 'balance not available' : formatMoney(account.balance, account.balanceCurrency ?? account.currency)}`}
     >
       {body}
     </Link>
@@ -75,6 +85,39 @@ function plural(count: number, noun: string) {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
+/**
+ * A bucket's amount exactly as the source gave it: one total, a total per
+ * currency (never converted), or "not available" when an amount is unreported.
+ */
+export function BucketAmount({
+  bucket,
+  currency,
+  missing,
+}: {
+  bucket: DocumentBucket;
+  currency: string;
+  missing?: string;
+}) {
+  if (bucket.total !== undefined) return <>{formatMoney(bucket.total, currency)}</>;
+  if (bucket.byCurrency?.length) {
+    return (
+      <span title={missing}>
+        {bucket.byCurrency.map((c, i) => (
+          <span key={c.currency} className="whitespace-nowrap">
+            {i > 0 && ' + '}
+            {formatMoney(c.total, c.currency)}
+          </span>
+        ))}
+        {bucket.unknownCount ? (
+          <span className="text-faint"> + {bucket.unknownCount} not available</span>
+        ) : null}
+      </span>
+    );
+  }
+  if (bucket.count === 0) return <>{formatMoney(0, currency)}</>;
+  return <NotAvailableValue reason={missing} />;
+}
+
 export function DocumentsCard({
   title,
   noun,
@@ -92,11 +135,15 @@ export function DocumentsCard({
   listHref?: string;
   newHref?: string;
   newLabel?: string;
-  /** Shown under the totals, e.g. foreign-currency documents left out. */
+  /** Why an amount is missing (e.g. BC doesn't report what's left to pay on bills). */
   note?: string;
 }) {
   const awaiting = buckets.awaitingPayment;
-  const overduePart = awaiting.total > 0 ? Math.min(1, buckets.overdue.total / awaiting.total) : 0;
+  const overdueTotal = buckets.overdue.total;
+  // The overdue bar needs both totals in one currency; otherwise it would be a guess.
+  const showBar = awaiting.total !== undefined && awaiting.total > 0 && overdueTotal !== undefined;
+  const overduePart = showBar ? Math.min(1, overdueTotal / awaiting.total!) : 0;
+  const mixed = !!awaiting.byCurrency?.length;
   return (
     <Card className="flex flex-col">
       <CardHeader
@@ -111,8 +158,14 @@ export function DocumentsCard({
       />
       <div className="px-5 pt-4 pb-2">
         <p className="text-faint text-xs tracking-wide uppercase">Awaiting payment</p>
-        <p className="text-ink num mt-1 text-3xl font-semibold tracking-tight">
-          {formatMoney(awaiting.total, currency)}
+        <p
+          className={cn(
+            'text-ink num mt-1 font-semibold tracking-tight',
+            mixed ? 'text-xl' : 'text-3xl'
+          )}
+          data-testid={`${noun}-awaiting-total`}
+        >
+          <BucketAmount bucket={awaiting} currency={currency} missing={note} />
         </p>
         <p className="text-muted mt-1 text-sm">
           {plural(awaiting.count, noun)}
@@ -123,7 +176,13 @@ export function DocumentsCard({
             </>
           )}
         </p>
-        {awaiting.total > 0 && (
+        {(note || mixed) && (
+          <p className="text-faint mt-2 text-xs" role="note" data-testid={`${noun}-amount-note`}>
+            {note ??
+              'Amounts are in each document’s own currency; the source doesn’t provide a conversion rate.'}
+          </p>
+        )}
+        {showBar && (
           <div
             className="bg-info/25 mt-4 flex h-2 overflow-hidden rounded-full"
             role="img"
@@ -132,7 +191,7 @@ export function DocumentsCard({
             <span className="bg-danger h-full" style={{ width: `${overduePart * 100}%` }} />
           </div>
         )}
-        {awaiting.total > 0 && (
+        {showBar && (
           <div className="text-faint mt-1.5 flex justify-between text-xs">
             <span>Overdue</span>
             <span>Not yet due</span>
@@ -146,6 +205,7 @@ export function DocumentsCard({
             label={label}
             bucket={buckets[key]}
             currency={currency}
+            missing={note}
             href={listHref ? `${listHref}?status=${status}` : undefined}
             tone={key === 'overdue' && buckets.overdue.count > 0 ? 'danger' : undefined}
           />
@@ -167,12 +227,14 @@ function BucketRow({
   label,
   bucket,
   currency,
+  missing,
   href,
   tone,
 }: {
   label: string;
   bucket: DocumentBucket;
   currency: string;
+  missing?: string;
   href?: string;
   tone?: 'danger';
 }) {
@@ -183,7 +245,9 @@ function BucketRow({
         <span className="text-faint ml-1.5">({bucket.count})</span>
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="num text-ink">{formatMoney(bucket.total, currency)}</span>
+        <span className="num text-ink text-right">
+          <BucketAmount bucket={bucket} currency={currency} missing={missing} />
+        </span>
         {href && <ChevronRight className="text-faint h-4 w-4" aria-hidden />}
       </span>
     </>

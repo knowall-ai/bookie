@@ -76,31 +76,39 @@ export interface DatePreset {
 }
 
 /** Presets for period reports (P&L, bank summary, cash flow), in Xero's order. */
+/**
+ * Range presets. The financial-year presets need the organisation's real
+ * year end: without one (BC with no accounting periods) they are left out
+ * rather than assuming a calendar year.
+ */
 export function rangePresets(
   today: IsoDate,
   fyEndDay?: number,
   fyEndMonth?: number
 ): RangePreset[] {
-  const fy = financialYear(today, fyEndDay, fyEndMonth);
-  const lastFy = financialYear(addDays(fy.from, -1), fyEndDay, fyEndMonth);
   const lastMonth = addMonths(monthStart(today), -1);
   const quarter = calendarQuarter(today);
   const lastQuarter = calendarQuarter(addDays(quarter.from, -1));
-  return [
+  const presets: RangePreset[] = [
     { key: 'this-month', label: 'This month', from: monthStart(today), to: monthEnd(today) },
     { key: 'last-month', label: 'Last month', from: lastMonth, to: monthEnd(lastMonth) },
     { key: 'this-quarter', label: 'This quarter', ...quarter },
     { key: 'last-quarter', label: 'Last quarter', ...lastQuarter },
+  ];
+  if (!fyEndDay || !fyEndMonth) return presets;
+  const fy = financialYear(today, fyEndDay, fyEndMonth);
+  const lastFy = financialYear(addDays(fy.from, -1), fyEndDay, fyEndMonth);
+  return [
+    ...presets,
     { key: 'this-fy', label: 'This financial year', ...fy },
     { key: 'last-fy', label: 'Last financial year', ...lastFy },
     { key: 'fy-to-date', label: 'Year to date', from: fy.from, to: today },
   ];
 }
 
-/** Presets for point-in-time reports (balance sheet, trial balance). */
+/** Presets for point-in-time reports (balance sheet, trial balance); FY ones need a real year end. */
 export function datePresets(today: IsoDate, fyEndDay?: number, fyEndMonth?: number): DatePreset[] {
-  const fy = financialYear(today, fyEndDay, fyEndMonth);
-  return [
+  const presets: DatePreset[] = [
     { key: 'today', label: 'Today', date: today },
     { key: 'end-of-month', label: 'End of this month', date: monthEnd(today) },
     { key: 'end-of-last-month', label: 'End of last month', date: addDays(monthStart(today), -1) },
@@ -109,6 +117,11 @@ export function datePresets(today: IsoDate, fyEndDay?: number, fyEndMonth?: numb
       label: 'End of last quarter',
       date: addDays(calendarQuarter(today).from, -1),
     },
+  ];
+  if (!fyEndDay || !fyEndMonth) return presets;
+  const fy = financialYear(today, fyEndDay, fyEndMonth);
+  return [
+    ...presets,
     { key: 'end-of-last-fy', label: 'End of last financial year', date: addDays(fy.from, -1) },
   ];
 }

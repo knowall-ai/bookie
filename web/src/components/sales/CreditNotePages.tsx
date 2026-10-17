@@ -20,6 +20,7 @@ import {
   DocumentTotals,
 } from '@/components/documents/DocumentParts';
 import type { ListSearchParams } from '@/components/documents/InvoiceListPage';
+import { SourceNote } from '@/components/accounting/SourceNote';
 
 const COPY = {
   sales: {
@@ -99,7 +100,14 @@ export async function CreditNoteListPage({
       key: 'remaining',
       header: 'Remaining credit',
       align: 'right',
-      cell: (c) => <Money amount={c.remainingCredit} currency={c.currency} className="text-ink" />,
+      cell: (c) => (
+        <Money
+          amount={c.remainingCredit}
+          currency={c.currency}
+          className="text-ink"
+          missing={result.note}
+        />
+      ),
     },
     { key: 'status', header: 'Status', cell: (c) => <StatusBadge status={c.status} /> },
   ];
@@ -120,6 +128,7 @@ export async function CreditNoteListPage({
           { value: 'voided', label: 'Voided' },
         ]}
       />
+      <SourceNote>{result.note}</SourceNote>
       <div className="mb-4 flex items-center gap-3">
         <SearchBox
           placeholder={`Search ${copy.noun} by number, reference or contact`}
@@ -175,7 +184,13 @@ export async function CreditNoteDetailPage({
   if (note.type !== type) notFound();
   const baseCurrency = (await connector.organisation().catch(() => undefined))?.baseCurrency;
   const copy = COPY[type];
-  const allocated = note.status === 'voided' ? 0 : note.total - note.remainingCredit;
+  const remaining = note.remainingCredit;
+  const allocated =
+    note.status === 'voided' || remaining === undefined ? undefined : note.total - remaining;
+  const remainingUnknown =
+    remaining === undefined
+      ? `${sourceName(org)} doesn't report how much of this credit note is still to be applied.`
+      : undefined;
 
   return (
     <>
@@ -206,15 +221,21 @@ export async function CreditNoteDetailPage({
         <DocumentLines lines={note.lineItems ?? []} currency={note.currency} />
         <DocumentTotals
           currency={note.currency}
+          note={remainingUnknown}
           rows={[
             { label: 'Subtotal', amount: note.subTotal },
             { label: 'Total tax', amount: note.totalTax, muted: true },
             { label: 'Total', amount: note.total, strong: true },
             ...baseTotalRows(note, baseCurrency),
-            ...(allocated > 0
+            ...(allocated && allocated > 0
               ? [{ label: 'Less allocated or refunded', amount: -allocated, muted: true }]
               : []),
-            { label: 'Remaining credit', amount: note.remainingCredit, strong: true },
+            {
+              label: 'Remaining credit',
+              amount: remaining,
+              strong: true,
+              missing: remainingUnknown,
+            },
           ]}
         />
       </div>

@@ -111,14 +111,28 @@ export interface TotalRow {
   muted?: boolean;
   /** Show with this currency symbol (e.g. a base-currency equivalent row). */
   currency?: string;
+  /**
+   * Why the source doesn't report this amount. A row with no amount is hidden,
+   * unless it has a reason: then it shows "—" with the reason as a tooltip.
+   */
+  missing?: string;
 }
 
-export function DocumentTotals({ rows, currency }: { rows: TotalRow[]; currency: string }) {
+export function DocumentTotals({
+  rows,
+  currency,
+  note,
+}: {
+  rows: TotalRow[];
+  currency: string;
+  /** Shown under the totals, e.g. why the amount due isn't available. */
+  note?: string;
+}) {
   return (
     <div className="ml-auto w-full max-w-sm">
       <dl className="space-y-2 text-sm">
         {rows
-          .filter((r) => r.amount !== undefined)
+          .filter((r) => r.amount !== undefined || r.missing)
           .map((r) => (
             <div
               key={r.label}
@@ -133,11 +147,17 @@ export function DocumentTotals({ rows, currency }: { rows: TotalRow[]; currency:
                 <Money
                   amount={r.amount}
                   currency={r.currency ?? (r.strong ? currency : undefined)}
+                  missing={r.missing}
                 />
               </dd>
             </div>
           ))}
       </dl>
+      {note && (
+        <p className="text-faint mt-3 text-xs" role="note">
+          {note}
+        </p>
+      )}
     </div>
   );
 }

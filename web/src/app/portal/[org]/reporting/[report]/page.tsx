@@ -17,6 +17,7 @@ import { Card } from '@/components/ui/Card';
 import { ReportTable } from '@/components/reports/ReportTable';
 import { ReportControls } from '@/components/reports/ReportControls';
 import { ReportActions } from '@/components/reports/ReportActions';
+import { SourceNote } from '@/components/accounting/SourceNote';
 
 export async function generateMetadata({ params }: { params: Promise<{ report: string }> }) {
   const { report } = await params;
@@ -103,7 +104,16 @@ export default async function ReportPage({
           }
         />
       ) : report ? (
-        <ReportTable report={report} />
+        <>
+          <SourceNote>{report.note}</SourceNote>
+          {!fyEnd.day && (
+            <p className="text-faint no-print mb-4 text-xs" role="note">
+              {sourceName(org)} didn&apos;t provide the financial year, so financial-year presets
+              aren&apos;t offered.
+            </p>
+          )}
+          <ReportTable report={report} />
+        </>
       ) : (
         <EmptyState title="No report" />
       )}

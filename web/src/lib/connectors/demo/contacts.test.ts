@@ -40,7 +40,7 @@ describe('demo contacts', () => {
     const contact = await c.contacts!.get(target.contact.id);
     const expected = open.items
       .filter((i) => i.contact.id === target.contact.id)
-      .reduce((s, i) => s + i.amountDue, 0);
+      .reduce((s, i) => s + i.amountDue!, 0);
     expect(contact.balances?.receivable).toBeCloseTo(expected, 2);
     expect(contact.balances?.overdueReceivable).toBeLessThanOrEqual(expected);
   });

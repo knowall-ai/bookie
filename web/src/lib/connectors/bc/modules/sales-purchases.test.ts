@@ -92,8 +92,22 @@ describe('bc credit memos', () => {
       status: 'authorised',
       reference: 'RMA-9',
       contact: { id: 'c:cust' },
-      remainingCredit: 60,
+      // An open memo may be partly applied; BC doesn't say, so it isn't assumed to be all left.
+      remainingCredit: undefined,
     });
+    expect(
+      fromBcCreditMemo(
+        {
+          id: 'cm-3',
+          number: '104002',
+          customerId: 'c',
+          status: 'Draft',
+          totalAmountIncludingTax: 45,
+        },
+        'sales',
+        'GBP'
+      ).remainingCredit
+    ).toBe(45);
     expect(
       fromBcCreditMemo(
         {
@@ -205,11 +219,12 @@ describe('bc journal payments', () => {
           appliesToInvoiceId: '00000000-0000-0000-0000-000000000000',
           appliesToInvoiceNumber: '',
         },
-        'sales',
-        'GBP'
+        'sales'
       )
     ).toMatchObject({
       amount: 250,
+      // Journal lines don't say their currency in API v2.0: not assumed to be LCY.
+      currency: undefined,
       invoiceId: undefined,
       invoiceType: 'sales',
       contact: { id: 'c:cust', name: '10000' },

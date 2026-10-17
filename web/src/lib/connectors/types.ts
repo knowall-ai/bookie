@@ -31,6 +31,7 @@ import type {
   DashboardSummary,
   Employee,
   FixedAsset,
+  FixedAssetStatus,
   Invoice,
   InvoiceInput,
   InvoiceType,
@@ -48,6 +49,7 @@ import type {
   Payment,
   PaymentInput,
   Project,
+  ProjectStatus,
   PurchaseOrder,
   PurchaseOrderInput,
   Quote,
@@ -155,9 +157,12 @@ export interface TaxRatesModule {
 }
 
 export interface AssetsModule {
-  list(
-    query?: ListQuery & { status?: 'draft' | 'registered' | 'disposed' }
-  ): Promise<Page<FixedAsset>>;
+  /**
+   * Statuses this source can tell apart, in tab order. Omitted = Xero's
+   * draft / registered / disposed. BC has no asset status: `['unknown']`.
+   */
+  statuses?: FixedAssetStatus[];
+  list(query?: ListQuery & { status?: FixedAssetStatus }): Promise<Page<FixedAsset>>;
 }
 
 export interface CurrenciesModule {
@@ -179,7 +184,12 @@ export interface PayrollModule {
 }
 
 export interface ProjectsModule {
-  list(query?: ListQuery & { status?: 'in-progress' | 'closed' }): Promise<Page<Project>>;
+  /**
+   * Statuses this source can tell apart, in tab order. Omitted = in progress /
+   * closed. BC's projects API has no status: `['unknown']`.
+   */
+  statuses?: ProjectStatus[];
+  list(query?: ListQuery & { status?: ProjectStatus }): Promise<Page<Project>>;
   get(id: string): Promise<Project>;
 }
 

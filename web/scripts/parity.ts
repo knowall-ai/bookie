@@ -22,6 +22,7 @@ import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { BcClient } from '../src/lib/connectors/bc/client';
 import { createBcConnector } from '../src/lib/connectors/bc';
+import { bcFiscalYear } from '../src/lib/connectors/bc/fiscal-year';
 import { XeroClient, discoverXeroTenants } from '../src/lib/connectors/xero/client';
 import { createXeroConnector } from '../src/lib/connectors/xero';
 import {
@@ -103,7 +104,7 @@ async function countAndSum(
     const result = await connector.invoices!.list(type, { status, page, pageSize: 500 });
     count += result.items.length;
     total += sum(result.items.map((i) => i.total));
-    due += sum(result.items.map((i) => i.amountDue));
+    due += sum(result.items.flatMap((i) => (i.amountDue === undefined ? [] : [i.amountDue])));
     if (!result.hasMore || result.items.length === 0) break;
   }
   return { count, total: Math.round(total * 100) / 100, due: Math.round(due * 100) / 100 };
@@ -252,10 +253,15 @@ async function xeroParity(tenantId: string) {
     });
 
     const base = org.baseCurrency;
-    const toBase = (i: RawXeroInvoice) =>
-      i.CurrencyCode && i.CurrencyCode !== base && i.CurrencyRate
-        ? (i.AmountDue ?? 0) / i.CurrencyRate
-        : (i.AmountDue ?? 0);
+    /** Amount due per currency, as Xero reports it (Bookie never converts). */
+    const dueByCurrency = (invoices: RawXeroInvoice[]) => {
+      const out = new Map<string, number>();
+      for (const i of invoices) {
+        const c = i.CurrencyCode || base || '';
+        out.set(c, (out.get(c) ?? 0) + (i.AmountDue ?? 0));
+      }
+      return out;
+    };
 
     for (const [id, type, label] of [
       ['aged-receivables', 'ACCREC', 'receivables'],
@@ -264,16 +270,16 @@ async function xeroParity(tenantId: string) {
       await guard(`Aged ${label}`, async () => {
         const report = await connector.reports!.run(id);
         const authorised = await rawInvoices(type, 'AUTHORISED');
-        const foreign = authorised.filter((i) => i.CurrencyCode && i.CurrencyCode !== base).length;
-        check(
-          `Aged ${label} total = sum of AUTHORISED ${type} amount due (base currency)`,
-          value(report, /^Total$/, 7),
-          sum(authorised.map(toBase))
-        );
-        if (foreign)
-          note(
-            `${foreign} ${type} invoices are in a foreign currency (converted at the invoice rate)`
+        const byCurrency = dueByCurrency(authorised);
+        const multi = byCurrency.size > 1;
+        for (const [currency, due] of byCurrency) {
+          check(
+            `Aged ${label} total${multi ? ' (one currency)' : ''} = sum of AUTHORISED ${type} amount due`,
+            value(report, multi ? new RegExp(`^Total ${currency}$`) : /^Total$/, 7),
+            sum([due])
           );
+        }
+        if (multi) note(`Aged ${label}: ${byCurrency.size} currencies, each totalled separately`);
       });
     }
 
@@ -302,11 +308,22 @@ async function xeroParity(tenantId: string) {
           awaiting.length,
           0
         );
-        check(
-          `Home ${noun.toLowerCase()} awaiting payment: amount due`,
-          buckets.awaitingPayment.total,
-          sum(awaiting.map((i) => i.AmountDue ?? 0))
-        );
+        const byCurrency = dueByCurrency(awaiting);
+        if (byCurrency.size <= 1) {
+          check(
+            `Home ${noun.toLowerCase()} awaiting payment: amount due`,
+            buckets.awaitingPayment.total,
+            sum(awaiting.map((i) => i.AmountDue ?? 0))
+          );
+        } else {
+          for (const [currency, due] of byCurrency) {
+            check(
+              `Home ${noun.toLowerCase()} awaiting payment: amount due (one currency)`,
+              buckets.awaitingPayment.byCurrency?.find((c) => c.currency === currency)?.total,
+              sum([due])
+            );
+          }
+        }
       });
     }
 
@@ -384,7 +401,7 @@ async function bcParity(tenantId: string, entries: string[]) {
     ] as const) {
       await guard(`${noun} by status`, async () => {
         const all = await client.all<RawBcInvoice>(entity, {
-          // Purchase invoices have no remainingAmount in BC's API: Open means unpaid in full.
+          // Purchase invoices have no remainingAmount in BC's API, so Bookie shows it as unknown.
           $select: `status,totalAmountIncludingTax${type === 'sales' ? ',remainingAmount' : ''}`,
         });
         for (const [status, bcStatus] of statuses) {
@@ -406,29 +423,39 @@ async function bcParity(tenantId: string, entries: string[]) {
           open.length,
           0
         );
-        check(
-          `Home ${noun.toLowerCase()} awaiting payment: amount due`,
-          buckets.awaitingPayment.total,
-          sum(
-            open.map((i) => (type === 'sales' ? i.remainingAmount : i.totalAmountIncludingTax) ?? 0)
-          )
-        );
+        if (type === 'sales') {
+          check(
+            `Home ${noun.toLowerCase()} awaiting payment: amount due`,
+            buckets.awaitingPayment.total,
+            sum(open.map((i) => i.remainingAmount ?? 0))
+          );
+        } else {
+          // No remaining amount from BC: Bookie must count open bills, not total them.
+          check(
+            `Home ${noun.toLowerCase()} awaiting payment: amounts not available`,
+            buckets.awaitingPayment.unknownCount ?? 0,
+            open.length,
+            0
+          );
+          if (open.length) {
+            check(
+              `Home ${noun.toLowerCase()} awaiting payment: no invented total`,
+              buckets.awaitingPayment.total === undefined ? 1 : 0,
+              1,
+              0
+            );
+          }
+        }
       });
     }
 
-    const info = (
-      await client.request<{ value: { currentFiscalYearStartDate?: string }[] }>(
-        'companyInformation'
-      )
-    ).value[0];
-    const fyStart =
-      info?.currentFiscalYearStartDate && !info.currentFiscalYearStartDate.startsWith('0001')
-        ? info.currentFiscalYearStartDate.slice(0, 10)
-        : `${today().slice(0, 4)}-01-01`;
-    const range = {
-      from: fyStart <= today() ? fyStart : `${today().slice(0, 4)}-01-01`,
-      to: today(),
-    };
+    // The real financial year from BC's accounting periods. Without one, Bookie shows no
+    // FY P&L tile, and the income statement checks use the current month instead.
+    const fy = await bcFiscalYear(client)(today());
+    const range = { from: fy.start ?? `${today().slice(0, 7)}-01`, to: today() };
+    if (!fy.start) {
+      note(`No financial year in BC (${fy.note}); income statement checked for this month`);
+    }
 
     await guard('Income statement', async () => {
       const bookie = await connector.reports!.run('profit-and-loss', range);
@@ -450,11 +477,20 @@ async function bcParity(tenantId: string, entries: string[]) {
         net === undefined ? undefined : Math.abs(net)
       );
       const dashboard = await connector.dashboard();
-      check(
-        'Home P&L tile: net = income statement',
-        Math.abs(dashboard.profitAndLoss?.net ?? NaN),
-        net === undefined ? undefined : Math.abs(net)
-      );
+      if (fy.start) {
+        check(
+          'Home P&L tile: net = income statement',
+          Math.abs(dashboard.profitAndLoss?.net ?? NaN),
+          net === undefined ? undefined : Math.abs(net)
+        );
+      } else {
+        check(
+          'Home P&L tile: omitted without a financial year',
+          dashboard.profitAndLoss === undefined && !!dashboard.notes?.profitAndLoss ? 1 : 0,
+          1,
+          0
+        );
+      }
       const gl = await client.all<{
         accountNumber: string;
         debitAmount: number;

@@ -13,6 +13,7 @@ import { SearchBox } from '@/components/ui/SearchBox';
 import { ButtonLink } from '@/components/ui/Button';
 import { EmptyState, NotAvailable } from '@/components/ui/States';
 import { sourceName } from '@/lib/portal/context';
+import { SourceNote } from '@/components/accounting/SourceNote';
 
 export interface ListSearchParams {
   status?: string;
@@ -117,14 +118,21 @@ export async function InvoiceListPage({
       key: 'paid',
       header: 'Paid',
       align: 'right',
-      cell: (i) => <Money amount={i.amountPaid} />,
+      cell: (i) => <Money amount={i.amountPaid} missing={result.note} />,
       hideOnMobile: true,
     },
     {
       key: 'amountDue',
       header: 'Due',
       align: 'right',
-      cell: (i) => <Money amount={i.amountDue} currency={i.currency} className="text-ink" />,
+      cell: (i) => (
+        <Money
+          amount={i.amountDue}
+          currency={i.currency}
+          className="text-ink"
+          missing={result.note}
+        />
+      ),
     },
     {
       key: 'status',
@@ -161,6 +169,7 @@ export async function InvoiceListPage({
           ...(capture ? [{ value: 'captured', label: 'Captured by Bookie' }] : []),
         ]}
       />
+      <SourceNote>{result.note}</SourceNote>
       {status !== 'captured' && (
         <div className="mb-4 flex items-center gap-3">
           <SearchBox

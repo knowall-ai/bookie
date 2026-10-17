@@ -11,7 +11,11 @@ import { cn } from '@/lib/ui/cn';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { Field, Input, Select, inputClass } from '@/components/ui/Field';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import type { EditorOption, EditorTaxRate } from '@/components/documents/DocumentEditor';
+import {
+  editorTotals,
+  type EditorOption,
+  type EditorTaxRate,
+} from '@/components/documents/DocumentEditor';
 
 export interface BankOption {
   value: string;
@@ -63,24 +67,16 @@ export function BankTransactionForm({
   const [lines, setLines] = useState<LineItemInput[]>([blankLine()]);
 
   const currency = bankAccounts.find((b) => b.value === bankAccountId)?.currency ?? '';
-  const rates = useMemo(() => new Map(taxRates.map((t) => [t.taxType, t.rate])), [taxRates]);
+  // Tax is only previewed from rates the source gave us; see editorTotals.
   const totals = useMemo(() => {
-    let net = 0;
-    let tax = 0;
-    for (const line of lines) {
-      const amount = lineAmount(line);
-      const rate = (line.taxType ? (rates.get(line.taxType) ?? 0) : 0) / 100;
-      if (lineAmountType === 'inclusive') {
-        const t = amount - amount / (1 + rate);
-        tax += t;
-        net += amount - t;
-      } else {
-        net += amount;
-        if (lineAmountType === 'exclusive') tax += amount * rate;
-      }
-    }
-    return { net, tax, total: net + tax };
-  }, [lines, lineAmountType, rates]);
+    const rates = new Map(taxRates.map((t) => [t.taxType, t.rate]));
+    return editorTotals(lines, lineAmountType, (taxType) => rates.get(taxType));
+  }, [lines, lineAmountType, taxRates]);
+  const preview = totals.preview;
+  const taxed = lineAmountType !== 'none';
+  // Tax-inclusive lines add up to the amount paid, whatever the tax turns out to be.
+  const knownTotal =
+    preview?.total ?? (lineAmountType === 'inclusive' ? totals.lineSum : undefined);
 
   const setLine = (index: number, patch: Partial<LineItemInput>) =>
     setLines((all) => all.map((l, i) => (i === index ? { ...l, ...patch } : l)));
@@ -90,7 +86,7 @@ export function BankTransactionForm({
     ? 'Choose a bank account.'
     : !contactId
       ? `Choose who the money is ${type === 'spend' ? 'paid to' : 'received from'}.`
-      : filled.length === 0 || totals.total === 0
+      : filled.length === 0 || totals.lineSum === 0
         ? 'Enter at least one line with an amount.'
         : filled.some((l) => !l.accountCode)
           ? 'Choose an account on every line.'
@@ -336,25 +332,37 @@ export function BankTransactionForm({
         </div>
       </div>
 
-      <dl className="ml-auto w-full max-w-sm space-y-2 text-sm">
-        <div className="flex justify-between">
-          <dt className="text-muted">Subtotal</dt>
-          <dd className="num">{formatMoney(totals.net)}</dd>
-        </div>
-        {lineAmountType !== 'none' && (
-          <div className="flex justify-between">
-            <dt className="text-muted">
-              {lineAmountType === 'inclusive' ? 'Includes tax' : 'Total tax'}
-            </dt>
-            <dd className="num">{formatMoney(totals.tax)}</dd>
-          </div>
+      <dl className="ml-auto w-full max-w-sm space-y-2 text-sm" aria-label="Totals">
+        {preview && (
+          <>
+            <div className="flex justify-between">
+              <dt className="text-muted">Subtotal</dt>
+              <dd className="num">{formatMoney(preview.subTotal, currency || undefined)}</dd>
+            </div>
+            {taxed && (
+              <div className="flex justify-between">
+                <dt className="text-muted">
+                  {lineAmountType === 'inclusive' ? 'Includes tax' : 'Total tax'}{' '}
+                  <span className="text-faint">(preview)</span>
+                </dt>
+                <dd className="num">{formatMoney(preview.tax, currency || undefined)}</dd>
+              </div>
+            )}
+          </>
         )}
         <div className="border-line-strong text-ink flex justify-between border-t pt-2 text-base font-bold">
-          <dt>Total</dt>
+          <dt>{knownTotal === undefined ? 'Subtotal' : 'Total'}</dt>
           <dd className="num" data-testid="bank-total">
-            {formatMoney(totals.total, currency || undefined)}
+            {formatMoney(knownTotal ?? totals.lineSum, currency || undefined)}
           </dd>
         </div>
+        {taxed && !preview && (
+          <p className="text-faint text-xs">
+            {lineAmountType === 'inclusive'
+              ? 'Tax is calculated by your accounting system when you save.'
+              : 'Tax and total are calculated by your accounting system when you save.'}
+          </p>
+        )}
       </dl>
 
       {error && (
@@ -384,7 +392,7 @@ export function BankTransactionForm({
       {confirm && (
         <ConfirmDialog
           title={`Save this ${noun.toLowerCase()} transaction?`}
-          body={`This records ${formatMoney(totals.total, currency || undefined)} ${type === 'spend' ? 'paid out of' : 'paid into'} ${bankAccounts.find((b) => b.value === bankAccountId)?.label ?? 'the bank account'} in your live books.`}
+          body={`This records ${knownTotal === undefined ? 'the amount' : formatMoney(knownTotal, currency || undefined)} ${type === 'spend' ? 'paid out of' : 'paid into'} ${bankAccounts.find((b) => b.value === bankAccountId)?.label ?? 'the bank account'} in your live books${knownTotal === undefined ? '; tax and total are calculated when it is saved' : ''}.`}
           cta="Save"
           busy={pending}
           onCancel={() => setConfirm(false)}

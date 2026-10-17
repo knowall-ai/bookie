@@ -186,7 +186,8 @@ export function demoAccounts(data: DemoData): AccountsModule {
         const debit = ledger
           .filter((e) => e.accountCode === a.code && (!pl || e.date >= from))
           .reduce((s, e) => s + e.debit - e.credit, 0);
-        const natural = ['liability', 'equity', 'revenue'].includes(a.class) ? -debit : debit;
+        const natural =
+          a.class && ['liability', 'equity', 'revenue'].includes(a.class) ? -debit : debit;
         return { ...a, balance: r2(natural) };
       });
     },

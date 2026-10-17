@@ -3,7 +3,7 @@
  * a report ties back to the demo invoices and bank lines (and to the home
  * dashboard, which uses the same income/expense rules).
  */
-import type { DemoData } from '../data';
+import type { DemoData, DemoInvoice } from '../data';
 import { ConnectorError, type ReportsModule } from '../../types';
 import type {
   Invoice,
@@ -64,7 +64,7 @@ const live = (data: DemoData, type: Invoice['type']) =>
   data.invoices
     .filter((i) => i.type === type && (i.status === 'authorised' || i.status === 'paid'))
     .map((i) => demoInBase(i))
-    .filter((i): i is Invoice => !!i);
+    .filter((i): i is DemoInvoice => !!i);
 
 /**
  * The seeded demo books date some payments a few days ahead; treat those as
@@ -390,14 +390,15 @@ export function demoReports(
       asAt,
       items: data.invoices
         .filter((i) => i.type === type && i.status === 'authorised')
-        .map((i) => demoInBase(i))
-        .filter((i): i is Invoice => !!i)
         .map((i) => ({
           contactId: i.contact.id,
           contactName: i.contact.name,
           dueDate: i.dueDate,
           amount: i.amountDue,
+          currency: i.currency,
         })),
+      baseCurrency: 'GBP',
+      source: 'The demo',
     });
   };
 

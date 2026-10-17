@@ -1,7 +1,7 @@
-import type { Contact, Currency, Invoice, LineItem } from '@/lib/domain/types';
+import type { Contact, Currency, LineItem } from '@/lib/domain/types';
 import type { CurrenciesModule } from '../../types';
 import { isForeign } from '@/lib/domain/currency';
-import { addDays, DEMO_TODAY, type DemoData } from '../data';
+import { addDays, DEMO_TODAY, type DemoData, type DemoInvoice } from '../data';
 
 /** The demo org has multi-currency on, like a Xero UK org trading into Europe and the US. */
 export const DEMO_CURRENCIES: Currency[] = [
@@ -43,7 +43,7 @@ function eurInvoice(
   status: 'draft' | 'authorised' | 'paid',
   currencyRate: number,
   lines: [string, string, number, number][]
-): Invoice {
+): DemoInvoice {
   const today = DEMO_TODAY();
   const date = addDays(today, -daysAgo);
   const dueDate = addDays(date, 30);
@@ -97,7 +97,7 @@ export function seedForeignCurrency(data: DemoData) {
  * own rate, for the demo ledger and reports. `undefined` for a foreign
  * invoice with no rate (left out rather than mixed in).
  */
-export function demoInBase(invoice: Invoice, baseCurrency = 'GBP'): Invoice | undefined {
+export function demoInBase(invoice: DemoInvoice, baseCurrency = 'GBP'): DemoInvoice | undefined {
   if (!isForeign(invoice.currency, baseCurrency)) return invoice;
   const rate = invoice.currencyRate;
   if (!rate || rate <= 0) return undefined;

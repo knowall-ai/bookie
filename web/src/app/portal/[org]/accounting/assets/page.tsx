@@ -15,7 +15,13 @@ import { SourceNote } from '@/components/accounting/SourceNote';
 export const metadata = { title: 'Fixed assets' };
 
 type AssetStatus = FixedAsset['status'];
-const STATUSES: AssetStatus[] = ['draft', 'registered', 'disposed'];
+const DEFAULT_STATUSES: AssetStatus[] = ['draft', 'registered', 'disposed'];
+const TAB_LABEL: Record<AssetStatus, string> = {
+  draft: 'Draft',
+  registered: 'Registered',
+  disposed: 'Sold & disposed',
+  unknown: 'All assets (status not available)',
+};
 
 export default async function Page({
   params,
@@ -35,10 +41,14 @@ export default async function Page({
       </>
     );
   }
-  // Xero opens the register on Registered; StatusTabs treats "all" as "no ?status=".
-  const status: AssetStatus = STATUSES.includes(query.status as AssetStatus)
+  // Xero opens the register on Registered. Sources that can't tell statuses apart (BC)
+  // list every asset under one "status not available" tab instead of calling them registered.
+  const statuses = connector.assets.statuses ?? DEFAULT_STATUSES;
+  const status: AssetStatus = statuses.includes(query.status as AssetStatus)
     ? (query.status as AssetStatus)
-    : 'registered';
+    : statuses.includes('registered')
+      ? 'registered'
+      : statuses[0];
   const page = Math.max(1, Number(query.page) || 1);
   const listPath = `${base}/accounting/assets`;
   const [result, details] = await Promise.all([
@@ -73,7 +83,7 @@ export default async function Page({
       align: 'right',
       cell: (a) => <Money amount={a.purchasePrice} currency={currency} />,
     },
-    ...(status === 'registered'
+    ...(status === 'registered' || status === 'unknown'
       ? [
           {
             key: 'book',
@@ -92,14 +102,12 @@ export default async function Page({
         basePath={listPath}
         current={status}
         params={{ search: query.search }}
-        tabs={[
-          { value: 'draft', label: 'Draft' },
-          { value: 'registered', label: 'Registered' },
-          { value: 'disposed', label: 'Sold & disposed' },
-        ].map((t) => ({
-          ...t,
-          count: typeof result !== 'string' && t.value === status ? result.total : undefined,
-        }))}
+        tabs={statuses
+          .map((value) => ({ value, label: TAB_LABEL[value] }))
+          .map((t) => ({
+            ...t,
+            count: typeof result !== 'string' && t.value === status ? result.total : undefined,
+          }))}
       />
       {typeof result === 'string' ? (
         <ErrorPanel title="Fixed assets couldn't be loaded" message={result} />
@@ -121,7 +129,9 @@ export default async function Page({
                     ? `No assets match “${query.search}”`
                     : status === 'disposed'
                       ? 'No sold or disposed assets'
-                      : `No ${status} assets`
+                      : status === 'unknown'
+                        ? 'No fixed assets'
+                        : `No ${status} assets`
                 }
               />
             }

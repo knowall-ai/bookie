@@ -30,7 +30,54 @@ export interface EditorItem {
 export interface EditorTaxRate {
   taxType: string;
   name: string;
-  rate: number;
+  /** Undefined when the source doesn't expose the percentage: never treated as 0%. */
+  rate?: number;
+}
+
+/**
+ * Live totals for the editor. Tax is only previewed when every line with an
+ * amount has a tax rate whose percentage the source gave us; otherwise the
+ * source calculates it on save and the editor shows only what it knows (the
+ * sum of the lines). A line with no tax rate picked gets the source's default
+ * (e.g. the account's), which Bookie can't know, so it blocks the preview too.
+ */
+export function editorTotals(
+  lines: LineItemInput[],
+  lineAmountType: LineAmountType,
+  rateFor: (taxType: string) => number | undefined
+): { lineSum: number; preview?: { subTotal: number; tax: number; total: number } } {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  let lineSum = 0;
+  let subTotal = 0;
+  let tax = 0;
+  let known = true;
+  for (const line of lines) {
+    const amount = lineAmount(line);
+    lineSum += amount;
+    if (lineAmountType === 'none') continue;
+    const rate = line.taxType ? rateFor(line.taxType) : undefined;
+    if (rate === undefined) {
+      if (amount !== 0) known = false;
+      continue;
+    }
+    if (lineAmountType === 'inclusive') {
+      const lineTax = amount - amount / (1 + rate / 100);
+      tax += lineTax;
+      subTotal += amount - lineTax;
+    } else {
+      subTotal += amount;
+      tax += amount * (rate / 100);
+    }
+  }
+  if (lineAmountType === 'none') {
+    return { lineSum: r2(lineSum), preview: { subTotal: r2(lineSum), tax: 0, total: r2(lineSum) } };
+  }
+  return {
+    lineSum: r2(lineSum),
+    preview: known
+      ? { subTotal: r2(subTotal), tax: r2(tax), total: r2(subTotal + tax) }
+      : undefined,
+  };
 }
 
 export interface EditorValues {
@@ -90,9 +137,13 @@ export function DocumentEditor({
   currencies = [],
   baseCurrency,
   acceptsCurrencyRate,
+  source = 'your accounting system',
 }: {
   heading: string;
-  currency: string;
+  /** Empty or undefined when the source doesn't say: amounts then show without a symbol. */
+  currency?: string;
+  /** "Xero" or "Business Central": who calculates the final tax and total. */
+  source?: string;
   contacts: EditorOption[];
   contactLabel: string;
   accounts: EditorOption[];
@@ -166,28 +217,12 @@ export function DocumentEditor({
     setValues((v) => ({ ...v, currency: code, currencyRate: undefined }));
   };
 
-  const rateFor = useMemo(() => {
-    const map = new Map(taxRates.map((t) => [t.taxType, t.rate]));
-    return (taxType?: string) => (taxType ? (map.get(taxType) ?? 0) : 0);
-  }, [taxRates]);
-
   const totals = useMemo(() => {
-    let subTotal = 0;
-    let tax = 0;
-    for (const line of values.lineItems) {
-      const amount = lineAmount(line);
-      const rate = rateFor(line.taxType) / 100;
-      if (values.lineAmountType === 'inclusive') {
-        const lineTax = amount - amount / (1 + rate);
-        tax += lineTax;
-        subTotal += amount - lineTax;
-      } else {
-        subTotal += amount;
-        if (values.lineAmountType === 'exclusive') tax += amount * rate;
-      }
-    }
-    return { subTotal, tax, total: subTotal + tax };
-  }, [values.lineItems, values.lineAmountType, rateFor]);
+    const map = new Map(taxRates.map((t) => [t.taxType, t.rate]));
+    return editorTotals(values.lineItems, values.lineAmountType, (taxType) => map.get(taxType));
+  }, [values.lineItems, values.lineAmountType, taxRates]);
+  const preview = totals.preview;
+  const taxed = values.lineAmountType !== 'none';
 
   const set = <K extends keyof EditorValues>(key: K, value: EditorValues[K]) =>
     setValues((v) => ({ ...v, [key]: value }));
@@ -543,37 +578,63 @@ export function DocumentEditor({
             </Field>
           )}
         </div>
-        <dl className="ml-auto w-full max-w-sm space-y-2 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-muted">Subtotal</dt>
-            <dd className="num">{formatMoney(totals.subTotal)}</dd>
-          </div>
-          {values.lineAmountType !== 'none' && (
-            <div className="flex justify-between">
-              <dt className="text-muted">
-                {values.lineAmountType === 'inclusive' ? 'Includes tax' : 'Total tax'}
-              </dt>
-              <dd className="num">{formatMoney(totals.tax)}</dd>
-            </div>
-          )}
-          <div className="border-line-strong text-ink flex justify-between border-t pt-2 text-base font-bold">
-            <dt>Total</dt>
-            <dd className="num" data-testid="editor-total">
-              {formatMoney(totals.total, docCurrency)}
-            </dd>
-          </div>
-          {foreign && values.currencyRate !== undefined && values.currencyRate > 0 && (
-            <div className="text-muted flex justify-between" data-testid="editor-total-base">
-              <dt>Total in {baseCurrency} at this rate</dt>
-              <dd className="num">
-                {formatMoney(totals.total / values.currencyRate, baseCurrency)}
-              </dd>
-            </div>
-          )}
-          {!taxOptions && values.lineAmountType !== 'none' && (
-            <p className="text-faint text-xs">
-              Tax shown here is an estimate; your accounting system calculates the final figure.
-            </p>
+        <dl className="ml-auto w-full max-w-sm space-y-2 text-sm" aria-label="Totals">
+          {preview ? (
+            <>
+              <div className="flex justify-between">
+                <dt className="text-muted">Subtotal</dt>
+                <dd className="num" data-testid="editor-subtotal">
+                  {formatMoney(preview.subTotal, docCurrency)}
+                </dd>
+              </div>
+              {taxed && (
+                <div className="flex justify-between">
+                  <dt className="text-muted">
+                    {values.lineAmountType === 'inclusive' ? 'Includes tax' : 'Total tax'}{' '}
+                    <span className="text-faint">(preview)</span>
+                  </dt>
+                  <dd className="num">{formatMoney(preview.tax, docCurrency)}</dd>
+                </div>
+              )}
+              <div className="border-line-strong text-ink flex justify-between border-t pt-2 text-base font-bold">
+                <dt>
+                  Total{taxed && <span className="text-faint text-sm font-normal"> (preview)</span>}
+                </dt>
+                <dd className="num" data-testid="editor-total">
+                  {formatMoney(preview.total, docCurrency)}
+                </dd>
+              </div>
+              {foreign && values.currencyRate !== undefined && values.currencyRate > 0 && (
+                <div className="text-muted flex justify-between" data-testid="editor-total-base">
+                  <dt>Total in {baseCurrency} at this rate</dt>
+                  <dd className="num">
+                    {formatMoney(preview.total / values.currencyRate, baseCurrency)}
+                  </dd>
+                </div>
+              )}
+              {taxed && (
+                <p className="text-faint text-xs" data-testid="editor-tax-note">
+                  Preview from {source}&apos;s tax rates. {source} calculates the final tax and
+                  total when you save, and the saved document shows them.
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="border-line-strong text-ink flex justify-between border-t pt-2 text-base font-bold">
+                <dt>
+                  {values.lineAmountType === 'inclusive' ? 'Total (tax inclusive)' : 'Subtotal'}
+                </dt>
+                <dd className="num" data-testid="editor-subtotal">
+                  {formatMoney(totals.lineSum, docCurrency)}
+                </dd>
+              </div>
+              <p className="text-faint text-xs" data-testid="editor-tax-note">
+                {values.lineAmountType === 'inclusive'
+                  ? `Tax is calculated by ${source} when you save.`
+                  : `Tax and total are calculated by ${source} when you save.`}
+              </p>
+            </>
           )}
         </dl>
       </div>
@@ -609,7 +670,13 @@ export function DocumentEditor({
       {confirmApprove && (
         <ConfirmDialog
           title="Save and approve?"
-          body={`This posts the document to your live books for ${formatMoney(totals.total, docCurrency)}.`}
+          body={
+            preview && !taxed
+              ? `This posts the document to your live books for ${formatMoney(preview.total, docCurrency)}.`
+              : preview
+                ? `This posts the document to your live books. Preview total ${formatMoney(preview.total, docCurrency)}; ${source} calculates the final figure.`
+                : `This posts the document to your live books. ${source} calculates the tax and total.`
+          }
           cta="Approve"
           busy={pending}
           onCancel={() => setConfirmApprove(false)}

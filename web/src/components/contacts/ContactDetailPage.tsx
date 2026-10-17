@@ -52,7 +52,8 @@ export async function ContactDetailPage({ orgParam, id }: { orgParam: string; id
     recent('sales', showSales),
     recent('purchase', showBills),
   ]);
-  const currency = contact.currency ?? details?.baseCurrency ?? org.baseCurrency;
+  // Balances are in the organisation's base currency, not the contact's own currency.
+  const currency = details?.baseCurrency;
   const listPath = `${base}/contacts`;
   const source = sourceName(org);
   const sourceUrl = connector.sourceLink?.('contact', contact.id);
@@ -95,7 +96,7 @@ export async function ContactDetailPage({ orgParam, id }: { orgParam: string; id
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <ContactDetails contact={contact} />
         <div className="min-w-0 space-y-5">
-          <BalanceTiles contact={contact} currency={currency} />
+          <BalanceTiles contact={contact} currency={currency} source={source} />
           {sales && (
             <RecentDocuments
               title="Invoices"
@@ -198,7 +199,15 @@ function ContactDetails({ contact }: { contact: Contact }) {
   );
 }
 
-function BalanceTiles({ contact, currency }: { contact: Contact; currency?: string }) {
+function BalanceTiles({
+  contact,
+  currency,
+  source,
+}: {
+  contact: Contact;
+  currency?: string;
+  source: string;
+}) {
   const b = contact.balances ?? {};
   const tiles: { label: string; amount: number | undefined; danger?: boolean }[] = [];
   if (contact.isCustomer || b.receivable) {
@@ -230,7 +239,7 @@ function BalanceTiles({ contact, currency }: { contact: Contact; currency?: stri
               )}
             >
               {tile.amount === undefined ? (
-                <span className="text-faint text-base font-normal">Not available</span>
+                <span className="text-faint text-sm font-normal">Not available from {source}</span>
               ) : (
                 <Money amount={tile.amount} currency={currency} />
               )}
@@ -294,7 +303,14 @@ function RecentDocuments({
       key: 'due-amount',
       header: 'Due',
       align: 'right',
-      cell: (i) => <Money amount={i.amountDue} currency={i.currency} className="text-ink" />,
+      cell: (i) => (
+        <Money
+          amount={i.amountDue}
+          currency={i.currency}
+          className="text-ink"
+          missing={result.ok ? result.page.note : undefined}
+        />
+      ),
     },
     {
       key: 'status',

@@ -47,15 +47,20 @@ export async function ContactListPage({
   const tab = contactTab(searchParams);
   const page = Math.max(1, Number(searchParams.page) || 1);
   const search = searchParams.search?.trim() || undefined;
-  const result = await connector.contacts.list({
-    role: tab === 'customers' ? 'customer' : tab === 'suppliers' ? 'supplier' : undefined,
-    status: tab === 'archived' ? 'archived' : undefined,
-    search,
-    page,
-    pageSize: 50,
-  });
+  const [result, details] = await Promise.all([
+    connector.contacts.list({
+      role: tab === 'customers' ? 'customer' : tab === 'suppliers' ? 'supplier' : undefined,
+      status: tab === 'archived' ? 'archived' : undefined,
+      search,
+      page,
+      pageSize: 50,
+    }),
+    connector.organisation().catch(() => undefined),
+  ]);
   const listPath = `${base}/contacts`;
-  const currency = org.baseCurrency;
+  // Balances are in the organisation's base currency (Xero converts; BC reports LCY),
+  // not the contact's own currency.
+  const currency = details?.baseCurrency;
 
   const columns: Column<Contact>[] = [
     {
@@ -99,11 +104,7 @@ export async function ContactListPage({
       header: 'You owe',
       align: 'right',
       cell: (c) => (
-        <Balance
-          amount={c.balances?.payable}
-          currency={c.currency ?? currency}
-          note={c.balancesNote}
-        />
+        <Balance amount={c.balances?.payable} currency={currency} note={c.balancesNote} />
       ),
     },
     {
@@ -112,14 +113,10 @@ export async function ContactListPage({
       align: 'right',
       cell: (c) => (
         <span className="flex flex-col items-end">
-          <Balance
-            amount={c.balances?.receivable}
-            currency={c.currency ?? currency}
-            note={c.balancesNote}
-          />
+          <Balance amount={c.balances?.receivable} currency={currency} note={c.balancesNote} />
           {!!c.balances?.overdueReceivable && (
             <span className="text-danger text-xs whitespace-nowrap">
-              {formatMoney(c.balances.overdueReceivable, c.currency ?? currency)} overdue
+              {formatMoney(c.balances.overdueReceivable, currency)} overdue
             </span>
           )}
         </span>

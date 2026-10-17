@@ -37,6 +37,8 @@ test.describe('multi-currency', () => {
     await expect(currency).toHaveValue('EUR');
     await page.getByTestId('line-0-description').fill('Espresso blend 1kg');
     await page.getByTestId('line-0-price').fill('116.48');
+    // No tax: the total is then exactly the line, with no tax rate to preview.
+    await page.getByLabel('Amounts are').selectOption('none');
     await expect(page.getByTestId('editor-total')).toContainText('€116.48');
     await page.getByTestId('editor-currency-rate').fill('1.1648');
     await expect(page.getByTestId('editor-total-base')).toContainText('£100.00');
@@ -72,10 +74,11 @@ test.describe('multi-currency', () => {
     await expect(page.getByText('Paid', { exact: true }).first()).toBeVisible();
   });
 
-  test('the dashboard totals are in sterling', async ({ page }) => {
+  test('the dashboard totals each currency separately, never converted', async ({ page }) => {
     await page.goto(ORG);
-    await expect(page.getByRole('heading', { name: 'Invoices owed to you' })).toBeVisible();
-    // Every euro demo invoice has a rate, so nothing is left out.
-    await expect(page.getByTestId('documents-note')).toHaveCount(0);
+    const owed = page.getByRole('heading', { name: 'Invoices owed to you' });
+    await expect(owed).toBeVisible();
+    // The demo has sterling and euro invoices awaiting payment: "£… + €…".
+    await expect(page.getByText(/£[\d,.]+ \+ €[\d,.]+/).first()).toBeVisible();
   });
 });

@@ -2,7 +2,6 @@ import 'server-only';
 import type {
   Contact,
   DashboardSummary,
-  DocumentBucket,
   Invoice,
   InvoiceType,
   ListQuery,
@@ -24,6 +23,7 @@ import {
   type XeroInvoice,
 } from './mappers';
 import { findReportValue, fromXeroReport, type XeroReport } from './reports';
+import { invoiceBuckets } from '../buckets';
 import { xeroQuotes } from './modules/quotes';
 import { xeroCreditNotes } from './modules/credit-notes';
 import { xeroPurchaseOrders } from './modules/purchase-orders';
@@ -41,7 +41,6 @@ import { xeroActivity } from './modules/activity';
 import { xeroAttachments } from './modules/attachments';
 import { xeroCapture } from './modules/capture';
 import { xeroCurrencies } from './modules/currencies';
-import { excludedNote, sumInBase } from '@/lib/domain/currency';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -207,67 +206,42 @@ function xeroContacts(client: XeroClient): ContactsModule {
   };
 }
 
+/** Every unpaid (draft, awaiting approval, awaiting payment) invoice of one type, all pages. */
+async function unpaidInvoices(client: XeroClient, type: 'ACCREC' | 'ACCPAY') {
+  const all: XeroInvoice[] = [];
+  for (let page = 1; page <= 50; page++) {
+    const result = await client.request<{ Invoices: XeroInvoice[] }>('Invoices', {
+      query: {
+        where: `Type=="${type}"`,
+        Statuses: 'DRAFT,SUBMITTED,AUTHORISED',
+        summaryOnly: true,
+        pageSize: 1000,
+        page,
+      },
+    });
+    all.push(...result.Invoices);
+    if (result.Invoices.length < 1000) break;
+  }
+  return all.map(fromXeroInvoice);
+}
+
 /**
- * Draft / awaiting approval / awaiting payment / overdue buckets in the base
- * currency. Foreign-currency invoices convert at their own Xero CurrencyRate
- * (returned on summaryOnly lists); one without a rate is left out and noted.
- * Exported for tests.
+ * Start of the financial year containing `on`, from Xero's financial year end.
+ * Undefined when Xero doesn't give the year end (never assume 31 December).
  */
-export function summariseXeroInvoices(raw: XeroInvoice[], baseCurrency: string) {
-  const invoices = raw.map(fromXeroInvoice);
-  const open = (i: Invoice) => (i.status === 'authorised' ? i.amountDue : i.total);
-  const pick = (status: Invoice['status']) => invoices.filter((i) => i.status === status);
-  const draft = sumInBase(pick('draft'), open, baseCurrency);
-  const awaitingApproval = sumInBase(pick('submitted'), open, baseCurrency);
-  const awaitingPayment = sumInBase(pick('authorised'), open, baseCurrency);
-  const overdue = sumInBase(
-    invoices.filter((i) => i.isOverdue),
-    (i) => i.amountDue,
-    baseCurrency
-  );
-  const all = [draft, awaitingApproval, awaitingPayment];
-  const excluded = all.reduce((n, b) => n + b.excluded, 0);
-  const currencies = [...new Set(all.flatMap((b) => b.excludedCurrencies))].sort();
-  const strip = ({ count, total }: DocumentBucket) => ({ count, total });
-  return {
-    buckets: {
-      draft: strip(draft),
-      awaitingApproval: strip(awaitingApproval),
-      awaitingPayment: strip(awaitingPayment),
-      overdue: strip(overdue),
-    },
-    excluded,
-    currencies,
-  };
-}
-
-async function summariseInvoices(client: XeroClient, type: 'ACCREC' | 'ACCPAY', base: string) {
-  const result = await client.request<{ Invoices: XeroInvoice[] }>('Invoices', {
-    query: {
-      where: `Type=="${type}"`,
-      Statuses: 'DRAFT,SUBMITTED,AUTHORISED',
-      summaryOnly: true,
-      pageSize: 1000,
-    },
-  });
-  const summary = summariseXeroInvoices(result.Invoices, base);
-  return {
-    buckets: summary.buckets,
-    note: excludedNote(
-      summary.excluded,
-      summary.currencies,
-      type === 'ACCREC' ? 'invoice' : 'bill',
-      'Xero'
-    ),
-  };
-}
-
-function financialYearStart(endDay = 31, endMonth = 12, on = new Date()): string {
-  // The FY starts the day after the previous year-end.
-  let year = on.getUTCFullYear();
-  const endThisYear = new Date(Date.UTC(year, endMonth - 1, endDay));
-  if (on <= endThisYear) year -= 1;
-  const start = new Date(Date.UTC(year, endMonth - 1, endDay + 1));
+export function financialYearStart(
+  endDay: number | undefined,
+  endMonth: number | undefined,
+  on: string
+): string | undefined {
+  if (!endDay || !endMonth) return undefined;
+  const year = Number(on.slice(0, 4));
+  const endOf = (y: number) =>
+    new Date(Date.UTC(y, endMonth - 1, endDay)).toISOString().slice(0, 10);
+  // The FY starts the day after the most recent year end before `on`.
+  const lastEnd = endOf(year) < on ? endOf(year) : endOf(year - 1);
+  const start = new Date(`${lastEnd}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() + 1);
   return start.toISOString().slice(0, 10);
 }
 
@@ -275,12 +249,19 @@ function monthEnd(year: number, monthIndex: number): string {
   return new Date(Date.UTC(year, monthIndex + 1, 0)).toISOString().slice(0, 10);
 }
 
-function incomeAndExpenses(report: Report, column: number) {
+/**
+ * Income, expenses and net for one P&L column. Xero leaves out sections with
+ * no transactions, so a missing "Total Income" really is zero; but without a
+ * Net Profit line the column can't be read, and it is undefined.
+ */
+export function incomeAndExpenses(report: Report, column: number) {
+  const net = findReportValue(report, /^Net Profit$/i, column);
+  if (net === undefined) return undefined;
   const income =
     (findReportValue(report, /^Total Income$/i, column) ?? 0) +
     (findReportValue(report, /^Total Other Income$/i, column) ?? 0);
-  const net = findReportValue(report, /^Net Profit$/i, column) ?? 0;
-  return { income, expenses: income - net, net };
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return { income: round(income), expenses: round(income - net), net };
 }
 
 export interface XeroConnectorOptions {
@@ -338,9 +319,15 @@ export function createXeroConnector({
       const details = await getOrganisation();
       const now = new Date();
       const thisMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      const [receivables, payables, bankSummary, trendReport, ytdReport] = await Promise.all([
-        summariseInvoices(client, 'ACCREC', details.baseCurrency),
-        summariseInvoices(client, 'ACCPAY', details.baseCurrency),
+      const base = details.baseCurrency ?? '';
+      const fyStart = financialYearStart(
+        details.financialYearEndDay,
+        details.financialYearEndMonth,
+        today()
+      );
+      const [sales, bills, bankSummary, trendReport, ytdReport] = await Promise.all([
+        unpaidInvoices(client, 'ACCREC'),
+        unpaidInvoices(client, 'ACCPAY'),
         runReport('BankSummary', {
           fromDate: thisMonthStart.toISOString().slice(0, 10),
           toDate: today(),
@@ -351,16 +338,13 @@ export function createXeroConnector({
           periods: 11,
           timeframe: 'MONTH',
         }),
-        runReport('ProfitAndLoss', {
-          fromDate: financialYearStart(
-            details.financialYearEndDay,
-            details.financialYearEndMonth,
-            now
-          ),
-          toDate: today(),
-        }),
+        fyStart
+          ? runReport('ProfitAndLoss', { fromDate: fyStart, toDate: today() })
+          : Promise.resolve(undefined),
       ]);
 
+      // Bank Summary amounts are all in the base currency (the report totals them),
+      // including foreign-currency accounts.
       const bank = fromXeroReport('bank-summary', bankSummary);
       const bankAccounts = bank.sections
         .flatMap((s) => s.rows)
@@ -368,31 +352,42 @@ export function createXeroConnector({
         .map((r) => ({
           id: r.accountId!,
           name: String(r.cells[0]),
-          currency: details.baseCurrency,
+          currency: base,
           balance: typeof r.cells[4] === 'number' ? r.cells[4] : undefined,
         }));
 
       const trend = fromXeroReport('profit-and-loss', trendReport);
       const months = trend.columns.slice(1).map((_, i) => {
         const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-        return { month: d.toISOString().slice(0, 7), ...incomeAndExpenses(trend, i + 1) };
+        return { month: d.toISOString().slice(0, 7), values: incomeAndExpenses(trend, i + 1) };
       });
+      const trendKnown = months.length > 0 && months.every((m) => m.values);
 
-      const ytd = fromXeroReport('profit-and-loss', ytdReport);
-      const ytdValues = incomeAndExpenses(ytd, 1);
+      const ytdValues = ytdReport
+        ? incomeAndExpenses(fromXeroReport('profit-and-loss', ytdReport), 1)
+        : undefined;
 
       return {
-        currency: details.baseCurrency,
+        currency: base,
         bankAccounts,
-        receivables: receivables.buckets,
-        payables: payables.buckets,
-        receivablesNote: receivables.note,
-        payablesNote: payables.note,
-        trend: months.reverse().map(({ month, income, expenses }) => ({ month, income, expenses })),
-        profitAndLoss: {
-          from: financialYearStart(details.financialYearEndDay, details.financialYearEndMonth, now),
-          to: today(),
-          ...ytdValues,
+        receivables: invoiceBuckets(sales, base),
+        payables: invoiceBuckets(bills, base),
+        trend: trendKnown
+          ? months.reverse().map(({ month, values }) => ({
+              month,
+              income: values!.income,
+              expenses: values!.expenses,
+            }))
+          : [],
+        profitAndLoss:
+          fyStart && ytdValues ? { from: fyStart, to: today(), ...ytdValues } : undefined,
+        notes: {
+          trend: trendKnown ? undefined : "Xero's profit and loss had no Net Profit line to read.",
+          profitAndLoss: !fyStart
+            ? "Xero didn't return the organisation's financial year end."
+            : ytdValues
+              ? undefined
+              : "Xero's profit and loss had no Net Profit line to read.",
         },
       };
     },
@@ -405,7 +400,7 @@ export function createXeroConnector({
     purchaseOrders: xeroPurchaseOrders(client),
     items: xeroItems(client),
     payments: xeroPayments(client),
-    bank: xeroBank(client),
+    bank: xeroBank(client, async () => (await getOrganisation()).baseCurrency),
     accounts: xeroAccounts(client),
     journals: xeroJournals(client),
     taxRates: xeroTaxRates(client),

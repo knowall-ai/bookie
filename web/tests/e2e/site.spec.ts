@@ -17,6 +17,14 @@ test.describe('public site', () => {
     );
   });
 
+  test('example figures are labelled as fictional illustrations', async ({ page }) => {
+    await page.goto('/');
+    await expect(
+      page.getByText('Illustration: fictional Contoso Coffee Roasters Ltd')
+    ).toBeVisible();
+    await expect(page.getByText(/Illustration with fictional organisations/)).toBeVisible();
+  });
+
   test('connector switch changes the source, not the layout', async ({ page }) => {
     await page.goto('/#connectors');
     const bc = page.getByRole('radio', { name: 'Business Central' });

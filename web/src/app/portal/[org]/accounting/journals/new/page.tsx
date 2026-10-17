@@ -23,10 +23,10 @@ export default async function Page({ params }: { params: Promise<{ org: string }
   }
   const listPath = `${base}/accounting/journals`;
   // Journal tax needs a real percentage; sources that can't give one get no tax column.
-  const rates = taxRates.some((t) => t.rateAvailable === false) ? [] : taxRateOptions(taxRates);
+  const rates = taxRates.some((t) => t.rate === undefined) ? [] : taxRateOptions(taxRates);
   return (
     <JournalEditor
-      currency={details.baseCurrency}
+      currency={details.baseCurrency ?? ''}
       // Xero doesn't allow manual journals to bank accounts; BC G/L accounts are never banks.
       accounts={accountOptions(accounts)}
       taxRates={rates}

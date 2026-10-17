@@ -7,6 +7,9 @@ import { fromBcDocumentLine, type BcDocumentLine } from './document-lines';
 
 const DEFAULT_PAGE_SIZE = 50;
 
+export const BC_CREDIT_REMAINING_NOTE =
+  "Business Central's API doesn't report how much of a posted credit memo is still to be applied, so remaining credit on open credit notes shows as not available.";
+
 export interface BcCreditMemo {
   id: string;
   number: string;
@@ -73,8 +76,15 @@ export function fromBcCreditMemo(raw: BcCreditMemo, type: CreditNoteType, lcy: s
     subTotal: raw.totalAmountExcludingTax ?? 0,
     totalTax: raw.totalTaxAmount ?? 0,
     total,
-    // API v2.0 has no remaining amount on credit memos: Open means not yet fully applied.
-    remainingCredit: status === 'paid' || status === 'voided' ? 0 : total,
+    // API v2.0 has no remaining amount on credit memos. Unposted memos haven't been
+    // applied (all of it remains); Paid/Canceled have nothing left. An Open memo may be
+    // partly applied, so its remaining credit is unknown rather than assumed to be the total.
+    remainingCredit:
+      status === 'draft' || status === 'submitted'
+        ? total
+        : status === 'paid' || status === 'voided'
+          ? 0
+          : undefined,
     lineItems: (isSales ? raw.salesCreditMemoLines : raw.purchaseCreditMemoLines)?.map(
       fromBcDocumentLine
     ),
@@ -116,11 +126,15 @@ export function bcCreditNotes(
         },
       });
       const currency = await lcy();
+      const items = result.value.slice(0, pageSize).map((c) => fromBcCreditMemo(c, type, currency));
       return {
-        items: result.value.slice(0, pageSize).map((c) => fromBcCreditMemo(c, type, currency)),
+        items,
         page,
         pageSize,
         hasMore: result.value.length > pageSize,
+        note: items.some((c) => c.remainingCredit === undefined)
+          ? BC_CREDIT_REMAINING_NOTE
+          : undefined,
       };
     },
     /** Sales and purchase credit memo ids are distinct GUIDs: try sales first. */

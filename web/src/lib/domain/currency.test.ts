@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { excludedNote, isForeign, sumInBase, toBaseAmount } from './currency';
+import { isForeign, toBaseAmount } from './currency';
 
 describe('base-currency helpers', () => {
   it('treats the base currency (any case) as not foreign', () => {
@@ -14,28 +14,5 @@ describe('base-currency helpers', () => {
     expect(toBaseAmount(50, 'GBP', 'GBP', undefined)).toBe(50);
     expect(toBaseAmount(50, 'EUR', 'GBP', undefined)).toBeUndefined();
     expect(toBaseAmount(50, 'EUR', 'GBP', 0)).toBeUndefined();
-  });
-
-  it('sums in base currency and counts what it had to leave out', () => {
-    const docs = [
-      { currency: 'GBP', amount: 100 },
-      { currency: 'EUR', currencyRate: 1.25, amount: 125 },
-      { currency: 'EUR', amount: 999 },
-      { currency: 'USD', amount: 1 },
-    ];
-    expect(sumInBase(docs, (d) => d.amount, 'GBP')).toEqual({
-      count: 2,
-      total: 200,
-      excluded: 2,
-      excludedCurrencies: ['EUR', 'USD'],
-    });
-  });
-
-  it('writes a note only when something was left out', () => {
-    expect(excludedNote(0, [], 'invoice', 'Xero')).toBeUndefined();
-    expect(excludedNote(1, ['EUR'], 'invoice', 'Business Central')).toBe(
-      "1 EUR invoice isn't included in these totals: Business Central gives no exchange rate for it."
-    );
-    expect(excludedNote(2, ['EUR'], 'bill', 'Xero')).toContain("2 EUR bills aren't included");
   });
 });

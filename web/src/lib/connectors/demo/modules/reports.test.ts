@@ -34,12 +34,19 @@ describe('demo reports', () => {
     expect(row.cells[1]).toBeCloseTo(row.cells[2] as number, 2);
   });
 
-  it('aged receivables total equals what customers owe on the dashboard', async () => {
+  it('aged totals per currency equal what is owed on the dashboard, currency by currency', async () => {
     const dashboard = await connector.dashboard();
-    const aged = await connector.reports!.run('aged-receivables');
-    expect(total(aged, /^Total$/, 7)).toBeCloseTo(dashboard.receivables.awaitingPayment.total, 2);
-    const payables = await connector.reports!.run('aged-payables');
-    expect(total(payables, /^Total$/, 7)).toBeCloseTo(dashboard.payables.awaitingPayment.total, 2);
+    for (const [id, bucket] of [
+      ['aged-receivables', dashboard.receivables.awaitingPayment],
+      ['aged-payables', dashboard.payables.awaitingPayment],
+    ] as const) {
+      const aged = await connector.reports!.run(id);
+      const expected = bucket.byCurrency ?? [{ currency: 'GBP', total: bucket.total! }];
+      for (const { currency, total: amount } of expected) {
+        const label = bucket.byCurrency ? new RegExp(`^Total ${currency}$`) : /^Total$/;
+        expect(total(aged, label, 7)).toBeCloseTo(amount, 2);
+      }
+    }
   });
 
   it('bank summary closes on the dashboard bank balances', async () => {

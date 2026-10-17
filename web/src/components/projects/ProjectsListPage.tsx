@@ -1,7 +1,15 @@
 import { FolderKanban } from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
 import { isConnectorError } from '@/lib/connectors/types';
-import type { Page, Project } from '@/lib/domain/types';
+import type { Page, Project, ProjectStatus } from '@/lib/domain/types';
+import { SourceNote } from '@/components/accounting/SourceNote';
+
+const DEFAULT_STATUSES: ProjectStatus[] = ['in-progress', 'closed'];
+const TAB_LABEL: Record<ProjectStatus, string> = {
+  'in-progress': 'In progress',
+  closed: 'Closed',
+  unknown: 'All projects (status not available)',
+};
 import { formatDate } from '@/lib/ui/format';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusTabs } from '@/components/ui/StatusTabs';
@@ -27,7 +35,12 @@ export async function ProjectsListPage({
   const { connector, base, org } = await orgContext(orgParam);
   if (!connector.projects) return <NotAvailable feature="Projects" source={sourceName(org)} />;
 
-  const status = searchParams.status === 'closed' ? 'closed' : 'in-progress';
+  // Sources that can't tell in progress from closed (BC) list every project under one
+  // "status not available" tab rather than calling them all in progress.
+  const statuses = connector.projects.statuses ?? DEFAULT_STATUSES;
+  const status: ProjectStatus = statuses.includes(searchParams.status as ProjectStatus)
+    ? (searchParams.status as ProjectStatus)
+    : statuses[0];
   const page = Math.max(1, Number(searchParams.page) || 1);
   const listPath = `${base}/projects`;
   let result: Page<Project>;
@@ -96,11 +109,9 @@ export async function ProjectsListPage({
         basePath={listPath}
         current={status}
         params={{ search: searchParams.search }}
-        tabs={[
-          { value: 'in-progress', label: 'In progress' },
-          { value: 'closed', label: 'Closed' },
-        ]}
+        tabs={statuses.map((value) => ({ value, label: TAB_LABEL[value] }))}
       />
+      <SourceNote>{result.note}</SourceNote>
       <div className="mb-4 flex items-center gap-3">
         <SearchBox placeholder="Search projects by name or contact" className="w-full max-w-md" />
       </div>
@@ -117,7 +128,9 @@ export async function ProjectsListPage({
                 ? `No projects match “${searchParams.search}”`
                 : status === 'closed'
                   ? 'No closed projects'
-                  : 'No projects in progress'
+                  : status === 'unknown'
+                    ? 'No projects'
+                    : 'No projects in progress'
             }
           />
         }

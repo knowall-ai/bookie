@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Invoice } from '@/lib/domain/types';
 import { fromXeroInvoice, toXeroInvoice, type XeroInvoice } from './xero/mappers';
-import { summariseXeroInvoices } from './xero/index';
+import { invoiceBuckets } from './buckets';
 import { fromXeroCurrency, xeroCurrencies } from './xero/modules/currencies';
 import { fromXeroPayment, toXeroPayment } from './xero/modules/payments';
 import { fromXeroQuote, toXeroQuote } from './xero/modules/quotes';
@@ -9,7 +9,6 @@ import { fromXeroCreditNote } from './xero/modules/credit-notes';
 import { fromXeroPurchaseOrder, toXeroPurchaseOrder } from './xero/modules/purchase-orders';
 import type { XeroClient } from './xero/client';
 import { bcCurrencyList } from './bc/modules/currencies';
-import { summarise as summariseBc } from './bc/index';
 import { createDemoConnector, DEMO_ORGS } from './demo/index';
 import { demoInBase } from './demo/modules/currencies';
 
@@ -137,21 +136,21 @@ describe('Xero multi-currency', () => {
     ).toMatchObject({ Amount: 116.48, CurrencyRate: 1.1648 });
   });
 
-  it('dashboard buckets convert euro invoices at their own rate, never adding EUR to GBP', () => {
-    const summary = summariseXeroInvoices([eurInvoice, gbpInvoice], 'GBP');
-    expect(summary.buckets.awaitingPayment).toEqual({ count: 2, total: 1240 });
-    expect(summary.buckets.overdue).toEqual({ count: 1, total: 1000 });
-    expect(summary.excluded).toBe(0);
-  });
-
-  it('dashboard leaves out a foreign invoice with no rate, and says so', () => {
-    const summary = summariseXeroInvoices(
-      [{ ...eurInvoice, CurrencyRate: undefined }, gbpInvoice],
-      'GBP'
-    );
-    expect(summary.buckets.awaitingPayment).toEqual({ count: 1, total: 240 });
-    expect(summary.excluded).toBe(1);
-    expect(summary.currencies).toEqual(['EUR']);
+  it('dashboard buckets total each currency separately, never converting or adding EUR to GBP', () => {
+    const buckets = invoiceBuckets([eurInvoice, gbpInvoice].map(fromXeroInvoice), 'GBP');
+    expect(buckets.awaitingPayment).toEqual({
+      count: 2,
+      total: undefined,
+      byCurrency: [
+        { currency: 'GBP', total: 240 },
+        { currency: 'EUR', total: 1164.8 },
+      ],
+    });
+    expect(buckets.overdue).toMatchObject({
+      count: 1,
+      total: undefined,
+      byCurrency: [{ currency: 'EUR', total: 1164.8 }],
+    });
   });
 
   it('lists the enabled currencies from GET Currencies', async () => {
@@ -186,7 +185,7 @@ describe('Business Central multi-currency', () => {
     ).toEqual([{ code: 'GBP' }, { code: 'EUR', name: 'Euro' }, { code: 'USD', name: 'US dollar' }]);
   });
 
-  it('dashboard leaves foreign documents out of LCY totals (BC gives no rate)', () => {
+  it('dashboard totals foreign documents in their own currency (BC gives no rate)', () => {
     const doc = (currency: string, total: number): Invoice => ({
       id: currency + total,
       type: 'sales',
@@ -202,10 +201,15 @@ describe('Business Central multi-currency', () => {
       amountPaid: 0,
       isOverdue: false,
     });
-    const result = summariseBc([doc('GBP', 100), doc('EUR', 500), doc('EUR', 50)], 'GBP');
-    expect(result.buckets.draft).toEqual({ count: 1, total: 100 });
-    expect(result.excluded).toBe(2);
-    expect(result.currencies).toEqual(['EUR']);
+    const buckets = invoiceBuckets([doc('GBP', 100), doc('EUR', 500), doc('EUR', 50)], 'GBP');
+    expect(buckets.draft).toEqual({
+      count: 3,
+      total: undefined,
+      byCurrency: [
+        { currency: 'GBP', total: 100 },
+        { currency: 'EUR', total: 550 },
+      ],
+    });
   });
 });
 

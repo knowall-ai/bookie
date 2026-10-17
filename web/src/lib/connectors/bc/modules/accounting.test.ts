@@ -12,6 +12,7 @@ import {
 } from './journals';
 import { fromBcTaxGroup } from './tax-rates';
 import { BC_ASSET_STATUS_NOTE, bcAssets, fromBcFixedAsset } from './assets';
+import { taxRateOptions } from '@/components/accounting/options';
 
 /* Fixtures are shaped like BC API v2.0 responses, with fictional values. */
 
@@ -77,7 +78,17 @@ describe('bc accounts', () => {
     expect(ytdBalance(revenue, line)).toBe(119819.09);
     const liability = { ...revenue, class: 'liability' as const };
     expect(ytdBalance(liability, line)).toBe(539974.29);
-    expect(ytdBalance(revenue, undefined)).toBe(0);
+    // No trial balance line, or no category to sign it by: not available, never 0.
+    expect(ytdBalance(revenue, undefined)).toBeUndefined();
+    const uncategorised = fromBcAccount({
+      id: 'g2',
+      number: '99999',
+      displayName: 'Suspense',
+      category: '_x0020_',
+      accountType: 'Posting',
+    });
+    expect(uncategorised.class).toBeUndefined();
+    expect(ytdBalance(uncategorised, line)).toBeUndefined();
   });
 
   it('maps G/L entries', () => {
@@ -341,29 +352,39 @@ describe('bc tax rates and fixed assets', () => {
       id: 't1',
       name: 'Standard VAT (20%)',
       taxType: 'STANDARD',
-      rate: 0,
-      rateAvailable: false,
+      rate: undefined,
       status: 'active',
     });
   });
 
-  it('maps fixed asset cards as registered', async () => {
-    expect(
-      fromBcFixedAsset({
-        id: 'f1',
-        number: 'FA000010',
-        displayName: 'Vehicle 1',
-        classCode: 'TANGIBLE',
-        subclassCode: 'VEHICLES',
-      })
-    ).toEqual({
+  it('shows rate-less tax codes by name only, never as 0%', () => {
+    const [option] = taxRateOptions([
+      fromBcTaxGroup({ id: 't1', code: 'STANDARD', displayName: 'Standard' }),
+    ]);
+    expect(option).toEqual({ taxType: 'STANDARD', name: 'Standard', rate: undefined });
+    expect(option.name).not.toMatch(/%/);
+  });
+
+  it('maps fixed asset cards with an unknown status, not as registered', async () => {
+    const asset = fromBcFixedAsset({
+      id: 'f1',
+      number: 'FA000010',
+      displayName: 'Vehicle 1',
+      classCode: 'TANGIBLE',
+      subclassCode: 'VEHICLES',
+    });
+    expect(asset).toMatchObject({
       id: 'f1',
       number: 'FA000010',
       name: 'Vehicle 1',
-      status: 'registered',
+      status: 'unknown',
       assetType: 'TANGIBLE · VEHICLES',
     });
-    const page = await bcAssets({} as BcClient).list({ status: 'disposed' });
+    expect(asset.bookValue).toBeUndefined();
+    expect(asset.purchasePrice).toBeUndefined();
+    const assets = bcAssets({} as BcClient);
+    expect(assets.statuses).toEqual(['unknown']);
+    const page = await assets.list({ status: 'registered' });
     expect(page).toMatchObject({ items: [], note: BC_ASSET_STATUS_NOTE });
   });
 });

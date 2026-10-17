@@ -2,8 +2,6 @@ import type {
   Contact,
   ContactInput,
   DashboardSummary,
-  DocumentBucket,
-  Invoice,
   InvoiceStatus,
   ListQuery,
   OrgRef,
@@ -15,7 +13,8 @@ import {
   type ContactsModule,
   type InvoicesModule,
 } from '../types';
-import { addDays, demoData, DEMO_TODAY, type DemoData } from './data';
+import { addDays, demoData, DEMO_TODAY, type DemoData, type DemoInvoice } from './data';
+import { invoiceBuckets } from '../buckets';
 import { demoQuotes } from './modules/quotes';
 import { demoCreditNotes } from './modules/credit-notes';
 import { demoPurchaseOrders } from './modules/purchase-orders';
@@ -32,7 +31,6 @@ import { demoProjects } from './modules/projects';
 import { demoActivity } from './modules/activity';
 import { demoAttachments, demoCapture } from './modules/attachments';
 import { demoCurrencies, demoInBase, seedForeignCurrency } from './modules/currencies';
-import { excludedNote, sumInBase } from '@/lib/domain/currency';
 
 export const DEMO_ORGS: OrgRef[] = [
   {
@@ -93,7 +91,7 @@ function demoInvoices(data: DemoData): InvoicesModule {
     input: Parameters<NonNullable<InvoicesModule['create']>>[0],
     id: string,
     number: string
-  ): Invoice => {
+  ): DemoInvoice => {
     const contact = data.contacts.find((c) => c.id === input.contactId) ?? notFound('Contact');
     const lineItems = input.lineItems.map((l) => {
       const lineAmount =
@@ -294,32 +292,6 @@ function demoContacts(data: DemoData): ContactsModule {
   };
 }
 
-/** Dashboard buckets in GBP: foreign invoices at their own rate, unconvertible ones noted. */
-function summarise(invoices: Invoice[]) {
-  const by = (status: InvoiceStatus) => invoices.filter((i) => i.status === status);
-  const due = (i: Invoice) => i.amountDue;
-  const draft = sumInBase(by('draft'), due, 'GBP');
-  const awaitingApproval = sumInBase(by('submitted'), due, 'GBP');
-  const awaitingPayment = sumInBase(by('authorised'), due, 'GBP');
-  const overdue = sumInBase(
-    invoices.filter((i) => i.isOverdue),
-    due,
-    'GBP'
-  );
-  const parts = [draft, awaitingApproval, awaitingPayment];
-  const strip = ({ count, total }: DocumentBucket): DocumentBucket => ({ count, total });
-  return {
-    buckets: {
-      draft: strip(draft),
-      awaitingApproval: strip(awaitingApproval),
-      awaitingPayment: strip(awaitingPayment),
-      overdue: strip(overdue),
-    },
-    excluded: parts.reduce((n, p) => n + p.excluded, 0),
-    currencies: [...new Set(parts.flatMap((p) => p.excludedCurrencies))].sort(),
-  };
-}
-
 export function createDemoConnector(org: OrgRef): AccountingConnector {
   const data = demoData(org.key.split('.')[1]);
   seedForeignCurrency(data);
@@ -351,7 +323,7 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
         const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11 + i, 1));
         const month = d.toISOString().slice(0, 7);
         // In GBP: foreign invoices at their own rate (ones with no rate are left out).
-        const books = data.invoices.map((x) => demoInBase(x)).filter((x): x is Invoice => !!x);
+        const books = data.invoices.map((x) => demoInBase(x)).filter((x): x is DemoInvoice => !!x);
         const income = books
           .filter(
             (x) =>
@@ -371,8 +343,6 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
             .reduce((s, x) => s + x.subTotal, 0) + 4200;
         return { month, income, expenses };
       });
-      const receivables = summarise(data.invoices.filter((i) => i.type === 'sales'));
-      const payables = summarise(data.invoices.filter((i) => i.type === 'purchase'));
       const fyStart = `${now.getUTCMonth() >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1}-04-01`;
       const ytd = trend.filter((t) => `${t.month}-01` >= fyStart);
       const income = ytd.reduce((s, t) => s + t.income, 0);
@@ -380,15 +350,14 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
       return {
         currency: 'GBP',
         bankAccounts: structuredClone(data.bankAccounts),
-        receivables: receivables.buckets,
-        payables: payables.buckets,
-        receivablesNote: excludedNote(
-          receivables.excluded,
-          receivables.currencies,
-          'invoice',
-          'the demo'
+        receivables: invoiceBuckets(
+          data.invoices.filter((i) => i.type === 'sales'),
+          'GBP'
         ),
-        payablesNote: excludedNote(payables.excluded, payables.currencies, 'bill', 'the demo'),
+        payables: invoiceBuckets(
+          data.invoices.filter((i) => i.type === 'purchase'),
+          'GBP'
+        ),
         trend,
         profitAndLoss: {
           from: fyStart,

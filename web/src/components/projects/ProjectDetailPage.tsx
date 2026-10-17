@@ -93,7 +93,15 @@ export async function ProjectDetailPage({ orgParam, id }: { orgParam: string; id
           { label: 'Contact', value: project.contact?.name ?? '—' },
           { label: 'Deadline', value: formatDate(project.deadline) },
           { label: 'Currency', value: project.currency ?? '—' },
-          { label: 'Status', value: project.status === 'closed' ? 'Closed' : 'In progress' },
+          {
+            label: 'Status',
+            value:
+              project.status === 'closed'
+                ? 'Closed'
+                : project.status === 'in-progress'
+                  ? 'In progress'
+                  : `Not available from ${sourceName(org)}`,
+          },
         ]}
       />
     </>

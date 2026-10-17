@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { ArrowRight, FileText, Plus } from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
 import { invoiceOverview } from '@/lib/portal/overview';
-import { excludedNote } from '@/lib/domain/currency';
 import type { DocumentBucket, Invoice, InvoiceType } from '@/lib/domain/types';
 import type { ModuleName } from '@/lib/portal/nav';
 import { formatDate } from '@/lib/ui/format';
@@ -14,6 +13,8 @@ import { Money } from '@/components/ui/Money';
 import { StatusBadge } from '@/components/ui/Badge';
 import { ButtonLink } from '@/components/ui/Button';
 import { EmptyState, NotAvailable } from '@/components/ui/States';
+import { BucketAmount } from '@/components/dashboard/DashboardCards';
+import { SourceNote } from '@/components/accounting/SourceNote';
 
 interface QuickLink {
   label: string;
@@ -115,12 +116,14 @@ function StatusCard({
   currency,
   href,
   tone,
+  missing,
 }: {
   label: string;
   bucket: DocumentBucket;
   currency: string;
   href: string;
   tone?: 'danger';
+  missing?: string;
 }) {
   return (
     <Link
@@ -132,14 +135,15 @@ function StatusCard({
         {label}
         <ArrowRight className="text-faint h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
       </span>
-      <Money
-        amount={bucket.total}
-        currency={currency}
+      <span
         className={cn(
-          'text-2xl font-bold',
+          'num font-bold',
+          bucket.byCurrency ? 'text-lg' : 'text-2xl',
           tone === 'danger' && bucket.count ? 'text-danger' : 'text-ink'
         )}
-      />
+      >
+        <BucketAmount bucket={bucket} currency={currency} missing={missing} />
+      </span>
       <span className="text-faint text-xs">
         {bucket.count} {bucket.count === 1 ? 'item' : 'items'}
       </span>
@@ -154,9 +158,11 @@ export async function OverviewPage({ orgParam, type }: { orgParam: string; type:
   if (!connector.invoices)
     return <NotAvailable feature={copy.documents} source={sourceName(org)} />;
 
-  const details = await connector.organisation();
-  const currency = details.baseCurrency;
-  const overview = await invoiceOverview(connector, type, currency);
+  const [overview, details] = await Promise.all([
+    invoiceOverview(connector, type),
+    connector.organisation(),
+  ]);
+  const currency = details.baseCurrency ?? '';
   const listPath = `${base}${copy.list}`;
 
   const columns: Column<Invoice>[] = [
@@ -187,7 +193,14 @@ export async function OverviewPage({ orgParam, type }: { orgParam: string; type:
       key: 'amountDue',
       header: 'Due',
       align: 'right',
-      cell: (i) => <Money amount={i.amountDue} currency={i.currency} className="text-ink" />,
+      cell: (i) => (
+        <Money
+          amount={i.amountDue}
+          currency={i.currency}
+          className="text-ink"
+          missing={overview?.note}
+        />
+      ),
     },
     {
       key: 'status',
@@ -239,6 +252,7 @@ export async function OverviewPage({ orgParam, type }: { orgParam: string; type:
               bucket={overview.awaitingPayment}
               currency={currency}
               href={`${listPath}?status=authorised`}
+              missing={overview.note}
             />
             <StatusCard
               label="Overdue"
@@ -246,17 +260,13 @@ export async function OverviewPage({ orgParam, type }: { orgParam: string; type:
               currency={currency}
               href={`${listPath}?status=overdue`}
               tone="danger"
+              missing={overview.note}
             />
           </div>
-          {overview.excluded > 0 && (
-            <p className="text-faint mt-2 text-xs" data-testid="overview-excluded">
-              {excludedNote(
-                overview.excluded,
-                overview.excludedCurrencies,
-                type === 'sales' ? 'invoice' : 'bill',
-                sourceName(org)
-              )}
-            </p>
+          {overview.note && (
+            <div className="mt-3">
+              <SourceNote>{overview.note}</SourceNote>
+            </div>
           )}
           {overview.truncated && (
             <p className="text-faint mt-2 text-xs">

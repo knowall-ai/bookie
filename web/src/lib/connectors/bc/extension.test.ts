@@ -341,12 +341,14 @@ describe('bc extension bills', () => {
     totalAmountIncludingTax: 100,
   };
 
-  it('uses the remaining amount on posted bills, and the total without it', () => {
+  it('uses the remaining amount on posted bills, and unknown (never the total) without it', () => {
     expect(fromPurchaseInvoice(bill, 'GBP', 40)).toMatchObject({
       amountDue: 40,
       amountPaid: 60,
     });
-    expect(fromPurchaseInvoice(bill, 'GBP')).toMatchObject({ amountDue: 100, amountPaid: 0 });
+    const unknown = fromPurchaseInvoice(bill, 'GBP');
+    expect(unknown.amountDue).toBeUndefined();
+    expect(unknown.amountPaid).toBeUndefined();
     expect(fromPurchaseInvoice({ ...bill, status: 'Draft' }, 'GBP', 40).amountDue).toBe(100);
     expect(fromPurchaseInvoice({ ...bill, status: 'Paid' }, 'GBP', 40).amountDue).toBe(0);
   });

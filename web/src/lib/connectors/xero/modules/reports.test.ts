@@ -85,41 +85,60 @@ describe('xero reports', () => {
     });
   });
 
-  it('converts foreign-currency amounts to base currency for ageing', () => {
-    const item = toAgedItem(
-      {
-        InvoiceID: 'i1',
-        Type: 'ACCREC',
-        Status: 'AUTHORISED',
-        Contact: { ContactID: 'c1', Name: 'Fabrikam' },
-        DueDateString: '2026-09-30T00:00:00',
-        AmountDue: 120,
-        CurrencyCode: 'USD',
-        CurrencyRate: 1.2,
-      },
-      'GBP'
-    );
+  it('keeps foreign-currency amounts in their own currency (no guessed conversion)', () => {
+    const item = toAgedItem({
+      InvoiceID: 'i1',
+      Type: 'ACCREC',
+      Status: 'AUTHORISED',
+      Contact: { ContactID: 'c1', Name: 'Fabrikam' },
+      DueDateString: '2026-09-30T00:00:00',
+      AmountDue: 120,
+      CurrencyCode: 'USD',
+      CurrencyRate: 1.2,
+    });
     expect(item).toEqual({
       contactId: 'c1',
       contactName: 'Fabrikam',
       dueDate: '2026-09-30',
-      amount: 100,
+      amount: 120,
+      currency: 'USD',
     });
   });
 
-  it('leaves out a foreign-currency invoice with no Xero rate instead of mixing currencies', () => {
-    const item = toAgedItem(
-      {
-        InvoiceID: 'i2',
-        Type: 'ACCREC',
-        Status: 'AUTHORISED',
-        Contact: { ContactID: 'c1', Name: 'Fabrikam' },
-        AmountDue: 120,
-        CurrencyCode: 'EUR',
-      },
-      'GBP'
+  it('totals each currency separately when invoices are in more than one', async () => {
+    const reports = xeroReports(
+      fakeClient({
+        Organisation: { Organisations: [{ Name: 'Contoso Ltd', BaseCurrency: 'GBP' }] },
+        Invoices: {
+          Invoices: [
+            {
+              InvoiceID: '1',
+              Type: 'ACCREC',
+              Status: 'AUTHORISED',
+              Contact: { ContactID: 'a', Name: 'Northwind' },
+              DueDateString: '2099-01-01T00:00:00',
+              AmountDue: 50,
+              CurrencyCode: 'GBP',
+            },
+            {
+              InvoiceID: '2',
+              Type: 'ACCREC',
+              Status: 'AUTHORISED',
+              Contact: { ContactID: 'b', Name: 'Fabrikam' },
+              DueDateString: '2099-01-01T00:00:00',
+              AmountDue: 80,
+              CurrencyCode: 'EUR',
+              CurrencyRate: 1.17,
+            },
+          ],
+        },
+      })
     );
-    expect(item).toBeUndefined();
+    const report = await reports.run('aged-receivables');
+    expect(report.sections.map((s) => s.title)).toEqual(['GBP', 'EUR']);
+    expect(report.sections[0].rows.at(-1)?.cells).toEqual(['Total GBP', 50, 0, 0, 0, 0, 0, 50]);
+    expect(report.sections[1].rows.at(-1)?.cells).toEqual(['Total EUR', 80, 0, 0, 0, 0, 0, 80]);
+    expect(report.note).toMatch(/own currency/);
   });
 
   it('builds the aged receivables summary from outstanding invoices', async () => {
