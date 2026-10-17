@@ -461,6 +461,9 @@ export interface PurchaseOrder {
   sourceUrl?: string;
 }
 
+/** Status moves a purchase order can make (Xero: submit, approve, mark as billed, delete). */
+export type PurchaseOrderStatusChange = 'submitted' | 'authorised' | 'billed' | 'deleted';
+
 export interface PurchaseOrderInput {
   contactId: string;
   date: IsoDate;
@@ -590,6 +593,52 @@ export interface BankTransactionInput {
   reference?: string;
   lineAmountType?: LineAmountType;
   lineItems: LineItemInput[];
+}
+
+/** Money moved between two of the organisation's own bank accounts (Xero BankTransfers). */
+export interface BankTransfer {
+  id: string;
+  date: IsoDate;
+  from: { id: string; name?: string };
+  to: { id: string; name?: string };
+  amount: number;
+  /** The from-account's currency, when the source says what it is. */
+  currency?: string;
+  reference?: string;
+  fromIsReconciled?: boolean;
+  toIsReconciled?: boolean;
+  status: 'authorised' | 'deleted';
+}
+
+export interface BankTransferInput {
+  fromBankAccountId: string;
+  toBankAccountId: string;
+  date: IsoDate;
+  amount: number;
+  reference?: string;
+}
+
+/** Several invoice or bill payments made as one bank transaction (Xero BatchPayments). */
+export interface BatchPayment {
+  id: string;
+  date: IsoDate;
+  /** `purchase` = bills paid (Xero PAYBATCH); `sales` = invoices received (RECBATCH). */
+  type: InvoiceType;
+  bankAccountId?: string;
+  bankAccountName?: string;
+  currency?: string;
+  reference?: string;
+  total: number;
+  payments: { id: string; invoiceId?: string; amount: number }[];
+  isReconciled?: boolean;
+  status: 'authorised' | 'deleted';
+}
+
+export interface BatchPaymentInput {
+  bankAccountId: string;
+  date: IsoDate;
+  reference?: string;
+  payments: { invoiceId: string; amount: number }[];
 }
 
 /* ------------------------------------------------------------------ */

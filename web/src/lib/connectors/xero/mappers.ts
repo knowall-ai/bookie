@@ -10,6 +10,7 @@ import type {
   LineItemInput,
 } from '@/lib/domain/types';
 import { xeroDate, xeroTimestamp } from './client';
+import { todayIso } from '@/lib/domain/dates';
 
 /* Raw Xero shapes (only the fields Bookie reads). */
 
@@ -124,9 +125,7 @@ export function toLineAmountTypes(value?: LineAmountType): XeroInvoice['LineAmou
   return 'Exclusive';
 }
 
-export function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+export const today = todayIso;
 
 /** Xero's CurrencyRate, kept only when it is a usable positive number. */
 export function xeroRate(rate: number | undefined): number | undefined {

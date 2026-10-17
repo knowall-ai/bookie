@@ -5,6 +5,6 @@ useDefault = true
 
 [allowlist]
 description = "Test-only fixtures"
-paths = ['''web/playwright\.config\.ts''']
+paths = ['''web/playwright\.config\.ts''', '''web/src/lib/webhooks/webhooks\.test\.ts''']
 # Microsoft's public first-party app id for Dynamics 365 Business Central, not a secret.
 regexes = ['''996def3d-b36c-4153-8607-a6fd3c01b89f''']

@@ -32,6 +32,7 @@ import {
   shiftRange,
   type DateRange,
 } from '@/lib/reports/periods';
+import { todayIso } from '@/lib/domain/dates';
 
 const AVAILABLE: ReportId[] = [
   'profit-and-loss',
@@ -62,7 +63,7 @@ const FY_END = { day: 31, month: 3 };
 
 const round = (n: number) => Math.round(n * 100) / 100;
 const sum = (values: number[]) => round(values.reduce((s, n) => s + n, 0));
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayIso;
 
 /** Posted invoices (approved or paid): drafts and those awaiting approval aren't in the books yet. */
 const live = (data: DemoData, type: Invoice['type']) =>

@@ -1,6 +1,6 @@
 import { Banknote } from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
-import type { Payment } from '@/lib/domain/types';
+import type { BatchPayment, Payment } from '@/lib/domain/types';
 import { formatDate } from '@/lib/ui/format';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusTabs } from '@/components/ui/StatusTabs';
@@ -33,13 +33,95 @@ export default async function Page({
   const invoiceType =
     query.status === 'sales' ? 'sales' : query.status === 'purchase' ? 'purchase' : undefined;
   const page = Math.max(1, Number(query.page) || 1);
+  const listPath = `${base}/accounting/payments`;
+  const batchList = connector.payments.batches;
+  const tabs = [
+    { value: 'all', label: 'All' },
+    { value: 'sales', label: 'Received' },
+    { value: 'purchase', label: 'Paid' },
+    ...(batchList ? [{ value: 'batches', label: 'Batch payments' }] : []),
+  ];
+
+  if (query.status === 'batches' && batchList) {
+    const batches = await batchList({ search: query.search, page, pageSize: 50 });
+    const batchColumns: Column<BatchPayment>[] = [
+      { key: 'date', header: 'Date', cell: (b) => formatDate(b.date) },
+      {
+        key: 'type',
+        header: 'Type',
+        cell: (b) => (
+          <span className="text-ink">
+            {b.type === 'purchase' ? 'Bill payments' : 'Invoice receipts'}
+          </span>
+        ),
+      },
+      {
+        key: 'bank',
+        header: 'Bank account',
+        cell: (b) => <span className="text-muted">{b.bankAccountName ?? ''}</span>,
+      },
+      {
+        key: 'reference',
+        header: 'Reference',
+        cell: (b) => <span className="text-muted">{b.reference ?? ''}</span>,
+        hideOnMobile: true,
+      },
+      {
+        key: 'count',
+        header: 'Payments',
+        align: 'right',
+        cell: (b) => <span className="num">{b.payments.length}</span>,
+        hideOnMobile: true,
+      },
+      {
+        key: 'amount',
+        header: 'Amount',
+        align: 'right',
+        cell: (b) => <Money amount={b.total} currency={b.currency} className="text-ink" />,
+      },
+    ];
+    return (
+      <>
+        <PageHeader title="Payments" crumbs={crumbs} />
+        <StatusTabs
+          basePath={listPath}
+          current="batches"
+          params={{ search: query.search }}
+          tabs={tabs}
+        />
+        <div className="mb-4">
+          <SearchBox placeholder="Search batch payments" className="w-full max-w-md" />
+        </div>
+        <DataTable
+          columns={batchColumns}
+          rows={batches.items}
+          rowKey={(b) => b.id}
+          empty={
+            <EmptyState
+              icon={<Banknote className="h-6 w-6" />}
+              title={
+                query.search ? `No batch payments match “${query.search}”` : 'No batch payments yet'
+              }
+              body="Pay several bills at once from Purchases › Bills › Awaiting payment."
+            />
+          }
+        />
+        <Pagination
+          page={batches.page}
+          hasMore={batches.hasMore}
+          basePath={listPath}
+          params={{ status: 'batches', search: query.search }}
+        />
+      </>
+    );
+  }
+
   const result = await connector.payments.list({
     invoiceType,
     search: query.search,
     page,
     pageSize: 50,
   });
-  const listPath = `${base}/accounting/payments`;
 
   const columns: Column<Payment>[] = [
     { key: 'date', header: 'Date', cell: (p) => formatDate(p.date) },
@@ -97,11 +179,7 @@ export default async function Page({
         basePath={listPath}
         current={invoiceType ?? 'all'}
         params={{ search: query.search }}
-        tabs={[
-          { value: 'all', label: 'All' },
-          { value: 'sales', label: 'Received' },
-          { value: 'purchase', label: 'Paid' },
-        ]}
+        tabs={tabs}
       />
       <div className="mb-4">
         <SearchBox placeholder="Search payments" className="w-full max-w-md" />

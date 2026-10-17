@@ -46,6 +46,7 @@ import { isForeign } from '@/lib/domain/currency';
 import { bcFiscalYear } from './fiscal-year';
 import { invoiceBuckets } from '../buckets';
 import { bcHistory } from './modules/history';
+import { todayIso } from '@/lib/domain/dates';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -169,9 +170,7 @@ const BC_STATUS_FILTER: Record<string, string | undefined> = {
 export const BC_BILL_REMAINING_NOTE =
   "Business Central doesn't report what's left to pay on posted bills. Install the Bookie BC extension to see amounts due.";
 
-export function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+export const today = todayIso;
 
 /** BC uses 0001-01-01 for "no date". */
 export function bcDate(value?: string): string | undefined {

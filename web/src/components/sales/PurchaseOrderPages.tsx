@@ -25,6 +25,8 @@ import {
 import { DocumentEditor, type EditorPayload } from '@/components/documents/DocumentEditor';
 import type { ListSearchParams } from '@/components/documents/InvoiceListPage';
 import { toEditorLines } from './editor-lines';
+import { PurchaseOrderActions } from './PurchaseOrderActions';
+import { purchaseOrderStatusChanges } from '@/lib/domain/purchase-orders';
 
 /** Purchase orders say "Approved" where invoices say "Awaiting payment". */
 function PoStatus({ status }: { status: PurchaseOrder['status'] }) {
@@ -172,6 +174,9 @@ export async function PurchaseOrderDetailPage({ orgParam, id }: { orgParam: stri
   if (order.status === 'deleted') notFound();
   const listPath = `${base}/purchases/orders`;
   const editable = editableStatus(order.status) && !!mod.update;
+  const changes = mod.setStatus
+    ? purchaseOrderStatusChanges(order.status, mod.statusChanges ?? [], mod.deletableStatuses)
+    : [];
 
   return (
     <>
@@ -187,11 +192,19 @@ export async function PurchaseOrderDetailPage({ orgParam, id }: { orgParam: stri
           </span>
         }
         actions={
-          editable && (
-            <ButtonLink href={`${listPath}/${encodeURIComponent(order.id)}/edit`} size="sm">
-              <Pencil className="h-4 w-4" /> Edit
-            </ButtonLink>
-          )
+          <>
+            <PurchaseOrderActions
+              orgKey={org.key}
+              id={order.id}
+              changes={changes}
+              listPath={listPath}
+            />
+            {editable && (
+              <ButtonLink href={`${listPath}/${encodeURIComponent(order.id)}/edit`} size="sm">
+                <Pencil className="h-4 w-4" /> Edit
+              </ButtonLink>
+            )}
+          </>
         }
       />
       <div className="space-y-5">

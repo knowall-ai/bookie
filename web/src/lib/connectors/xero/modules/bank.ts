@@ -17,6 +17,7 @@ import {
 import { fromXeroReport, type XeroReport } from '../reports';
 import type { BankModule } from '../../types';
 import type { XeroAccount } from './accounts';
+import { xeroTransfers } from './transfers';
 
 /* Raw shapes */
 
@@ -294,6 +295,8 @@ export function xeroBank(
   };
 
   return {
+    ...xeroTransfers(client),
+
     async accounts() {
       const [accounts, summary, counts, base] = await Promise.all([
         client.request<{ Accounts: XeroAccount[] }>('Accounts', {

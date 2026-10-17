@@ -26,6 +26,10 @@ import type {
   BankTransactionQuery,
   AllocationInput,
   BrandingTheme,
+  BankTransfer,
+  BankTransferInput,
+  BatchPayment,
+  BatchPaymentInput,
   Contact,
   ContactInput,
   CreditNote,
@@ -60,6 +64,8 @@ import type {
   ProjectStatus,
   PurchaseOrder,
   PurchaseOrderInput,
+  PurchaseOrderStatus,
+  PurchaseOrderStatusChange,
   Quote,
   QuoteInput,
   QuoteStatus,
@@ -137,6 +143,12 @@ export interface PurchaseOrdersModule {
   get(id: string): Promise<PurchaseOrder>;
   create?(input: PurchaseOrderInput): Promise<PurchaseOrder>;
   update?(id: string, input: PurchaseOrderInput): Promise<PurchaseOrder>;
+  /** Move the order on (submit, approve, mark as billed) or delete it. */
+  setStatus?(id: string, status: PurchaseOrderStatusChange): Promise<PurchaseOrder>;
+  /** The status changes `setStatus` supports here. */
+  readonly statusChanges?: PurchaseOrderStatusChange[];
+  /** Statuses from which an order can be deleted, when narrower than "anything not billed". */
+  readonly deletableStatuses?: PurchaseOrderStatus[];
 }
 
 export interface ContactsModule {
@@ -163,6 +175,10 @@ export interface PaymentsModule {
   create?(input: PaymentInput): Promise<Payment>;
   /** Document types `create` can pay; every type when absent (BC: invoices only). */
   createFor?: InvoiceType[];
+  /** Batch payments (several bills or invoices paid in one bank transaction). */
+  batches?(query?: ListQuery): Promise<Page<BatchPayment>>;
+  /** Pay several approved bills (or invoices) at once. */
+  createBatch?(input: BatchPaymentInput): Promise<BatchPayment>;
 }
 
 export interface BankModule {
@@ -175,6 +191,9 @@ export interface BankModule {
   readonly filters?: { direction?: boolean; reconciled?: boolean; contact?: boolean };
   /** What the source's API can't show here (e.g. bank statement lines), shown above the register. */
   readonly limitations?: string;
+  /** Transfers between the organisation's own bank accounts, newest first. */
+  transfers?(query?: ListQuery): Promise<Page<BankTransfer>>;
+  createTransfer?(input: BankTransferInput): Promise<BankTransfer>;
 }
 
 export interface AccountsModule {

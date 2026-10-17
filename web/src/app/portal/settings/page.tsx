@@ -10,6 +10,8 @@ import { ConnectorCard } from '@/components/settings/ConnectorCard';
 import { XeroConnections, type ConnectionSummary } from '@/components/settings/XeroConnections';
 import { BcCompanies } from '@/components/settings/BcCompanies';
 import { XeroStatusToast } from '@/components/settings/XeroStatusToast';
+import { BcLiveUpdates } from '@/components/settings/BcLiveUpdates';
+import { bcWebhooksConfigured } from '@/lib/webhooks/config';
 
 export const metadata = { title: 'Settings' };
 
@@ -104,6 +106,12 @@ export default async function SettingsPage({
           description="Microsoft Dynamics 365 Business Central, read and written as you, with your own permissions."
         >
           <BcCompanies companies={bcCompanies} />
+          {auth.mode !== 'demo' && (
+            <BcLiveUpdates
+              enabled={!!settings.businessCentral.liveUpdates}
+              configured={bcWebhooksConfigured()}
+            />
+          )}
         </ConnectorCard>
 
         <section className="card p-5" aria-labelledby="data-title">

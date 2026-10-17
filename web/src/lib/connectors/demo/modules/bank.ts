@@ -3,6 +3,7 @@ import type { DemoData } from '../data';
 import { demoSlot } from './state';
 import { ConnectorError, type BankModule } from '../../types';
 import { demoId, matches, notFound, paginate } from '../index';
+import { demoTransfers } from './transfers';
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -123,6 +124,7 @@ export function demoBank(data: DemoData): BankModule {
   });
   const ready = () => data;
   return {
+    ...demoTransfers(data),
     async accounts() {
       const d = ready();
       return structuredClone(

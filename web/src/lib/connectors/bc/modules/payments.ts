@@ -65,6 +65,10 @@ export function fromBcJournalPayment(raw: BcJournalPayment, type: InvoiceType): 
  * With the extension (bc-extension/), `list` returns posted payments applied to
  * invoices and bills, and `create` registers a customer payment against one
  * invoice in one BC transaction (customer payments only).
+ *
+ * `batches`/`createBatch` are absent: BC has no batch payment entity in API
+ * v2.0, only vendor payment journals, and paying several bills means posting
+ * a journal batch.
  */
 export function bcPayments(
   client: BcClient,

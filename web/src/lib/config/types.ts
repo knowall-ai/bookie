@@ -44,6 +44,8 @@ export interface TenantSettings {
     enabled: boolean;
     /** `environment/companyId` keys the user chose to hide from the org switcher. */
     hiddenCompanies: string[];
+    /** "Live updates": Bookie keeps BC webhook subscriptions for the visible companies. */
+    liveUpdates?: boolean;
   };
 }
 

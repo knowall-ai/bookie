@@ -2,6 +2,7 @@ import type { Account, AccountClass, LedgerEntry } from '@/lib/domain/types';
 import { odataString, type BcClient, type ODataList } from '../client';
 import type { AccountsModule } from '../../types';
 import { bcFiscalYear } from '../fiscal-year';
+import { todayIso } from '@/lib/domain/dates';
 
 /* Raw shapes (BC API v2.0). Enum values arrive XML-encoded, e.g. `Cost_x0020_of_x0020_Goods_x0020_Sold`. */
 
@@ -108,7 +109,7 @@ export function fromBcGlEntry(raw: BcGlEntry): LedgerEntry {
   };
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayIso;
 
 export function bcAccounts(client: BcClient): AccountsModule {
   const fiscalYear = bcFiscalYear(client);

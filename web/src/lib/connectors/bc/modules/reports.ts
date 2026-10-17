@@ -14,6 +14,7 @@ import {
 } from '@/lib/reports/periods';
 import { buildAccountTransactions, buildJournalReport } from '@/lib/reports/ledger';
 import { bcLedgerJournals } from './ledger';
+import { todayIso } from '@/lib/domain/dates';
 
 /**
  * Business Central's financial-report API pages. BC has no bank summary or
@@ -307,7 +308,7 @@ export function fromBcAged(options: {
 /* Module                                                              */
 /* ------------------------------------------------------------------ */
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayIso;
 
 interface BcCompanyInformation {
   displayName?: string;

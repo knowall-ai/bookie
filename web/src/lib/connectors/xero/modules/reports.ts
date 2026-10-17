@@ -9,6 +9,7 @@ import { asAtLabel } from '@/lib/reports/periods';
 import { buildAccountTransactions, buildJournalReport } from '@/lib/reports/ledger';
 import { formatDate } from '@/lib/ui/format';
 import { fromXeroJournalToLedger, journalsEnteredSince, lookbackStart } from './ledger';
+import { todayIso } from '@/lib/domain/dates';
 
 const AVAILABLE: ReportId[] = [
   'profit-and-loss',
@@ -24,7 +25,7 @@ const AVAILABLE: ReportId[] = [
 
 const TIMEFRAME = { month: 'MONTH', quarter: 'QUARTER', year: 'YEAR' } as const;
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = todayIso;
 
 /**
  * Xero puts single-line totals (Gross Profit, Net Profit, Net Assets) in

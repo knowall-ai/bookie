@@ -1,0 +1,145 @@
+= Webhooks and the Live feed
+:toc: left
+:icons: font
+
+Bookie can show what changes in an organisation's books as it happens: a small *Live* panel on Home
+("Bill 1043 updated · just now"). Xero and Business Central push a notification when an invoice, bill
+or contact changes; Bookie fetches the document's real number and status live when it shows it.
+
+== What Bookie keeps
+
+Webhook payloads carry ids only, and Bookie stores *nothing* about them except a short-lived,
+in-memory ring buffer per organisation:
+
+[cols="1,3"]
+|===
+| Field | Example
+
+| Source key | `xero:{xeroTenantId}` or `bc:{entraTenantId}:{environment}:{companyId}`
+| Entity | `invoice` or `contact` (plus `sales`/`purchase` when BC says which)
+| Id | the record's id in the source system
+| Event | `create`, `update`, `delete`, or `collection` (BC: many records)
+| Time | when the source says the change happened
+|===
+
+* At most 50 events per organisation, each kept for one hour, across at most 5,000 organisations.
+* Memory only: nothing is written to disk, SharePoint or logs. A restart empties it.
+* It is per process. With several App Service instances, each instance only has the deliveries
+  it received; scale out with sticky sessions or accept that the Live panel is best effort.
+
+=== Who can read it
+
+`GET /api/orgs/{org}/events` (Server-Sent Events, or JSON with `?since=` for polling) re-checks the
+org key against the orgs the signed-in user can reach in their own Entra tenant, then derives the
+source key from that org. A user never chooses the key:
+
+* Xero: anyone in a tenant that has connected that Xero organisation.
+* Business Central: the key includes the Entra tenant id from the sign-in, and BC notifications are
+  only filed under a tenant when their `clientState` (below) proves it. Two tenants that happen to
+  have the same company id never see each other's events.
+
+The browser only receives entity, id, event and time. Numbers and statuses are fetched live, as the
+user, by a server action (`resolveLiveEvents`).
+
+== Xero
+
+Xero sends webhooks to one URL per Xero app, for every organisation connected to that app.
+
+=== Set up
+
+. In the https://developer.xero.com/app/manage[Xero developer portal], open Bookie's app (the
+  OAuth app behind "Connect to Xero"), then *Webhooks*.
+. Delivery URL: `https://{your Bookie host}/api/webhooks/xero`.
+. Subscribe to *Contacts* and *Invoices*.
+. Copy the *Webhook key* into Bookie's environment as `XERO_WEBHOOK_KEY` (Key Vault in production).
+. Save. Xero then runs *Intent to receive*: it sends correctly and incorrectly signed test payloads.
+  Bookie answers 200 (empty body) when `x-xero-signature` matches and 401 when it doesn't, so the
+  status turns to *OK*.
+
+Custom Connections are separate Xero apps with their own webhook settings and keys. Bookie verifies
+with one key, so only orgs connected through Bookie's OAuth app feed the Live panel.
+
+=== How deliveries are checked
+
+`x-xero-signature` is the base64 HMAC-SHA256 of the raw request body keyed with the webhook key.
+Bookie compares it in constant time before parsing anything. Unsigned or wrongly signed requests get
+401 and are dropped. Of each event Bookie keeps `tenantId`, `resourceId`, `eventCategory`
+(`INVOICE` or `CONTACT`), `eventType` (`CREATE` or `UPDATE`) and `eventDateUtc`; everything else is
+ignored.
+
+Without `XERO_WEBHOOK_KEY` the endpoint answers 401 to everything and the Live panel stays hidden
+for Xero organisations.
+
+== Business Central
+
+BC webhooks are subscriptions created through the API (`/api/v2.0/subscriptions`) per environment,
+one per company and resource. Bookie subscribes to `salesInvoices`, `purchaseInvoices` and
+`customers`.
+
+=== Set up
+
+. Run Bookie on a public HTTPS address. Set `BOOKIE_PUBLIC_URL` (or `NEXTAUTH_URL`) to it: BC
+  must reach `https://{host}/api/webhooks/bc`. Localhost never works.
+. Set `BOOKIE_WEBHOOK_SECRET` to a long random value (Key Vault in production). It signs each
+  subscription's `clientState`.
+. In Bookie, *Settings › Business Central › Live updates*: switch it on. Bookie creates the
+  subscriptions *as you*, for every BC company you can see and haven't hidden. Turning it off
+  deletes Bookie's subscriptions in those environments.
+
+When a subscription is created or renewed, BC calls the notification URL with `?validationToken=…`
+and Bookie echoes the token back as `text/plain` with 200 (the handshake). Notifications then arrive
+as `{"value":[{subscriptionId, clientState, resource, changeType, lastModifiedDateTime, …}]}`.
+
+=== clientState
+
+BC notifications are not signed. Bookie sets each subscription's `clientState` to
+`v1.{entraTenantId}.{base64url(environment)}.{HMAC-SHA256}` with `BOOKIE_WEBHOOK_SECRET`. A
+notification is only accepted when that HMAC verifies; the tenant and environment come from it and
+the company and record id from `resource`. Anything else is acknowledged with 202 and dropped: BC
+deletes a subscription when the endpoint answers anything other than 2xx, 408, 429 or 5xx, so Bookie
+never answers 4xx to a notification.
+
+=== Renewal (every three days)
+
+BC expires a subscription three days after it was created or last renewed. Renewing needs a BC
+token for the tenant, and Bookie keeps no tokens, so renewal runs as a signed-in user:
+
+* `POST /api/webhooks/bc/renew` renews (PATCH with the subscription's ETag) every Bookie
+  subscription that expires within two days and recreates any BC has dropped, for the caller's
+  tenant. It does nothing unless Live updates is on.
+* The Live panel calls it whenever someone opens a BC organisation's Home page.
+
+So as long as someone in the tenant opens Bookie at least every three days, live updates keep
+flowing. After a longer gap they stop and resume on the next visit (events from the gap are not
+replayed; the panel only covers the last hour anyway). To renew without visits, call the route on a
+schedule from a signed-in session.
+
+== Environment variables
+
+[cols="1,3"]
+|===
+| Variable | Purpose
+
+| `XERO_WEBHOOK_KEY` | Webhook key from the Xero developer portal. Turns on Xero live updates.
+| `BOOKIE_WEBHOOK_SECRET` | Signs BC subscriptions' `clientState`. Required for BC live updates.
+| `BOOKIE_PUBLIC_URL` | Public HTTPS base URL for BC's notification URL (falls back to `NEXTAUTH_URL`).
+| `BOOKIE_LIVE_FEED=off` | Hides the Live panel everywhere (the endpoints keep working).
+|===
+
+== Endpoints
+
+[cols="2,1,3"]
+|===
+| Route | Auth | What
+
+| `POST /api/webhooks/xero` | Xero signature | Intent to receive and event deliveries.
+| `GET`/`POST /api/webhooks/bc` | clientState | Validation handshake and notifications.
+| `POST /api/webhooks/bc/renew` | Sign-in | Renew or recreate the tenant's BC subscriptions.
+| `GET /api/orgs/{org}/events` | Sign-in | The org's recent events (SSE or JSON).
+|===
+
+== Demo organisations
+
+The demo books have no webhooks. They publish the same kind of event when you change them (for
+example each bill paid in a batch payment raises an invoice update), so the Live panel can be tried
+and tested on the demo.
