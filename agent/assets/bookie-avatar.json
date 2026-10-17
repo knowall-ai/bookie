@@ -1,0 +1,58 @@
+{
+  "badge": "BOOKIE",
+  "assets_dir": "/home/bookie/bookie/agent/assets",
+  "plate": {
+    "agent": "bookie-agent.png",
+    "eye": [
+      0.4242,
+      0.569,
+      0.5093,
+      0.0259,
+      0.0401
+    ],
+    "eye_color": [
+      255,
+      186,
+      60
+    ],
+    "eye_core": [
+      255,
+      222,
+      110
+    ],
+    "eye_hot": false,
+    "eye_halo": 1.5,
+    "eye_halo_alpha": 150,
+    "glass": [
+      18,
+      13,
+      9
+    ],
+    "visor": [
+      0.3594,
+      0.6283,
+      0.4033,
+      0.6201
+    ],
+    "mouth": [
+      0.5,
+      0.5747
+    ],
+    "mouth_style": "none",
+    "mouth_backing": 0,
+    "scale": 1.0,
+    "anchor": "bottom",
+    "offset_y": 0
+  },
+  "backdrop": {
+    "bg": "bookie-bg-study.png",
+    "stars": false,
+    "rain": null
+  },
+  "badge_style": {
+    "show_version": false
+  },
+  "hud": {
+    "alpha": 70
+  }
+}
