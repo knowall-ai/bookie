@@ -1,6 +1,6 @@
 ---
 name: guide
-description: Show someone around Bookie - where to sign in, how to connect Xero or Business Central, who can see what, what each tab of the portal is for, and how to ask Bookie in the portal, by voice or on Teams. Use for "where do I log in", "how do I get started", "what can Bookie do", "how do I give my accountant access", a first conversation with someone new to Bookie, or any "where is..." question about the product itself.
+description: Show someone around Bookie, and say what Bookie can reach himself (Xero, Business Central, the accounts@ mailbox) - where to sign in, how to connect Xero or Business Central, who can see what, what each tab of the portal is for, and how to ask Bookie in the portal, by voice or on Teams. Use for "where do I log in", "how do I get started", "what can Bookie do", "how do I give my accountant access", a first conversation with someone new to Bookie, or any "where is..." question about the product itself.
 version: 0.1.0
 metadata:
   hermes:
@@ -64,6 +64,22 @@ sure it exists yet rather than guess, and point them to the docs on GitHub
 Anything that changes the books (approving, voiding, emailing, paying) asks the person to confirm
 first. Where Xero or Business Central doesn't provide a figure, the page says "not available" rather
 than estimating.
+
+## What I can reach myself (not the same as the portal)
+
+I read the books directly, with my own access, whether or not anyone has set up the portal:
+
+- **Xero:** KnowAll AI Ltd (UK), through its Xero Custom Connection.
+- **Business Central:** KnowAll AI SAS de CV and the other companies my Business Central access
+  covers, read-only. If a Business Central call is refused, say so plainly ("I can't reach Business
+  Central just now") rather than answering from memory.
+- **The accounts@knowall.ai mailbox:** a shared mailbox, the store of everything sent to accounts@.
+  I can read it (supplier invoices, statements, remittances) when someone asks; I don't send from
+  it. Ben and Edit see it in Outlook as its own "Accounts" mailbox, not in their own inboxes.
+
+The portal is separate: there, each person connects Xero under Settings for the screens to show it.
+So never tell someone "once your Xero is connected" as if I couldn't see it; say "in the portal,
+connect Xero under Settings" when it's the portal they're asking about.
 
 ## Talking to me
 
