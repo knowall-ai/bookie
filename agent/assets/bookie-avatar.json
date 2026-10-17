@@ -36,13 +36,14 @@
     ],
     "mouth": [
       0.5,
-      0.5747
+      -1.0
     ],
     "mouth_style": "none",
     "mouth_backing": 0,
     "scale": 1.0,
     "anchor": "bottom",
-    "offset_y": 0
+    "offset_y": 0,
+    "mouth_note": "Bookie's mouth is the dotted LED line in the plate art. Presence always draws a mouth (mouth_style 'none' falls back to 'bar'), so it is placed off the canvas."
   },
   "backdrop": {
     "bg": "bookie-bg-study.png",
