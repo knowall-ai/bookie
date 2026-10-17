@@ -12,6 +12,9 @@ import {
   ProfitAndLossTile,
 } from '@/components/dashboard/DashboardCards';
 import { IncomeExpensesChart } from '@/components/dashboard/IncomeExpensesChart';
+import { LiveFeed } from '@/components/dashboard/LiveFeed';
+import { listOrgs } from '@/lib/connectors/registry';
+import { liveFeedEnabled } from '@/lib/webhooks/live';
 
 export const metadata = { title: 'Home' };
 
@@ -35,6 +38,8 @@ export default async function Home({ params }: { params: Promise<{ org: string }
     connector.dashboard(),
   ]);
   const orgDetails = details.status === 'fulfilled' ? details.value : undefined;
+  // The Live panel only shows when the source can push webhooks here (feature flag).
+  const live = auth ? liveFeedEnabled(org, (await listOrgs(auth)).settings) : false;
 
   return (
     <div className="space-y-6">
@@ -57,6 +62,14 @@ export default async function Home({ params }: { params: Promise<{ org: string }
       </div>
 
       <BookieInsights orgKey={org.key} />
+
+      {live && (
+        <LiveFeed
+          orgKey={org.key}
+          sourceLabel={sourceName(org)}
+          renewBc={org.kind === 'business-central'}
+        />
+      )}
 
       {dashboard.status === 'rejected' ? (
         <ErrorPanel

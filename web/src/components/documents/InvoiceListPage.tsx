@@ -1,4 +1,4 @@
-import { FileText, Plus } from 'lucide-react';
+import { Banknote, FileText, Plus } from 'lucide-react';
 import { orgContext } from '@/lib/portal/context';
 import type { Invoice, InvoiceType } from '@/lib/domain/types';
 import { formatDate } from '@/lib/ui/format';
@@ -113,17 +113,27 @@ export async function InvoiceListPage({
   ];
 
   const canCreate = !!connector.invoices.create;
+  // Xero's "Awaiting payment" bills tab offers a batch payment.
+  const canPayBills =
+    type === 'purchase' && status === 'authorised' && !!connector.payments?.createBatch;
   return (
     <>
       <PageHeader
         title={copy.title}
         crumbs={crumbs}
         actions={
-          canCreate && (
-            <ButtonLink href={`${listPath}/new`} variant="primary">
-              <Plus className="h-4 w-4" /> {copy.newLabel}
-            </ButtonLink>
-          )
+          <>
+            {canPayBills && result.items.length > 0 && (
+              <ButtonLink href={`${listPath}/pay`} variant="secondary">
+                <Banknote className="h-4 w-4" /> Pay bills
+              </ButtonLink>
+            )}
+            {canCreate && (
+              <ButtonLink href={`${listPath}/new`} variant="primary">
+                <Plus className="h-4 w-4" /> {copy.newLabel}
+              </ButtonLink>
+            )}
+          </>
         }
       />
       <StatusTabs

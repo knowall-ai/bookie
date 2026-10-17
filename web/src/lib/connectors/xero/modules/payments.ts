@@ -1,6 +1,7 @@
 import type { InvoiceType, Payment, PaymentInput } from '@/lib/domain/types';
 import type { PaymentsModule } from '../../types';
 import { xeroDate, type XeroClient } from '../client';
+import { xeroBatchPayments } from './batch-payments';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -65,6 +66,7 @@ export function toXeroPayment(input: PaymentInput): Record<string, unknown> {
 
 export function xeroPayments(client: XeroClient): PaymentsModule | undefined {
   return {
+    ...xeroBatchPayments(client),
     async list(query) {
       const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
       const page = query?.page ?? 1;

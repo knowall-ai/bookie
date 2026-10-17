@@ -73,6 +73,14 @@ export function toBcBankJournalLines(
   ];
 }
 
+/**
+ * `transfers`/`createTransfer` are deliberately absent: API v2.0 has no bank
+ * transfer entity, and BC's bank account ledger entries aren't published, so
+ * there is nothing to list. Moving money between bank accounts means a general
+ * journal with two bank account lines posted as a batch, which Bookie won't do
+ * for transfers (a posting mistake can't be undone from the API). Use
+ * Business Central's own journals for transfers.
+ */
 export function bcBank(client: BcClient, lcy: () => Promise<string>): BankModule {
   const contactName = async (contactId: string) => {
     const [prefix, id] = [contactId.slice(0, 2), contactId.slice(2)];

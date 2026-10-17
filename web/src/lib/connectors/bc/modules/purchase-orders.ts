@@ -123,6 +123,29 @@ export function bcPurchaseOrders(
       await writeLines(created.id, input);
       return mod.get(created.id);
     },
+    /*
+     * Only "delete a draft" is offered. API v2.0 has no submit-for-approval or
+     * release action for purchase orders, and its one bound action,
+     * Microsoft.NAV.receiveAndInvoice, posts the receipt AND the purchase
+     * invoice for the whole order in one irreversible step, without the
+     * vendor invoice number (purchaseOrder has no such field), so it can't
+     * stand in for Xero's "mark as billed". Post orders in Business Central.
+     */
+    statusChanges: ['deleted'],
+    deletableStatuses: ['draft'],
+    async setStatus(id, status) {
+      const raw = await getRaw(id);
+      if (status !== 'deleted' || raw.status !== 'Draft') {
+        throw new ConnectorError(
+          'Business Central only lets Bookie delete draft purchase orders. Release, receive and invoice orders in Business Central.',
+          409,
+          'business-central'
+        );
+      }
+      const order = fromBcPurchaseOrder(raw, await lcy());
+      await client.request(`purchaseOrders(${id})`, { method: 'DELETE', etag: '*' });
+      return { ...order, status: 'deleted' };
+    },
     async update(id, input) {
       const raw = await getRaw(id);
       if (raw.status !== 'Draft') {

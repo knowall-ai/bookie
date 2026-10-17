@@ -62,6 +62,10 @@ export function fromBcJournalPayment(
  * balance against a G/L account (not the bank account the user picks), and
  * posting a journal posts every line in its batch, including other people's.
  * Record payments in Business Central itself (Payment Registration).
+ *
+ * `batches`/`createBatch` are absent for the same reason: BC has no batch
+ * payment entity in API v2.0, only vendor payment journals, and paying several
+ * bills means posting a journal batch.
  */
 export function bcPayments(
   client: BcClient,

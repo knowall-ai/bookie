@@ -385,7 +385,7 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
     creditNotes: demoCreditNotes(data),
     purchaseOrders: demoPurchaseOrders(data),
     items: demoItems(data),
-    payments: demoPayments(data),
+    payments: demoPayments(data, org.key),
     bank: demoBank(data),
     accounts: demoAccounts(data),
     journals: demoJournals(data),

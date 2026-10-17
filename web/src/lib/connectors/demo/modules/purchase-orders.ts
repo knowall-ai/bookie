@@ -4,6 +4,7 @@ import type { PurchaseOrdersModule } from '../../types';
 import { ConnectorError } from '../../types';
 import { demoId, matches, notFound, paginate } from '../index';
 import { catalogueLine, contactOf, priceLines, totals } from './documents';
+import { purchaseOrderStatusChanges } from '@/lib/domain/purchase-orders';
 
 /** [supplier index, days ago, status, reference, lines as [item index, qty]] */
 const FIXTURES: [number, number, PurchaseOrderStatus, string | undefined, [number, number][]][] = [
@@ -115,6 +116,26 @@ export function demoPurchaseOrders(data: DemoData): PurchaseOrdersModule | undef
         throw new ConnectorError('Only draft purchase orders can be edited.', 409, 'demo');
       }
       Object.assign(existing, build(input, existing));
+      return structuredClone(existing);
+    },
+    statusChanges: ['submitted', 'authorised', 'billed', 'deleted'],
+    async setStatus(id, status) {
+      const existing = find(id);
+      if (
+        !purchaseOrderStatusChanges(existing.status, [
+          'submitted',
+          'authorised',
+          'billed',
+          'deleted',
+        ]).includes(status)
+      ) {
+        throw new ConnectorError(
+          'That change is not possible for this purchase order.',
+          409,
+          'demo'
+        );
+      }
+      existing.status = status;
       return structuredClone(existing);
     },
   };

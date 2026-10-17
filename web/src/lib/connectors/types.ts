@@ -17,6 +17,10 @@ import type {
   BankAccount,
   BankTransaction,
   BankTransactionInput,
+  BankTransfer,
+  BankTransferInput,
+  BatchPayment,
+  BatchPaymentInput,
   Contact,
   ContactInput,
   CreditNote,
@@ -42,6 +46,8 @@ import type {
   Project,
   PurchaseOrder,
   PurchaseOrderInput,
+  PurchaseOrderStatus,
+  PurchaseOrderStatusChange,
   Quote,
   QuoteInput,
   QuoteStatus,
@@ -94,6 +100,12 @@ export interface PurchaseOrdersModule {
   get(id: string): Promise<PurchaseOrder>;
   create?(input: PurchaseOrderInput): Promise<PurchaseOrder>;
   update?(id: string, input: PurchaseOrderInput): Promise<PurchaseOrder>;
+  /** Move the order on (submit, approve, mark as billed) or delete it. */
+  setStatus?(id: string, status: PurchaseOrderStatusChange): Promise<PurchaseOrder>;
+  /** The status changes `setStatus` supports here. */
+  readonly statusChanges?: PurchaseOrderStatusChange[];
+  /** Statuses from which an order can be deleted, when narrower than "anything not billed". */
+  readonly deletableStatuses?: PurchaseOrderStatus[];
 }
 
 export interface ContactsModule {
@@ -118,12 +130,19 @@ export interface ItemsModule {
 export interface PaymentsModule {
   list(query?: ListQuery & { invoiceType?: InvoiceType }): Promise<Page<Payment>>;
   create?(input: PaymentInput): Promise<Payment>;
+  /** Batch payments (several bills or invoices paid in one bank transaction). */
+  batches?(query?: ListQuery): Promise<Page<BatchPayment>>;
+  /** Pay several approved bills (or invoices) at once. */
+  createBatch?(input: BatchPaymentInput): Promise<BatchPayment>;
 }
 
 export interface BankModule {
   accounts(): Promise<BankAccount[]>;
   transactions(bankAccountId: string, query?: ListQuery): Promise<Page<BankTransaction>>;
   createTransaction?(input: BankTransactionInput): Promise<BankTransaction>;
+  /** Transfers between the organisation's own bank accounts, newest first. */
+  transfers?(query?: ListQuery): Promise<Page<BankTransfer>>;
+  createTransfer?(input: BankTransferInput): Promise<BankTransfer>;
 }
 
 export interface AccountsModule {

@@ -3,13 +3,14 @@ import { DEMO_TODAY, type DemoData } from '../data';
 import type { PaymentsModule } from '../../types';
 import { ConnectorError } from '../../types';
 import { demoId, notFound, paginate } from '../index';
+import { demoBatchPayments } from './batch-payments';
 
 /**
  * Demo payments are the payments recorded on the demo invoices and bills, so
  * recording one here updates the invoice (amount due, paid status) and adds a
  * matching bank transaction, as it would in Xero.
  */
-export function demoPayments(data: DemoData): PaymentsModule | undefined {
+export function demoPayments(data: DemoData, orgKey = 'demo'): PaymentsModule | undefined {
   const bankName = (id?: string) => data.bankAccounts.find((b) => b.id === id)?.name;
   const all = (): Payment[] =>
     data.invoices
@@ -35,7 +36,7 @@ export function demoPayments(data: DemoData): PaymentsModule | undefined {
       )
       .sort((a, b) => b.date.localeCompare(a.date));
 
-  return {
+  const mod: PaymentsModule = {
     async list(query) {
       return paginate(
         all().filter(
@@ -119,4 +120,5 @@ export function demoPayments(data: DemoData): PaymentsModule | undefined {
       };
     },
   };
+  return { ...mod, ...demoBatchPayments(data, orgKey, (input) => mod.create!(input)) };
 }

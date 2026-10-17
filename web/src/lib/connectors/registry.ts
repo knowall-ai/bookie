@@ -2,7 +2,12 @@ import 'server-only';
 import { cache } from 'react';
 import type { AuthContext } from '@/lib/auth/context';
 import { configStoreFor } from '@/lib/config';
-import { DEFAULT_SETTINGS, type ConfigStore, type XeroConnection } from '@/lib/config/types';
+import {
+  DEFAULT_SETTINGS,
+  type ConfigStore,
+  type TenantSettings,
+  type XeroConnection,
+} from '@/lib/config/types';
 import type { OrgRef } from '@/lib/domain/types';
 import { BcClient, listBcCompanies, listBcEnvironments } from './bc/client';
 import { createBcConnector } from './bc';
@@ -93,6 +98,8 @@ export interface OrgDirectory {
   /** BC companies the user can see but chose to hide in Settings. */
   hiddenBcOrgs: OrgRef[];
   store: ConfigStore;
+  /** The tenant's settings as read for this request (defaults when the store failed). */
+  settings?: TenantSettings;
   /** Set when the tenant's settings store could not be read; the portal still opens with BC. */
   storeError?: string;
 }
@@ -121,6 +128,7 @@ export const listOrgs = cache(async (auth: AuthContext): Promise<OrgDirectory> =
     ],
     hiddenBcOrgs: bc.filter((o) => hidden.has(o.key)),
     store,
+    settings,
     storeError,
   };
 });

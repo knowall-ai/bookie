@@ -1,4 +1,4 @@
-import { Landmark, Plus } from 'lucide-react';
+import { ArrowLeftRight, Landmark, List, Plus } from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ButtonLink } from '@/components/ui/Button';
@@ -21,6 +21,8 @@ export default async function Page({ params }: { params: Promise<{ org: string }
   }
   const accounts = await connector.bank.accounts();
   const canCreate = !!connector.bank.createTransaction;
+  const canTransfer = !!connector.bank.createTransfer && accounts.length >= 2;
+  const hasTransfers = !!connector.bank.transfers;
   const newHref = `${base}/accounting/bank/new`;
   // Xero's own wording is "Balance in Xero"; BC is abbreviated to fit the card.
   const source = org.kind === 'xero' ? 'Xero' : org.kind === 'business-central' ? 'BC' : 'books';
@@ -31,12 +33,23 @@ export default async function Page({ params }: { params: Promise<{ org: string }
         title="Bank accounts"
         crumbs={crumbs}
         actions={
-          canCreate &&
-          accounts.length > 0 && (
-            <ButtonLink href={newHref} variant="primary">
-              <Plus className="h-4 w-4" /> Spend or receive money
-            </ButtonLink>
-          )
+          <>
+            {hasTransfers && (
+              <ButtonLink href={`${base}/accounting/bank/transfers`} variant="ghost">
+                <List className="h-4 w-4" /> Transfers
+              </ButtonLink>
+            )}
+            {canTransfer && (
+              <ButtonLink href={`${base}/accounting/bank/transfer`} variant="secondary">
+                <ArrowLeftRight className="h-4 w-4" /> Transfer money
+              </ButtonLink>
+            )}
+            {canCreate && accounts.length > 0 && (
+              <ButtonLink href={newHref} variant="primary">
+                <Plus className="h-4 w-4" /> Spend or receive money
+              </ButtonLink>
+            )}
+          </>
         }
       />
       {accounts.length === 0 ? (

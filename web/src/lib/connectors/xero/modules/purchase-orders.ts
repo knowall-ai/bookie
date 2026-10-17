@@ -1,4 +1,9 @@
-import type { PurchaseOrder, PurchaseOrderInput, PurchaseOrderStatus } from '@/lib/domain/types';
+import type {
+  PurchaseOrder,
+  PurchaseOrderInput,
+  PurchaseOrderStatus,
+  PurchaseOrderStatusChange,
+} from '@/lib/domain/types';
 import type { PurchaseOrdersModule } from '../../types';
 import { ConnectorError } from '../../types';
 import { xeroDate, type XeroClient } from '../client';
@@ -74,6 +79,14 @@ export function toXeroPurchaseOrder(
   };
 }
 
+/** Body for a status-only update: Xero moves the order on without touching its lines. */
+export function toXeroPurchaseOrderStatus(
+  id: string,
+  status: PurchaseOrderStatusChange
+): Record<string, unknown> {
+  return { PurchaseOrderID: id, Status: TO_XERO[status] };
+}
+
 export function xeroPurchaseOrders(client: XeroClient): PurchaseOrdersModule | undefined {
   const save = async (body: Record<string, unknown>) => {
     const result = await client.request<{ PurchaseOrders: XeroPurchaseOrder[] }>('PurchaseOrders', {
@@ -121,5 +134,7 @@ export function xeroPurchaseOrders(client: XeroClient): PurchaseOrdersModule | u
     },
     create: (input) => save({ ...toXeroPurchaseOrder(input), Status: 'DRAFT' }),
     update: (id, input) => save(toXeroPurchaseOrder(input, id)),
+    setStatus: (id, status) => save(toXeroPurchaseOrderStatus(id, status)),
+    statusChanges: ['submitted', 'authorised', 'billed', 'deleted'],
   };
 }
