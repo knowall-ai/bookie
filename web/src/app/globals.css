@@ -1,26 +1,107 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Bookie brand tokens. KnowAll family: green on near-black slate, as in
+ * Thyme, ZapDesk and Wardie. Components use the Tailwind colours below
+ * (bg-surface, text-muted, border-line, text-brand ...), never raw hex.
+ */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, 'SFMono-Regular', monospace;
+
+  --color-night: #020817;
+  --color-canvas: #0b1120;
+  --color-surface: #111827;
+  --color-surface-2: #172033;
+  --color-surface-3: #1e293b;
+  --color-line: #243047;
+  --color-line-strong: #334155;
+
+  --color-ink: #f1f5f9;
+  --color-body: #cbd5e1;
+  --color-muted: #94a3b8;
+  --color-faint: #64748b;
+
+  --color-brand: #22c55e;
+  --color-brand-bright: #4ade80;
+  --color-brand-deep: #15803d;
+  --color-brand-ink: #052e16;
+  --color-lime: #9dff0a;
+
+  --color-info: #60a5fa;
+  --color-warn: #f59e0b;
+  --color-danger: #f87171;
+  --color-violet: #a78bfa;
+
+  --radius-card: 14px;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --shadow-glow: 0 0 0 1px rgb(34 197 94 / 0.35), 0 12px 40px -12px rgb(34 197 94 / 0.45);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-night);
+  }
+  body {
+    @apply bg-night text-body font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  ::selection {
+    background: rgb(34 197 94 / 0.35);
+    color: white;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+@utility card {
+  @apply bg-surface border-line rounded-(--radius-card) border;
+  box-shadow: var(--shadow-card);
+}
+
+@utility grid-glow {
+  background-image:
+    radial-gradient(60% 50% at 50% 0%, rgb(34 197 94 / 0.12), transparent 70%),
+    linear-gradient(rgb(148 163 184 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(148 163 184 / 0.05) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    48px 48px,
+    48px 48px;
+}
+
+/* Recharts tooltips inherit our palette. */
+.recharts-default-tooltip {
+  background: var(--color-surface-2) !important;
+  border: 1px solid var(--color-line-strong) !important;
+  border-radius: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  html,
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
 }

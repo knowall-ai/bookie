@@ -11,6 +11,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
+  // We maintain our own AGENTS.md at the repo root.
+  agentRules: false,
   turbopack: {
     rules: {
       '*.css': {
