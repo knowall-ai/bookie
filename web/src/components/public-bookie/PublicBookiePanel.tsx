@@ -33,14 +33,19 @@ declare global {
 /**
  * The public helper's panel: text chat, an optional voice call and the
  * standing notice that it can't see anyone's accounts. Loaded only when the
- * visitor opens it.
+ * visitor opens it, after choosing text or voice in the launcher: each new
+ * voiceRequest starts a call; in chat mode the question box takes focus.
  */
 export function PublicBookiePanel({
   open,
+  mode,
+  voiceRequest,
   voiceAvailable,
   onClose,
 }: {
   open: boolean;
+  mode: 'chat' | 'voice';
+  voiceRequest: number;
   voiceAvailable: boolean;
   onClose: () => void;
 }) {
@@ -103,18 +108,26 @@ export function PublicBookiePanel({
     setMessages((m) => [...m, { role: 'assistant', content: text, via: 'voice' }]);
   }, []);
   const voice = usePublicVoice(getPass, addCaption);
-  const { stop: stopVoice } = voice;
+  const { stop: stopVoice, start: startVoice } = voice;
 
   useEffect(() => {
     if (!open) {
       stopVoice();
       return;
     }
-    inputRef.current?.focus();
+    if (mode === 'chat') inputRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose, stopVoice]);
+  }, [open, mode, onClose, stopVoice]);
+
+  // The visitor chose voice in the launcher: place the call (once per choice).
+  const handledVoiceRequest = useRef(0);
+  useEffect(() => {
+    if (!open || !voiceAvailable || voiceRequest <= handledVoiceRequest.current) return;
+    handledVoiceRequest.current = voiceRequest;
+    void startVoice();
+  }, [open, voiceAvailable, voiceRequest, startVoice]);
 
   useEffect(() => {
     const el = scroller.current;

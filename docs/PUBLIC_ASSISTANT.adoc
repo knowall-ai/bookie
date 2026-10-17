@@ -16,6 +16,14 @@ assistant*. It has no tools, no connection to any books, no sign-in, no settings
 portal Bookie's prompt. There is nothing for it to leak: it cannot reach KnowAll AI's (or anyone's)
 accounting data, connections, settings or secrets, because it has none of them.
 
+The "Ask Bookie" button at the bottom of every site page first offers a choice, as Winnie does on the
+ticketing site: *Chat with Bookie* (text) or *Talk to Bookie* (a voice call). Either opens the same
+panel; choosing voice places the call straight away, and the visitor can still type. When voice is
+unavailable (switched off or not configured) the voice choice is shown disabled, with the reason.
+
+He calls the product simply "Bookie" (or "the Bookie website"). In voice he never reads out a web
+address or domain name; in text chat he may link to https://bookie.knowall.ai.
+
 == How it differs from the other Bookies
 
 [cols="1,2,2,2", options="header"]
@@ -214,7 +222,7 @@ pages are static). Removing the deployments on the public resource also stops it
 | `PUBLIC_BOOKIE_ALLOWED_ORIGINS` | Extra allowed origins, comma-separated (getbook.ie, www.getbook.ie, bookie.knowall.ai and `NEXTAUTH_URL` are built in).
 | `PUBLIC_BOOKIE_CLIENT_IP_HEADER` | Trusted client-IP header behind a proxy, e.g. `cf-connecting-ip`.
 | `PUBLIC_BOOKIE_CHAT_DAILY_CAP`, `PUBLIC_BOOKIE_VOICE_DAILY_CAP`, `PUBLIC_BOOKIE_VOICE_MAX_CONCURRENT` | Global caps.
-| `BOOKIE_DISABLE_AI=1` | Tests: chat answers with a fixed offline reply, voice is hidden, no model calls.
+| `BOOKIE_DISABLE_AI=1` | Tests: chat answers with a fixed offline reply, voice is unavailable, no model calls.
 |===
 
 In *development only*, with no `PUBLIC_AZURE_OPENAI_ENDPOINT`, the helper borrows the portal's
