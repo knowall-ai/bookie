@@ -130,6 +130,10 @@ if [ -n "${MONTH_END_CRON:-}" ] && cron_absent month-end-review; then
   as_agent "hermes cron create --name month-end-review --deliver local --skill month-end-review --skill books '${MONTH_END_CRON}' 'Run the month-end-review skill for last month for every organisation and send the report to ${PRINCIPAL_UPN:-the accountant} by Teams.'" \
     || warn "could not create the month-end-review cron job"
 fi
+if [ -n "${RECONCILE_CRON:-}" ] && [ -n "${ACCOUNTS_MAILBOX:-}" ] && [ -n "${RECONCILE_TO:-}" ] && cron_absent weekly-reconcile; then
+  as_agent "hermes cron create --name weekly-reconcile --deliver local --skill bill-capture --skill books '${RECONCILE_CRON}' 'Scheduled weekly reconcile, set up by the operator. Run bill-capture RECONCILE mode (read-only: nothing created, attached, moved or logged) for the last 7 days of invoice emails in ${ACCOUNTS_MAILBOX}, including step 0 (is it genuine?). Send the report by Teams 1:1 chat to ${RECONCILE_TO}, starting with: Weekly reconcile. Lead with the counts line, then only the items that need attention (not in the books, different, no document, suspicious).'" \
+    || warn "could not create the weekly-reconcile cron job"
+fi
 if [ -n "${ACCOUNTS_MAILBOX:-}" ]; then
   # Hermes only runs cron scripts that live in ~/.hermes/scripts, so the gate is copied, not linked.
   sudo install -o "${AGENT_NAME}" -g "${AGENT_NAME}" -m 755 "${AGENT_DIR}/hermes/scripts/accounts-inbox-gate.sh" "${HERMES_DIR}/scripts/accounts-inbox-gate.sh"
