@@ -1,0 +1,591 @@
+/**
+ * Bookie's accounting domain model.
+ *
+ * Every connector (Xero, Business Central, and future ones such as full Dynamics
+ * or a SharePoint-hosted ledger) maps its own API into these shapes, so the
+ * portal UI and the Bookie agent never see a vendor-specific payload.
+ *
+ * Conventions:
+ * - Money is a plain decimal `number` in the document's own currency.
+ * - Dates are ISO-8601 date strings (`YYYY-MM-DD`); timestamps are full ISO strings.
+ * - Ids are the source system's ids, opaque to the UI.
+ */
+
+export type ConnectorKind = 'xero' | 'business-central' | 'demo';
+
+export type IsoDate = string;
+
+export interface Address {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  region?: string;
+  postalCode?: string;
+  country?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Organisation                                                        */
+/* ------------------------------------------------------------------ */
+
+/** One organisation (Xero org or BC company) the signed-in user can switch to. */
+export interface OrgRef {
+  /** Stable key used in URLs: `/portal/{key}/...`. Never contains secrets. */
+  key: string;
+  kind: ConnectorKind;
+  name: string;
+  /** Short label for the source, e.g. "Xero" or "Business Central · Production". */
+  sourceLabel: string;
+  country?: string;
+  baseCurrency?: string;
+  /** Business Central environment name. */
+  environment?: string;
+}
+
+export interface OrgDetails {
+  name: string;
+  legalName?: string;
+  country?: string;
+  baseCurrency: string;
+  taxNumber?: string;
+  registrationNumber?: string;
+  financialYearEndDay?: number;
+  financialYearEndMonth?: number;
+  timezone?: string;
+  address?: Address;
+  /** Deep link to open this org in its source system (Xero / BC web client). */
+  sourceUrl?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Paging and queries                                                  */
+/* ------------------------------------------------------------------ */
+
+export interface ListQuery {
+  page?: number; // 1-based
+  pageSize?: number;
+  search?: string;
+  status?: string;
+  from?: IsoDate;
+  to?: IsoDate;
+  contactId?: string;
+}
+
+export interface Page<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+  total?: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Contacts and items                                                  */
+/* ------------------------------------------------------------------ */
+
+export interface ContactRef {
+  id: string;
+  name: string;
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  accountNumber?: string;
+  taxNumber?: string;
+  address?: Address;
+  isCustomer: boolean;
+  isSupplier: boolean;
+  status: 'active' | 'archived';
+  currency?: string;
+  /** Outstanding balances, when the source provides them cheaply. */
+  balances?: { receivable?: number; payable?: number; overdueReceivable?: number };
+  updatedAt?: string;
+}
+
+export interface ContactInput {
+  name: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  accountNumber?: string;
+  taxNumber?: string;
+  address?: Address;
+  isCustomer?: boolean;
+  isSupplier?: boolean;
+}
+
+export interface Item {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  salePrice?: number;
+  salesAccountCode?: string;
+  purchasePrice?: number;
+  purchaseAccountCode?: string;
+  isSold: boolean;
+  isPurchased: boolean;
+  isTracked?: boolean;
+  quantityOnHand?: number;
+}
+
+export interface ItemInput {
+  code: string;
+  name: string;
+  description?: string;
+  salePrice?: number;
+  salesAccountCode?: string;
+  purchasePrice?: number;
+  purchaseAccountCode?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Documents: invoices, bills, quotes, credit notes, purchase orders   */
+/* ------------------------------------------------------------------ */
+
+export type LineAmountType = 'exclusive' | 'inclusive' | 'none';
+
+export interface LineItem {
+  id?: string;
+  itemCode?: string;
+  description: string;
+  quantity: number;
+  unitAmount: number;
+  discountRate?: number;
+  accountCode?: string;
+  taxType?: string;
+  taxAmount?: number;
+  lineAmount: number;
+}
+
+export interface LineItemInput {
+  itemCode?: string;
+  description: string;
+  quantity: number;
+  unitAmount: number;
+  discountRate?: number;
+  accountCode?: string;
+  taxType?: string;
+}
+
+/** `sales` = Xero ACCREC / BC sales invoice; `purchase` = bill (ACCPAY / BC purchase invoice). */
+export type InvoiceType = 'sales' | 'purchase';
+
+export type InvoiceStatus =
+  | 'draft'
+  | 'submitted' // awaiting approval
+  | 'authorised' // awaiting payment
+  | 'paid'
+  | 'voided'
+  | 'deleted';
+
+export interface Invoice {
+  id: string;
+  type: InvoiceType;
+  number: string;
+  reference?: string;
+  contact: ContactRef;
+  date: IsoDate;
+  dueDate?: IsoDate;
+  status: InvoiceStatus;
+  currency: string;
+  lineAmountType?: LineAmountType;
+  subTotal: number;
+  totalTax: number;
+  total: number;
+  amountDue: number;
+  amountPaid: number;
+  amountCredited?: number;
+  isOverdue: boolean;
+  /** Only populated by `get`, not by `list`. */
+  lineItems?: LineItem[];
+  payments?: PaymentRef[];
+  sentToContact?: boolean;
+  updatedAt?: string;
+  sourceUrl?: string;
+}
+
+export interface InvoiceInput {
+  type: InvoiceType;
+  contactId: string;
+  date: IsoDate;
+  dueDate?: IsoDate;
+  number?: string;
+  reference?: string;
+  currency?: string;
+  lineAmountType?: LineAmountType;
+  lineItems: LineItemInput[];
+  /** Create as draft (default) or submit straight to awaiting approval / payment. */
+  status?: 'draft' | 'submitted' | 'authorised';
+}
+
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'invoiced' | 'deleted';
+
+export interface Quote {
+  id: string;
+  number: string;
+  reference?: string;
+  title?: string;
+  summary?: string;
+  contact: ContactRef;
+  date: IsoDate;
+  expiryDate?: IsoDate;
+  status: QuoteStatus;
+  currency: string;
+  lineAmountType?: LineAmountType;
+  subTotal: number;
+  totalTax: number;
+  total: number;
+  lineItems?: LineItem[];
+  terms?: string;
+  updatedAt?: string;
+  sourceUrl?: string;
+}
+
+export interface QuoteInput {
+  contactId: string;
+  date: IsoDate;
+  expiryDate?: IsoDate;
+  number?: string;
+  reference?: string;
+  title?: string;
+  summary?: string;
+  terms?: string;
+  currency?: string;
+  lineAmountType?: LineAmountType;
+  lineItems: LineItemInput[];
+}
+
+export type CreditNoteType = 'sales' | 'purchase';
+
+export interface CreditNote {
+  id: string;
+  type: CreditNoteType;
+  number: string;
+  reference?: string;
+  contact: ContactRef;
+  date: IsoDate;
+  status: InvoiceStatus;
+  currency: string;
+  subTotal: number;
+  totalTax: number;
+  total: number;
+  remainingCredit: number;
+  lineItems?: LineItem[];
+  sourceUrl?: string;
+}
+
+export type PurchaseOrderStatus = 'draft' | 'submitted' | 'authorised' | 'billed' | 'deleted';
+
+export interface PurchaseOrder {
+  id: string;
+  number: string;
+  reference?: string;
+  contact: ContactRef;
+  date: IsoDate;
+  deliveryDate?: IsoDate;
+  status: PurchaseOrderStatus;
+  currency: string;
+  subTotal: number;
+  totalTax: number;
+  total: number;
+  lineItems?: LineItem[];
+  sourceUrl?: string;
+}
+
+export interface PurchaseOrderInput {
+  contactId: string;
+  date: IsoDate;
+  deliveryDate?: IsoDate;
+  reference?: string;
+  currency?: string;
+  lineAmountType?: LineAmountType;
+  lineItems: LineItemInput[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Payments and bank                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface PaymentRef {
+  id: string;
+  date: IsoDate;
+  amount: number;
+  reference?: string;
+}
+
+export interface Payment {
+  id: string;
+  date: IsoDate;
+  amount: number;
+  currency?: string;
+  reference?: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  invoiceType?: InvoiceType;
+  contact?: ContactRef;
+  bankAccountId?: string;
+  bankAccountName?: string;
+  status: 'authorised' | 'deleted';
+}
+
+export interface PaymentInput {
+  invoiceId: string;
+  bankAccountId: string;
+  date: IsoDate;
+  amount: number;
+  reference?: string;
+}
+
+export interface BankAccount {
+  id: string;
+  name: string;
+  code?: string;
+  accountNumber?: string;
+  currency: string;
+  /** Balance per the ledger (Xero "Balance in Xero" / BC G/L balance). */
+  balance?: number;
+  /** Balance per the latest bank statement, when available. */
+  statementBalance?: number;
+  statementDate?: IsoDate;
+  unreconciledCount?: number;
+  type?: 'bank' | 'credit-card' | 'paypal' | 'other';
+}
+
+export interface BankTransaction {
+  id: string;
+  bankAccountId: string;
+  bankAccountName?: string;
+  date: IsoDate;
+  type: 'receive' | 'spend' | 'transfer-in' | 'transfer-out';
+  contact?: ContactRef;
+  reference?: string;
+  description?: string;
+  amount: number;
+  currency?: string;
+  isReconciled: boolean;
+  status: 'authorised' | 'deleted';
+  lineItems?: LineItem[];
+}
+
+export interface BankTransactionInput {
+  bankAccountId: string;
+  type: 'receive' | 'spend';
+  contactId: string;
+  date: IsoDate;
+  reference?: string;
+  lineAmountType?: LineAmountType;
+  lineItems: LineItemInput[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Accounting                                                          */
+/* ------------------------------------------------------------------ */
+
+export type AccountClass = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+
+export interface Account {
+  id: string;
+  code: string;
+  name: string;
+  /** Source-specific type, e.g. Xero "CURRLIAB" or BC "Posting". */
+  type: string;
+  /** Human label for the type, e.g. "Current Liability". */
+  typeLabel: string;
+  class: AccountClass;
+  taxType?: string;
+  description?: string;
+  status: 'active' | 'archived';
+  isBank: boolean;
+  balance?: number;
+}
+
+export interface AccountInput {
+  code: string;
+  name: string;
+  type: string;
+  taxType?: string;
+  description?: string;
+}
+
+export interface JournalLine {
+  accountCode: string;
+  accountName?: string;
+  description?: string;
+  /** Positive = debit, negative = credit. */
+  amount: number;
+  taxType?: string;
+}
+
+export interface ManualJournal {
+  id: string;
+  date: IsoDate;
+  narration: string;
+  status: 'draft' | 'posted' | 'voided' | 'deleted';
+  lines: JournalLine[];
+  total: number;
+  sourceUrl?: string;
+}
+
+export interface ManualJournalInput {
+  date: IsoDate;
+  narration: string;
+  lines: JournalLine[];
+  status?: 'draft' | 'posted';
+}
+
+/** A posted general-ledger line (Xero journal line / BC G/L entry). */
+export interface LedgerEntry {
+  id: string;
+  date: IsoDate;
+  accountCode: string;
+  accountName?: string;
+  description?: string;
+  documentNumber?: string;
+  sourceType?: string;
+  debit: number;
+  credit: number;
+}
+
+export interface TaxRate {
+  id: string;
+  name: string;
+  taxType: string;
+  rate: number;
+  status: 'active' | 'archived';
+}
+
+export interface FixedAsset {
+  id: string;
+  number: string;
+  name: string;
+  status: 'draft' | 'registered' | 'disposed';
+  purchaseDate?: IsoDate;
+  purchasePrice?: number;
+  bookValue?: number;
+  assetType?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Payroll and projects                                                */
+/* ------------------------------------------------------------------ */
+
+export interface Employee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  jobTitle?: string;
+  startDate?: IsoDate;
+  status: 'active' | 'terminated';
+}
+
+export interface PayRun {
+  id: string;
+  periodStart: IsoDate;
+  periodEnd: IsoDate;
+  paymentDate: IsoDate;
+  status: 'draft' | 'posted';
+  employeeCount?: number;
+  totalCost?: number;
+  totalPay?: number;
+  calendarName?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  contact?: ContactRef;
+  status: 'in-progress' | 'closed';
+  deadline?: IsoDate;
+  currency?: string;
+  estimate?: number;
+  totalInvoiced?: number;
+  totalToInvoice?: number;
+  totalExpenses?: number;
+  minutesLogged?: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reports                                                             */
+/* ------------------------------------------------------------------ */
+
+export type ReportId =
+  | 'profit-and-loss'
+  | 'balance-sheet'
+  | 'trial-balance'
+  | 'aged-receivables'
+  | 'aged-payables'
+  | 'bank-summary'
+  | 'executive-summary';
+
+export interface ReportParams {
+  from?: IsoDate;
+  to?: IsoDate;
+  /** Point-in-time reports (balance sheet, trial balance, aged) use `date`. */
+  date?: IsoDate;
+  periods?: number;
+  timeframe?: 'month' | 'quarter' | 'year';
+}
+
+export type ReportCell = string | number | null;
+
+export interface ReportRow {
+  kind: 'row' | 'summary';
+  cells: ReportCell[];
+  /** Optional account id/code for drill-down. */
+  accountId?: string;
+}
+
+export interface ReportSection {
+  title?: string;
+  rows: ReportRow[];
+}
+
+export interface Report {
+  id: ReportId;
+  title: string;
+  subtitles: string[];
+  /** Column headings; the first column is the row label. */
+  columns: string[];
+  sections: ReportSection[];
+  generatedAt: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Dashboard                                                           */
+/* ------------------------------------------------------------------ */
+
+export interface DocumentBucket {
+  count: number;
+  total: number;
+}
+
+export interface DashboardSummary {
+  currency: string;
+  bankAccounts: BankAccount[];
+  receivables: {
+    draft: DocumentBucket;
+    awaitingApproval: DocumentBucket;
+    awaitingPayment: DocumentBucket;
+    overdue: DocumentBucket;
+  };
+  payables: {
+    draft: DocumentBucket;
+    awaitingApproval: DocumentBucket;
+    awaitingPayment: DocumentBucket;
+    overdue: DocumentBucket;
+  };
+  /** Income and expenses per month from the P&L, oldest first (`month` is `YYYY-MM`). */
+  trend: { month: string; income: number; expenses: number }[];
+  /** Profit and loss for the current financial year to date. */
+  profitAndLoss?: { from: IsoDate; to: IsoDate; income: number; expenses: number; net: number };
+}

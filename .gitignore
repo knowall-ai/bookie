@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+.env*
+!.env.example
+.bookie-config/
+*.log
+.DS_Store
+coverage/
+playwright-report/
+test-results/
+/tmp/
