@@ -6,5 +6,7 @@
     "windows": 0.4,
     "neon": 0.4,
     "beacons": 0
-  }
+  },
+  "video": "backdrops/bookie-bg-lights-loop.mp4",
+  "video_fps": 10
 }

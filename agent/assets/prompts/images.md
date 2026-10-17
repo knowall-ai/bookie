@@ -121,7 +121,7 @@ at a position given as a fraction of the 16:9 canvas.
 | 2 | `rain` | `rain`: Presence's bundled `avatar-rain-loop.mp4` (not copied here) runs down the glass | Scene: a quiet brass-and-glass study at night while it rains. The room interior is almost completely black, in deep shadow, with only a faint brass edge-glint on the window frame. One huge, tall, floor-to-ceiling window fills the frame from about one-fifth in from the left edge all the way to the right edge, top to bottom, divided only by two slim dark brass mullions. The glass is wet with fine rain streaks and droplets. Through the rainy glass a night city has melted into large, soft, out-of-focus bokeh discs of warm gold and amber, with a few soft green and teal discs, over deep navy. The CENTRE of the window is calmer and darker: smooth deep navy with only two or three faint, very soft bokeh discs. The far left fifth of the frame is a plain dark wall in deep shadow. |
 | 3 | `observatory` | `city_lights` with `neon` 0: only the white stars twinkle; the gold ribs and frame stay still | Scene: the inside of a private observatory study at night. A great dark navy dome curves overhead, ribbed with a few slim brushed-brass arcs that catch warm gold light from a soft concealed glow along the base of the dome. One large OCTAGONAL window is set into the dome on the RIGHT side of the frame, fully inside the frame with a clear margin above it (its top edge about one-fifth down from the top of the image, its bottom edge just above the middle, spanning from about 62% to 90% of the width), framed in thin brass. Through it: a clear, dark night sky densely scattered with many BRIGHT, crisp, sharp white and pale-gold stars of varied sizes, like a long-exposure astrophotograph, with a very faint gold-and-green nebula haze. The rest of the dome is smooth and dark. The CENTRE of the frame is the plain, smooth, dimly lit curve of the navy dome wall. A low ring of warm gold light runs along the bottom of the frame. No telescope. |
 | 4 | `atrium` | `flicker_zones` on the top-left and middle-right lamp globes | Scene: a tall, quiet atrium of a near-future counting house at night, seen straight on and symmetrical. Upper gallery balconies line the far LEFT and far RIGHT sides, each balcony edge traced by a thin warm gold LED strip. Several warm brass pendant lamps with softly glowing amber glass globes hang on long fine cables at different heights, two or three on the left side and two or three on the right side, each casting a soft pool of light. The CENTRE of the frame is a tall, smooth, plain dark navy wall rising into shadow, lit only by a faint soft gradient, with no lamps and no objects in front of it. A dark polished stone floor at the very bottom reflects the lamps faintly. Gently soft-focus, shallow depth of field. |
-| 5 | `lights` | `city_lights`, no beacons: the beads shimmer | Scene: a calm, abstract light installation in a dark gallery-like room of the near future, an artwork about ledgers and balance. Hundreds of fine vertical threads hang from the ceiling, each carrying many tiny glowing beads of warm gold light, with a few pale green beads; together the beads form two soft, gently flowing curved waves of light, one filling the LEFT third and one filling the RIGHT third of the frame, rising and falling like a balanced chart drawn in points of light. The beads are small, distinct, crisp points. The background is deep navy darkness. The CENTRE of the frame is empty dark navy space with only a faint soft gradient glow, and no beads or threads in it. A dark reflective floor at the very bottom mirrors a few of the lights. |
+| 5 | `lights` | `city_lights`, no beacons: the beads shimmer. **Chosen**, and now also a looping video (below) | Scene: a calm, abstract light installation in a dark gallery-like room of the near future, an artwork about ledgers and balance. Hundreds of fine vertical threads hang from the ceiling, each carrying many tiny glowing beads of warm gold light, with a few pale green beads; together the beads form two soft, gently flowing curved waves of light, one filling the LEFT third and one filling the RIGHT third of the frame, rising and falling like a balanced chart drawn in points of light. The beads are small, distinct, crisp points. The background is deep navy darkness. The CENTRE of the frame is empty dark navy space with only a faint soft gradient glow, and no beads or threads in it. A dark reflective floor at the very bottom mirrors a few of the lights. |
 | 6 | `vault` | `city_lights`, no beacons: the drawer lights twinkle | Scene: a vast, quiet, vault-like archive of the near future, seen in calm one-point perspective down a long symmetrical hall. Both side walls, LEFT and RIGHT, are floor-to-ceiling banks of brushed-brass ledger drawers in a neat grid, each drawer face plain and unmarked with one small softly glowing warm gold indicator light, and a rare few glowing green. Thin gold light lines run along the floor edges. The hall recedes into the distance, and its far end in the CENTRE of the frame dissolves into a soft, dark navy haze with no detail, so the middle of the frame is calm and dark. Smooth dark ceiling. Gently soft-focus, the drawer lights remaining small distinct points. |
 
 The study (option 0) uses `city_lights` too, on its skyline. Two candidates were made per
@@ -136,4 +136,51 @@ repo root, given an agent-presence checkout:
 ```sh
 python3 agent/assets/scripts/backdrop_preview.py ~/GitHub/agent-presence/src/call-bot/media \
   agent/assets agent/assets/backdrops/bookie-bg-skyline.json /tmp/skyline.mp4 --still /tmp/skyline.png
+```
+
+## The chosen backdrop as a subtle loop (`backdrops/bookie-bg-lights-loop.mp4`)
+
+The owner chose the ledger light installation (`lights`) and asked for "a subtle looped
+animation". `bookie-bg-lights-loop.mp4` is that plate as a **10 s seamless loop**,
+1536x1024, 24 fps, H.264, about 4.2 MB. Presence shows it full-frame behind Bookie
+through `backdrop.video` (`bookie-bg-lights.json` and `bookie-avatar.json`); the still
+PNG stays as `bg`, the first frame and the fallback.
+
+It is **procedural, made from the still**, not generated by a video model:
+
+```sh
+python3 agent/assets/scripts/ledger_lights_loop.py \
+  agent/assets/backdrops/bookie-bg-lights.png agent/assets/backdrops/bookie-bg-lights-loop.mp4
+```
+
+The script splits the plate exactly into a smooth navy background (a grey opening:
+min filter, max filter, blur) and a light layer (beads, threads, floor reflections), then
+animates only the light layer:
+
+- **Sway:** the threads swing sideways by about 1.5 px at the floor and not at all at the
+  ceiling, with a slow drift across the room.
+- **Breathing:** every bead brightens and dims by about 20% on its own phase, from two smooth
+  random fields at one and two cycles per loop.
+- **Travelling light:** one soft glint per loop runs left to right along each wave curve. It is
+  weighted to where the beads are densest, so it follows the curves, and the two sides are half a
+  loop apart.
+
+Every motion is a function of `2*pi*t/T` with whole-number multiples, so the frame after the last
+is the first one again: the script checks it (max difference 1 level, which is rounding). The
+dark centre never changes (at most 6 levels of glow spill), and nothing is added to the scene.
+The encode uses CRF 16 with the I/P/B quantiser ratios at 1.0, so the key frame at the loop
+point matches the rest. A plain encode showed a faint shimmer of coding noise on the threads
+there.
+
+Why not an image-to-video model, as for the website intro (`scripts/omni_video.py`)? Those
+re-imagine the scene. They drift from the approved plate, invent or melt beads, and need a
+crossfade to loop, which ghosts. Procedural is exact, deterministic, loops perfectly and costs
+nothing to re-run.
+
+Preview it behind Bookie with an agent-presence checkout that has `backdrop.video`
+(`backdrop_preview.py` picks up the `video` key from the JSON):
+
+```sh
+python3 agent/assets/scripts/backdrop_preview.py ~/GitHub/agent-presence/src/call-bot/media \
+  agent/assets agent/assets/backdrops/bookie-bg-lights.json /tmp/lights.mp4 --still /tmp/lights.png
 ```
