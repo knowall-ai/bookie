@@ -25,7 +25,29 @@ jobs:
       - run: bun run format:check
       - run: bun run lint
       - run: bun run typecheck
-      - run: bun run test
+      # Unit tests with coverage; fails if coverage drops below the thresholds in vitest.config.ts.
+      - run: bun run test:coverage
+      - name: Coverage summary
+        if: ${{ !cancelled() }}
+        run: |
+          f=coverage/coverage-summary.json
+          [ -f "$f" ] || { echo "No coverage summary written." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          {
+            echo "## Unit test coverage"
+            echo ""
+            echo "| Metric | Covered | Total | % |"
+            echo "|---|---:|---:|---:|"
+            for m in statements branches functions lines; do
+              jq -r --arg m "$m" '.total[$m] | "| \($m) | \(.covered) | \(.total) | \(.pct) |"' "$f"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-summary
+          path: web/coverage/coverage-summary.json
+          if-no-files-found: ignore
+          retention-days: 14
 
   build:
     name: Production build
@@ -39,18 +61,23 @@ jobs:
           NEXTAUTH_URL: https://getbook.ie
 
   e2e:
-    name: End-to-end (demo organisations)
+    name: End-to-end, ${{ matrix.project }} (demo organisations)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Project names from web/playwright.config.ts; mobile runs the @mobile specs.
+        project: [desktop, mobile]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
-      - run: bunx playwright test --project=desktop
+      - run: bunx playwright test --project=${{ matrix.project }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.project }}
           path: web/playwright-report
           retention-days: 7
 
