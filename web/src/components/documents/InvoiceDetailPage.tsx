@@ -11,6 +11,10 @@ import { Money } from '@/components/ui/Money';
 import { DocumentFacts, DocumentLines, DocumentTotals } from './DocumentParts';
 import { InvoiceActions } from './InvoiceActions';
 import { PaymentPanel } from '@/components/sales/PaymentPanel';
+import { InvoiceSendActions } from '@/components/sales/InvoiceSendActions';
+import { AvailableCredit } from '@/components/sales/AvailableCredit';
+import { HistoryPanel } from '@/components/history/HistoryPanel';
+import { Badge } from '@/components/ui/Badge';
 
 export async function InvoiceDetailPage({
   orgParam,
@@ -54,10 +58,23 @@ export async function InvoiceDetailPage({
           <span className="flex flex-wrap items-center gap-3">
             {noun} {invoice.number}
             <StatusBadge status={invoice.status} overdue={invoice.isOverdue} />
+            {isSales && invoice.sentToContact && <Badge tone="blue">Sent</Badge>}
           </span>
         }
         actions={
           <>
+            {isSales && (
+              <InvoiceSendActions
+                orgKey={org.key}
+                invoiceId={invoice.id}
+                canMarkSent={
+                  invoice.status === 'authorised' && !invoice.sentToContact && !!m.markAsSent
+                }
+                canCopyLink={
+                  (invoice.status === 'authorised' || invoice.status === 'paid') && !!m.onlineUrl
+                }
+              />
+            )}
             <InvoiceActions
               orgKey={org.key}
               id={invoice.id}
@@ -112,6 +129,16 @@ export async function InvoiceDetailPage({
 
         <div className="flex flex-col gap-6 lg:flex-row">
           <div className="flex-1 space-y-5">
+            {invoice.status === 'authorised' && invoice.amountDue > 0 && (
+              <AvailableCredit
+                connector={connector}
+                base={base}
+                contactId={invoice.contact.id}
+                type={type}
+                invoiceId={invoice.id}
+                currency={invoice.currency}
+              />
+            )}
             {bankAccounts.length > 0 && (
               <PaymentPanel
                 key={invoice.amountDue}
@@ -160,6 +187,14 @@ export async function InvoiceDetailPage({
             ]}
           />
         </div>
+
+        <HistoryPanel
+          connector={connector}
+          orgKey={org.key}
+          entity="invoice"
+          id={invoice.id}
+          source={sourceName(org)}
+        />
       </div>
     </>
   );

@@ -80,7 +80,9 @@ export function demoPayments(data: DemoData): PaymentsModule | undefined {
         } as never,
       ];
       invoice.amountPaid = Math.round((invoice.amountPaid + amount) * 100) / 100;
-      invoice.amountDue = Math.round((invoice.total - invoice.amountPaid) * 100) / 100;
+      invoice.amountDue =
+        Math.round((invoice.total - invoice.amountPaid - (invoice.amountCredited ?? 0)) * 100) /
+        100;
       if (invoice.amountDue <= 0) {
         invoice.amountDue = 0;
         invoice.status = 'paid';

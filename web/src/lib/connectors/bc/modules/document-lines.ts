@@ -32,8 +32,14 @@ export function fromBcDocumentLine(line: BcDocumentLine): LineItem {
   };
 }
 
-/** Sales documents price lines with `unitPrice`, purchase documents with `directUnitCost`. */
-export function toBcDocumentLine(line: LineItemInput, price: 'unitPrice' | 'directUnitCost') {
+/**
+ * Sales documents price lines with `unitPrice`, purchase documents with `directUnitCost`,
+ * except purchase credit memo lines, which only have `unitCost` (API v2.0 metadata).
+ */
+export function toBcDocumentLine(
+  line: LineItemInput,
+  price: 'unitPrice' | 'directUnitCost' | 'unitCost'
+) {
   const lineType = line.itemCode ? 'Item' : line.accountCode ? 'Account' : 'Comment';
   return {
     lineType,

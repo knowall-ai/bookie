@@ -4,6 +4,7 @@ import type { QuotesModule, QuoteStatusChange } from '../../types';
 import { ConnectorError } from '../../types';
 import { demoId, matches, notFound, paginate } from '../index';
 import { catalogueLine, contactOf, priceLines, totals } from './documents';
+import { demoRecord } from './history';
 
 const TERMS =
   'Prices are valid for 30 days. Delivery within 5 working days of order. Payment due 30 days from invoice.';
@@ -119,7 +120,7 @@ function seed(data: DemoData): Quote[] {
   });
 }
 
-function quotesOf(data: DemoData) {
+export function quotesOf(data: DemoData) {
   let quotes = state.get(data);
   if (!quotes) {
     quotes = seed(data);
@@ -127,6 +128,13 @@ function quotesOf(data: DemoData) {
   }
   return quotes;
 }
+
+const STATUS_EVENT: Record<QuoteStatusChange, string> = {
+  sent: 'Sent',
+  accepted: 'Accepted',
+  declined: 'Declined',
+  deleted: 'Deleted',
+};
 
 /** Legal status changes, mirroring Xero's quote lifecycle. */
 const TRANSITIONS: Record<QuoteStatusChange, QuoteStatus[]> = {
@@ -210,6 +218,7 @@ export function demoQuotes(data: DemoData): QuotesModule | undefined {
         );
       }
       quote.status = status;
+      demoRecord(data, 'quote', id, STATUS_EVENT[status], `${quote.number} marked as ${status}.`);
       return structuredClone(quote);
     },
     convertibleStatuses: ['sent', 'accepted'],
@@ -242,6 +251,20 @@ export function demoQuotes(data: DemoData): QuotesModule | undefined {
       };
       data.invoices.unshift(invoice);
       quote.status = 'invoiced';
+      demoRecord(
+        data,
+        'quote',
+        id,
+        'Invoiced',
+        `Invoice ${invoice.number} created from ${quote.number}.`
+      );
+      demoRecord(
+        data,
+        'invoice',
+        invoice.id,
+        'Converted from quote',
+        `${invoice.number} created from quote ${quote.number}.`
+      );
       return { invoiceId: invoice.id };
     },
   };

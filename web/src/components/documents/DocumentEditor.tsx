@@ -40,6 +40,7 @@ export interface EditorValues {
   title?: string;
   summary?: string;
   terms?: string;
+  brandingThemeId?: string;
   lineAmountType: LineAmountType;
   lineItems: LineItemInput[];
 }
@@ -81,6 +82,9 @@ export function DocumentEditor({
   cancelHref,
   savedHref,
   canApprove,
+  approveLabel = 'Approve',
+  approveBody,
+  brandingThemes = [],
 }: {
   heading: string;
   currency: string;
@@ -102,6 +106,12 @@ export function DocumentEditor({
   /** Detail path; the saved id is appended. */
   savedHref: string;
   canApprove?: boolean;
+  /** Second save button's label, e.g. "Save and mark as sent" for quotes. */
+  approveLabel?: string;
+  /** Confirm dialog text for the second save button. */
+  approveBody?: string;
+  /** Invoice templates; the picker only shows when there is a real choice (two or more). */
+  brandingThemes?: EditorOption[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -117,6 +127,7 @@ export function DocumentEditor({
     title: initial?.title,
     summary: initial?.summary,
     terms: initial?.terms,
+    brandingThemeId: initial?.brandingThemeId,
     lineAmountType: initial?.lineAmountType ?? 'exclusive',
     lineItems: initial?.lineItems?.length ? initial.lineItems : [blankLine()],
   });
@@ -181,7 +192,13 @@ export function DocumentEditor({
         toast.error(result.error);
         return;
       }
-      toast.success(intent === 'approve' ? 'Saved and approved' : 'Saved as draft');
+      toast.success(
+        intent === 'approve'
+          ? approveLabel === 'Approve'
+            ? 'Saved and approved'
+            : 'Saved'
+          : 'Saved as draft'
+      );
       router.push(`${savedHref}/${encodeURIComponent(result.data.id)}`);
       router.refresh();
     });
@@ -262,6 +279,23 @@ export function DocumentEditor({
             <option value="none">No tax</option>
           </Select>
         </Field>
+        {brandingThemes.length > 1 && (
+          <Field label="Branding theme" htmlFor="theme">
+            <Select
+              id="theme"
+              value={values.brandingThemeId ?? ''}
+              onChange={(e) => set('brandingThemeId', e.target.value || undefined)}
+              data-testid="editor-theme"
+            >
+              <option value="">Default</option>
+              {brandingThemes.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
         {extraFields.includes('title') && (
           <Field label="Title" htmlFor="title" className="sm:col-span-2">
             <Input
@@ -510,16 +544,19 @@ export function DocumentEditor({
             onClick={() => setConfirmApprove(true)}
             data-testid="save-approve"
           >
-            Approve
+            {approveLabel}
           </Button>
         )}
       </div>
 
       {confirmApprove && (
         <ConfirmDialog
-          title="Save and approve?"
-          body={`This posts the document to your live books for ${formatMoney(totals.total, currency)}.`}
-          cta="Approve"
+          title={approveLabel === 'Approve' ? 'Save and approve?' : `${approveLabel}?`}
+          body={
+            approveBody ??
+            `This posts the document to your live books for ${formatMoney(totals.total, currency)}.`
+          }
+          cta={approveLabel}
           busy={pending}
           onCancel={() => setConfirmApprove(false)}
           onConfirm={() => submit('approve')}

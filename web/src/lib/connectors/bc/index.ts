@@ -33,6 +33,7 @@ import {
 } from './modules/reports';
 import { bcPayroll } from './modules/payroll';
 import { bcProjects } from './modules/projects';
+import { bcHistory } from './modules/history';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -830,6 +831,7 @@ export function createBcConnector({
     reports: bcReports(client, lcy),
     payroll: bcPayroll(client),
     projects: bcProjects(client, lcy),
+    history: bcHistory(client),
 
     sourceLink(entity, id) {
       const pages = { invoice: 9301, bill: 9308, quote: 9300, contact: 22 };

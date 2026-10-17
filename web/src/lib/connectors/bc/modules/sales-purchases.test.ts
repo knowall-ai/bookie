@@ -92,7 +92,8 @@ describe('bc credit memos', () => {
       status: 'authorised',
       reference: 'RMA-9',
       contact: { id: 'c:cust' },
-      remainingCredit: 60,
+      // API v2.0 has no remaining amount on credit memos: unknown, not the total.
+      remainingCredit: undefined,
     });
     expect(
       fromBcCreditMemo(
