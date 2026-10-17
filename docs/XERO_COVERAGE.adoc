@@ -1,0 +1,495 @@
+= Xero API coverage
+:toc: left
+:toclevels: 2
+
+Every endpoint in Xero's official OpenAPI specifications (https://github.com/XeroAPI/Xero-OpenAPI[XeroAPI/Xero-OpenAPI]) and whether Bookie's Xero connector uses it. This page lists endpoints and status only: no data.
+
+Generated from the specs on 17 October 2026. Status reflects the `main` branch plus work in progress named below.
+
+== Status key
+
+[cols="1,4"]
+|===
+|Status |Meaning
+
+|Implemented |Bookie calls this endpoint and shows or writes what it returns.
+|Partly |The capability is there through a sibling endpoint (for example create via `POST` instead of `PUT`), or only part of what the endpoint offers is used.
+|In progress |Another builder is adding it now (attachments and files inbox; repeating invoices, credit note create and allocate, overpayment and prepayment allocations, history and notes, online invoice, branding themes; tracking categories and currencies; bank transfers, batch payments, purchase order status, webhooks).
+|Missing |Not used yet. The note says why or what it would add.
+|Out of scope |Not planned (product decision).
+|N/A: deprecated |Deprecated or superseded by Xero.
+|N/A: restricted |Needs a partnership or a scope Xero only grants to certain partners.
+|N/A: not UK |Only meaningful outside the UK.
+|N/A: not applicable |Not something an accounting portal does.
+|===
+
+== Summary
+
+[cols="3,1,1,1,1,1,1",options="header"]
+|===
+|API |Endpoints |Implemented |Partly |In progress |Missing |Out of scope or N/A
+|Accounting API |235 |39 |16 |120 |35 |25
+|Payroll UK API |69 |2 |0 |0 |67 |0
+|Assets API |6 |1 |0 |0 |5 |0
+|Files API |18 |0 |0 |18 |0 |0
+|Projects API |16 |0 |0 |0 |0 |16
+|Bank Feeds API |7 |0 |0 |0 |0 |7
+|Finance API |8 |0 |0 |0 |0 |8
+|App Store API |4 |0 |0 |0 |0 |4
+|Identity API |2 |1 |0 |0 |1 |0
+|*Total* |*365* |*43* |*16* |*138* |*108* |*60*
+|===
+
+== Not in the specs
+
+* *Webhooks* (invoice, contact and other events) are configured in the Xero developer portal, not described in these specs. In progress.
+* *Reports/BankStatement* is documented by Xero but not in the OpenAPI spec. It answers 401 to Bookie's connection, so bank statement lines and a running balance are not available. The account register says so.
+* *Account Transactions* and *General Ledger* reports have no API endpoint (404). Bookie builds Account Transactions and the Journal Report from `GET /Journals`, which covers posted transactions on the accrual basis.
+* *Bank reconciliation* has no API. Bookie shows each transaction's reconciled flag and filters on it; reconciling happens in Xero.
+* *Employees* in the Accounting API is no longer in the spec and answers 404 for UK organisations; UK employees come from the Payroll UK API.
+
+== Accounting API
+
+Base URL: `https://api.xero.com/api.xro/2.0`
+
+[cols="1,4,2,6",options="header"]
+|===
+|Method |Path |Status |Notes
+|GET |`/Accounts` |Implemented |Chart of accounts, bank accounts.
+|PUT |`/Accounts` |Implemented |New account.
+|GET |`/Accounts/{AccountID}` |Partly |Account data read through `GET /Accounts`.
+|POST |`/Accounts/{AccountID}` |Missing |Edit or archive an account.
+|DELETE |`/Accounts/{AccountID}` |Missing |Delete an unused account.
+|GET |`/Accounts/{AccountID}/Attachments` |In progress |Attachments builder.
+|GET |`/Accounts/{AccountID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/Accounts/{AccountID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/Accounts/{AccountID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/Accounts/{AccountID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/BatchPayments` |In progress |Batch payments builder.
+|PUT |`/BatchPayments` |In progress |Batch payments builder.
+|POST |`/BatchPayments` |In progress |Batch payments builder.
+|GET |`/BatchPayments/{BatchPaymentID}` |In progress |Batch payments builder.
+|POST |`/BatchPayments/{BatchPaymentID}` |In progress |Batch payments builder.
+|GET |`/BatchPayments/{BatchPaymentID}/History` |In progress |History and notes builder.
+|PUT |`/BatchPayments/{BatchPaymentID}/History` |In progress |History and notes builder.
+|GET |`/BankTransactions` |Implemented |Account transactions register: date, spent/received, reconciled, contact and reference filters.
+|PUT |`/BankTransactions` |Implemented |Spend money and receive money.
+|POST |`/BankTransactions` |Missing |Bulk update-or-create; not needed for the UI.
+|GET |`/BankTransactions/{BankTransactionID}` |Implemented |Transaction detail with line coding.
+|POST |`/BankTransactions/{BankTransactionID}` |Missing |Edit a spend/receive money transaction.
+|GET |`/BankTransactions/{BankTransactionID}/Attachments` |In progress |Attachments builder.
+|GET |`/BankTransactions/{BankTransactionID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/BankTransactions/{BankTransactionID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/BankTransactions/{BankTransactionID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/BankTransactions/{BankTransactionID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/BankTransactions/{BankTransactionID}/History` |In progress |History and notes builder.
+|PUT |`/BankTransactions/{BankTransactionID}/History` |In progress |History and notes builder.
+|GET |`/BankTransfers` |In progress |Bank transfers builder.
+|PUT |`/BankTransfers` |In progress |Bank transfers builder.
+|POST |`/BankTransfers` |In progress |Bank transfers builder.
+|GET |`/BankTransfers/{BankTransferID}` |In progress |Bank transfers builder.
+|POST |`/BankTransfers/{BankTransferID}` |In progress |Bank transfers builder.
+|GET |`/BankTransfers/{BankTransferID}/Attachments` |In progress |Attachments builder.
+|GET |`/BankTransfers/{BankTransferID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/BankTransfers/{BankTransferID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/BankTransfers/{BankTransferID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/BankTransfers/{BankTransferID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/BankTransfers/{BankTransferID}/History` |In progress |History and notes builder.
+|PUT |`/BankTransfers/{BankTransferID}/History` |In progress |History and notes builder.
+|GET |`/BrandingThemes` |In progress |Branding themes builder.
+|GET |`/BrandingThemes/{BrandingThemeID}` |In progress |Branding themes builder.
+|GET |`/BrandingThemes/{BrandingThemeID}/PaymentServices` |N/A: restricted |Needs the `paymentservices` scope (payment-service partners); the connection gets 401.
+|POST |`/BrandingThemes/{BrandingThemeID}/PaymentServices` |N/A: restricted |Needs the `paymentservices` scope (payment-service partners); the connection gets 401.
+|GET |`/Budgets` |Missing |Deprioritised (low usage).
+|GET |`/Budgets/{BudgetID}` |Missing |Deprioritised (low usage).
+|GET |`/Contacts` |Implemented |Contacts list, search, customers/suppliers, archived.
+|PUT |`/Contacts` |Partly |Contacts are created with `POST /Contacts`.
+|POST |`/Contacts` |Implemented |Create and update contacts.
+|GET |`/Contacts/{ContactNumber}` |Missing |Lookup by contact number; contacts open by id.
+|GET |`/Contacts/{ContactID}` |Implemented |Contact detail.
+|POST |`/Contacts/{ContactID}` |Partly |Updates and archiving go through `POST /Contacts` with the id.
+|GET |`/Contacts/{ContactID}/Attachments` |In progress |Attachments builder.
+|GET |`/Contacts/{ContactID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/Contacts/{ContactID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/Contacts/{ContactID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/Contacts/{ContactID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/Contacts/{ContactID}/CISSettings` |Missing |Construction Industry Scheme (UK) subcontractor settings; only for CIS-registered organisations.
+|GET |`/Contacts/{ContactID}/History` |In progress |History and notes builder.
+|PUT |`/Contacts/{ContactID}/History` |In progress |History and notes builder.
+|GET |`/ContactGroups` |Missing |Deprioritised (low usage).
+|PUT |`/ContactGroups` |Missing |Deprioritised (low usage).
+|GET |`/ContactGroups/{ContactGroupID}` |Missing |Deprioritised (low usage).
+|POST |`/ContactGroups/{ContactGroupID}` |Missing |Deprioritised (low usage).
+|PUT |`/ContactGroups/{ContactGroupID}/Contacts` |Missing |Deprioritised (low usage).
+|DELETE |`/ContactGroups/{ContactGroupID}/Contacts` |Missing |Deprioritised (low usage).
+|DELETE |`/ContactGroups/{ContactGroupID}/Contacts/{ContactID}` |Missing |Deprioritised (low usage).
+|GET |`/CreditNotes` |Implemented |Sales and supplier credit notes.
+|PUT |`/CreditNotes` |In progress |Credit notes create/allocate builder.
+|POST |`/CreditNotes` |In progress |Credit notes create/allocate builder.
+|GET |`/CreditNotes/{CreditNoteID}` |Implemented |Credit note detail.
+|POST |`/CreditNotes/{CreditNoteID}` |In progress |Credit notes create/allocate builder.
+|GET |`/CreditNotes/{CreditNoteID}/Attachments` |In progress |Attachments builder.
+|GET |`/CreditNotes/{CreditNoteID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/CreditNotes/{CreditNoteID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/CreditNotes/{CreditNoteID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/CreditNotes/{CreditNoteID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/CreditNotes/{CreditNoteID}/pdf` |Missing |Credit note PDF.
+|PUT |`/CreditNotes/{CreditNoteID}/Allocations` |In progress |Credit notes create/allocate builder.
+|DELETE |`/CreditNotes/{CreditNoteID}/Allocations/{AllocationID}` |In progress |Credit notes create/allocate builder.
+|GET |`/CreditNotes/{CreditNoteID}/History` |In progress |History and notes builder.
+|PUT |`/CreditNotes/{CreditNoteID}/History` |In progress |History and notes builder.
+|GET |`/Currencies` |In progress |Tracking categories and currencies builder.
+|PUT |`/Currencies` |In progress |Tracking categories and currencies builder.
+|GET |`/ExpenseClaims` |N/A: deprecated |Classic expense claims; superseded by Xero Expenses, which has no API.
+|PUT |`/ExpenseClaims` |N/A: deprecated |Classic expense claims; superseded by Xero Expenses, which has no API.
+|GET |`/ExpenseClaims/{ExpenseClaimID}` |N/A: deprecated |Classic expense claims; superseded by Xero Expenses, which has no API.
+|POST |`/ExpenseClaims/{ExpenseClaimID}` |N/A: deprecated |Classic expense claims; superseded by Xero Expenses, which has no API.
+|GET |`/ExpenseClaims/{ExpenseClaimID}/History` |N/A: deprecated |Classic expense claims; superseded by Xero Expenses, which has no API.
+|PUT |`/ExpenseClaims/{ExpenseClaimID}/History` |N/A: deprecated |Classic expense claims; superseded by Xero Expenses, which has no API.
+|GET |`/Invoices` |Implemented |Invoices and bills, status tabs, search, dashboard, aged reports.
+|PUT |`/Invoices` |Partly |Invoices are created with `POST /Invoices`.
+|POST |`/Invoices` |Implemented |Create, edit, approve, void, delete.
+|GET |`/Invoices/{InvoiceID}` |Implemented |Detail, and the PDF (Accept: application/pdf).
+|POST |`/Invoices/{InvoiceID}` |Partly |Updates go through `POST /Invoices` with the id.
+|GET |`/Invoices/{InvoiceID}/pdf` |Partly |PDF fetched from `GET /Invoices/{InvoiceID}` with Accept: application/pdf.
+|GET |`/Invoices/{InvoiceID}/Attachments` |In progress |Attachments builder.
+|GET |`/Invoices/{InvoiceID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/Invoices/{InvoiceID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/Invoices/{InvoiceID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/Invoices/{InvoiceID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/Invoices/{InvoiceID}/OnlineInvoice` |In progress |Online invoice builder.
+|POST |`/Invoices/{InvoiceID}/Email` |Implemented |Email invoice (confirmed).
+|GET |`/Invoices/{InvoiceID}/History` |In progress |History and notes builder.
+|PUT |`/Invoices/{InvoiceID}/History` |In progress |History and notes builder.
+|GET |`/InvoiceReminders/Settings` |Missing |Read-only reminder flag; deprioritised.
+|GET |`/Items` |Implemented |Products and services.
+|PUT |`/Items` |Partly |Items are created with `POST /Items`.
+|POST |`/Items` |Implemented |Create and update items.
+|GET |`/Items/{ItemID}` |Implemented |Item detail.
+|POST |`/Items/{ItemID}` |Partly |Updates go through `POST /Items`.
+|DELETE |`/Items/{ItemID}` |Missing |Delete an item.
+|GET |`/Items/{ItemID}/History` |In progress |History and notes builder.
+|PUT |`/Items/{ItemID}/History` |In progress |History and notes builder.
+|GET |`/Journals` |Implemented |Ledger, Account Transactions and Journal Report (read from If-Modified-Since, paged by journal number).
+|GET |`/Journals/{JournalID}` |Missing |Single journal; the reports read journals in bulk.
+|GET |`/Journals/{JournalNumber}` |Missing |Single journal by number.
+|GET |`/LinkedTransactions` |Missing |Billable expenses; deprioritised (low usage).
+|PUT |`/LinkedTransactions` |Missing |Billable expenses; deprioritised (low usage).
+|GET |`/LinkedTransactions/{LinkedTransactionID}` |Missing |Billable expenses; deprioritised (low usage).
+|POST |`/LinkedTransactions/{LinkedTransactionID}` |Missing |Billable expenses; deprioritised (low usage).
+|DELETE |`/LinkedTransactions/{LinkedTransactionID}` |Missing |Billable expenses; deprioritised (low usage).
+|GET |`/ManualJournals` |Implemented |List with status tabs (draft, posted, voided), date range and narration search.
+|PUT |`/ManualJournals` |Implemented |New journal, and Reverse (a new journal with debits and credits swapped).
+|POST |`/ManualJournals` |Missing |Bulk update-or-create; not needed for the UI.
+|GET |`/ManualJournals/{ManualJournalID}` |Implemented |Detail with account names, tax, cash-basis flag, attachments flag.
+|POST |`/ManualJournals/{ManualJournalID}` |Implemented |Post or delete a draft, void a posted journal (confirmed).
+|GET |`/ManualJournals/{ManualJournalID}/Attachments` |In progress |Attachments builder.
+|GET |`/ManualJournals/{ManualJournalID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/ManualJournals/{ManualJournalID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/ManualJournals/{ManualJournalID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/ManualJournals/{ManualJournalID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/ManualJournals/{ManualJournalID}/History` |In progress |History and notes builder.
+|PUT |`/ManualJournals/{ManualJournalID}/History` |In progress |History and notes builder.
+|GET |`/Organisation` |Implemented |Org Settings page: details, financial and tax settings.
+|GET |`/Organisation/Actions` |Missing |What the connection may do; could drive which buttons show.
+|GET |`/Organisation/{OrganisationID}/CISSettings` |Missing |Construction Industry Scheme (UK) settings; only for CIS-registered organisations.
+|GET |`/Overpayments` |In progress |Overpayments/prepayments allocations builder.
+|GET |`/Overpayments/{OverpaymentID}` |In progress |Overpayments/prepayments allocations builder.
+|PUT |`/Overpayments/{OverpaymentID}/Allocations` |In progress |Overpayments/prepayments allocations builder.
+|DELETE |`/Overpayments/{OverpaymentID}/Allocations/{AllocationID}` |In progress |Overpayments/prepayments allocations builder.
+|GET |`/Overpayments/{OverpaymentID}/History` |In progress |History and notes builder.
+|PUT |`/Overpayments/{OverpaymentID}/History` |In progress |History and notes builder.
+|GET |`/Payments` |Implemented |Payments list and the account register.
+|PUT |`/Payments` |Implemented |Record a payment (confirmed).
+|POST |`/Payments` |Partly |Payments are created with `PUT /Payments`.
+|GET |`/Payments/{PaymentID}` |Implemented |Payment detail in the account register.
+|POST |`/Payments/{PaymentID}` |Missing |Delete (reverse) a payment.
+|GET |`/Payments/{PaymentID}/History` |In progress |History and notes builder.
+|PUT |`/Payments/{PaymentID}/History` |In progress |History and notes builder.
+|GET |`/PaymentServices` |N/A: restricted |Needs the `paymentservices` scope (payment-service partners); the connection gets 401.
+|PUT |`/PaymentServices` |N/A: restricted |Needs the `paymentservices` scope (payment-service partners); the connection gets 401.
+|GET |`/Prepayments` |In progress |Overpayments/prepayments allocations builder.
+|GET |`/Prepayments/{PrepaymentID}` |In progress |Overpayments/prepayments allocations builder.
+|PUT |`/Prepayments/{PrepaymentID}/Allocations` |In progress |Overpayments/prepayments allocations builder.
+|DELETE |`/Prepayments/{PrepaymentID}/Allocations/{AllocationID}` |In progress |Overpayments/prepayments allocations builder.
+|GET |`/Prepayments/{PrepaymentID}/History` |In progress |History and notes builder.
+|PUT |`/Prepayments/{PrepaymentID}/History` |In progress |History and notes builder.
+|GET |`/PurchaseOrders` |Implemented |Purchase orders list.
+|PUT |`/PurchaseOrders` |Partly |Purchase orders are created with `POST /PurchaseOrders`.
+|POST |`/PurchaseOrders` |Implemented |Create and edit.
+|GET |`/PurchaseOrders/{PurchaseOrderID}/pdf` |Missing |Purchase order PDF.
+|GET |`/PurchaseOrders/{PurchaseOrderID}` |Implemented |Detail.
+|POST |`/PurchaseOrders/{PurchaseOrderID}` |In progress |Purchase order status builder.
+|GET |`/PurchaseOrders/{PurchaseOrderNumber}` |Missing |Lookup by number; orders open by id.
+|GET |`/PurchaseOrders/{PurchaseOrderID}/History` |In progress |History and notes builder.
+|PUT |`/PurchaseOrders/{PurchaseOrderID}/History` |In progress |History and notes builder.
+|GET |`/PurchaseOrders/{PurchaseOrderID}/Attachments` |In progress |Attachments builder.
+|GET |`/PurchaseOrders/{PurchaseOrderID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/PurchaseOrders/{PurchaseOrderID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/PurchaseOrders/{PurchaseOrderID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/PurchaseOrders/{PurchaseOrderID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/Quotes` |Implemented |Quotes list.
+|PUT |`/Quotes` |Partly |Quotes are created with `POST /Quotes`.
+|POST |`/Quotes` |Implemented |Create, edit, status changes.
+|GET |`/Quotes/{QuoteID}` |Implemented |Detail, and the PDF (Accept: application/pdf).
+|POST |`/Quotes/{QuoteID}` |Partly |Updates go through `POST /Quotes`.
+|GET |`/Quotes/{QuoteID}/History` |In progress |History and notes builder.
+|PUT |`/Quotes/{QuoteID}/History` |In progress |History and notes builder.
+|GET |`/Quotes/{QuoteID}/pdf` |Partly |PDF fetched from `GET /Quotes/{QuoteID}` with Accept: application/pdf.
+|GET |`/Quotes/{QuoteID}/Attachments` |In progress |Attachments builder.
+|GET |`/Quotes/{QuoteID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/Quotes/{QuoteID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/Quotes/{QuoteID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/Quotes/{QuoteID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/Receipts` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|PUT |`/Receipts` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|GET |`/Receipts/{ReceiptID}` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|POST |`/Receipts/{ReceiptID}` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|GET |`/Receipts/{ReceiptID}/Attachments` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|GET |`/Receipts/{ReceiptID}/Attachments/{AttachmentID}` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|GET |`/Receipts/{ReceiptID}/Attachments/{FileName}` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|POST |`/Receipts/{ReceiptID}/Attachments/{FileName}` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|PUT |`/Receipts/{ReceiptID}/Attachments/{FileName}` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|GET |`/Receipts/{ReceiptID}/History` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|PUT |`/Receipts/{ReceiptID}/History` |N/A: deprecated |Receipts belong to classic expense claims (see ExpenseClaims).
+|GET |`/RepeatingInvoices` |In progress |Repeating invoices builder.
+|PUT |`/RepeatingInvoices` |In progress |Repeating invoices builder.
+|POST |`/RepeatingInvoices` |In progress |Repeating invoices builder.
+|GET |`/RepeatingInvoices/{RepeatingInvoiceID}` |In progress |Repeating invoices builder.
+|POST |`/RepeatingInvoices/{RepeatingInvoiceID}` |In progress |Repeating invoices builder.
+|GET |`/RepeatingInvoices/{RepeatingInvoiceID}/Attachments` |In progress |Attachments builder.
+|GET |`/RepeatingInvoices/{RepeatingInvoiceID}/Attachments/{AttachmentID}` |In progress |Attachments builder.
+|GET |`/RepeatingInvoices/{RepeatingInvoiceID}/Attachments/{FileName}` |In progress |Attachments builder.
+|POST |`/RepeatingInvoices/{RepeatingInvoiceID}/Attachments/{FileName}` |In progress |Attachments builder.
+|PUT |`/RepeatingInvoices/{RepeatingInvoiceID}/Attachments/{FileName}` |In progress |Attachments builder.
+|GET |`/RepeatingInvoices/{RepeatingInvoiceID}/History` |In progress |History and notes builder.
+|PUT |`/RepeatingInvoices/{RepeatingInvoiceID}/History` |In progress |History and notes builder.
+|GET |`/Reports/TenNinetyNine` |N/A: not UK |US 1099 forms.
+|GET |`/Reports/AgedPayablesByContact` |Partly |Aged payables summary is built from outstanding bills; the per-contact report is not called.
+|GET |`/Reports/AgedReceivablesByContact` |Partly |Aged receivables summary is built from outstanding invoices; the per-contact report is not called.
+|GET |`/Reports/BalanceSheet` |Implemented |Balance sheet, with comparisons.
+|GET |`/Reports/BankSummary` |Implemented |Bank summary, bank balances.
+|GET |`/Reports/{ReportID}` |N/A: not UK |Fetches one of those published reports (see above).
+|GET |`/Reports/BudgetSummary` |Missing |Deprioritised (low usage).
+|GET |`/Reports/ExecutiveSummary` |Implemented |Executive summary.
+|GET |`/Reports` |N/A: not UK |Lists published reports that need an id (GST/BAS returns in Australia and New Zealand); empty for the UK org.
+|GET |`/Reports/ProfitAndLoss` |Implemented |Profit and loss, dashboard trend.
+|GET |`/Reports/TrialBalance` |Implemented |Trial balance, account balances.
+|POST |`/Setup` |N/A: not applicable |One-off conversion setup for a new organisation (chart, conversion date and balances).
+|GET |`/TaxRates` |Implemented |Tax rates.
+|PUT |`/TaxRates` |Missing |Create a tax rate.
+|POST |`/TaxRates` |Missing |Update a tax rate.
+|GET |`/TaxRates/{TaxType}` |Missing |Single rate; read through the list.
+|GET |`/TrackingCategories` |In progress |Tracking categories and currencies builder.
+|PUT |`/TrackingCategories` |In progress |Tracking categories and currencies builder.
+|GET |`/TrackingCategories/{TrackingCategoryID}` |In progress |Tracking categories and currencies builder.
+|POST |`/TrackingCategories/{TrackingCategoryID}` |In progress |Tracking categories and currencies builder.
+|DELETE |`/TrackingCategories/{TrackingCategoryID}` |In progress |Tracking categories and currencies builder.
+|PUT |`/TrackingCategories/{TrackingCategoryID}/Options` |In progress |Tracking categories and currencies builder.
+|POST |`/TrackingCategories/{TrackingCategoryID}/Options/{TrackingOptionID}` |In progress |Tracking categories and currencies builder.
+|DELETE |`/TrackingCategories/{TrackingCategoryID}/Options/{TrackingOptionID}` |In progress |Tracking categories and currencies builder.
+|GET |`/Users` |Implemented |Users list (read-only) in org Settings.
+|GET |`/Users/{UserID}` |Partly |User data read through `GET /Users`.
+|===
+
+== Payroll UK API
+
+Base URL: `https://api.xero.com/payroll.xro/2.0`
+
+[cols="1,4,2,6",options="header"]
+|===
+|Method |Path |Status |Notes
+|GET |`/Employees` |Implemented |Employees list.
+|POST |`/Employees` |Missing |Payroll writes; deprioritised.
+|GET |`/Employees/{EmployeeID}` |Missing |Read-only detail; deprioritised (low usage).
+|PUT |`/Employees/{EmployeeID}` |Missing |Payroll writes; deprioritised.
+|POST |`/Employees/{EmployeeID}/Employment` |Missing |Payroll writes; deprioritised.
+|GET |`/Employees/{EmployeeID}/Tax` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Employees/{EmployeeID}/ukopeningbalances` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Employees/{EmployeeID}/ukopeningbalances` |Missing |Payroll writes; deprioritised.
+|PUT |`/Employees/{EmployeeID}/ukopeningbalances` |Missing |Payroll writes; deprioritised.
+|GET |`/Employees/{EmployeeID}/Leave` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Employees/{EmployeeID}/Leave` |Missing |Payroll writes; deprioritised.
+|GET |`/Employees/{EmployeeID}/Leave/{LeaveID}` |Missing |Read-only detail; deprioritised (low usage).
+|PUT |`/Employees/{EmployeeID}/Leave/{LeaveID}` |Missing |Payroll writes; deprioritised.
+|DELETE |`/Employees/{EmployeeID}/Leave/{LeaveID}` |Missing |Payroll writes; deprioritised.
+|GET |`/Employees/{EmployeeID}/LeaveBalances` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Employees/{EmployeeID}/StatutoryLeaveBalance` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/StatutoryLeaves/Summary/{EmployeeID}` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/StatutoryLeaves/Sick` |Missing |Payroll writes; deprioritised.
+|GET |`/StatutoryLeaves/Sick/{StatutorySickLeaveID}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Employees/{EmployeeID}/LeavePeriods` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Employees/{EmployeeID}/LeaveTypes` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Employees/{EmployeeID}/LeaveTypes` |Missing |Payroll writes; deprioritised.
+|GET |`/Employees/{EmployeeID}/PaymentMethods` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Employees/{EmployeeID}/PaymentMethods` |Missing |Payroll writes; deprioritised.
+|GET |`/Employees/{EmployeeID}/PayTemplates` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Employees/{EmployeeID}/PayTemplates/earnings` |Missing |Payroll writes; deprioritised.
+|PUT |`/Employees/{EmployeeID}/PayTemplates/earnings/{PayTemplateEarningID}` |Missing |Payroll writes; deprioritised.
+|DELETE |`/Employees/{EmployeeID}/PayTemplates/earnings/{PayTemplateEarningID}` |Missing |Payroll writes; deprioritised.
+|POST |`/Employees/{EmployeeID}/paytemplateearnings` |Missing |Payroll writes; deprioritised.
+|GET |`/Benefits` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Benefits` |Missing |Payroll writes; deprioritised.
+|GET |`/Benefits/{id}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Deductions` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Deductions` |Missing |Payroll writes; deprioritised.
+|GET |`/Deductions/{deductionId}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/EarningsOrders` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/EarningsOrders/{id}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/EarningsRates` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/EarningsRates` |Missing |Payroll writes; deprioritised.
+|GET |`/EarningsRates/{EarningsRateID}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/LeaveTypes` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/LeaveTypes` |Missing |Payroll writes; deprioritised.
+|GET |`/LeaveTypes/{LeaveTypeID}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Reimbursements` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Reimbursements` |Missing |Payroll writes; deprioritised.
+|GET |`/Reimbursements/{ReimbursementID}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Timesheets` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Timesheets` |Missing |Payroll writes; deprioritised.
+|GET |`/Timesheets/{TimesheetID}` |Missing |Read-only detail; deprioritised (low usage).
+|DELETE |`/Timesheets/{TimesheetID}` |Missing |Payroll writes; deprioritised.
+|POST |`/Timesheets/{TimesheetID}/Lines` |Missing |Payroll writes; deprioritised.
+|POST |`/Timesheets/{TimesheetID}/Approve` |Missing |Payroll writes; deprioritised.
+|POST |`/Timesheets/{TimesheetID}/RevertToDraft` |Missing |Payroll writes; deprioritised.
+|PUT |`/Timesheets/{TimesheetID}/Lines/{TimesheetLineID}` |Missing |Payroll writes; deprioritised.
+|DELETE |`/Timesheets/{TimesheetID}/Lines/{TimesheetLineID}` |Missing |Payroll writes; deprioritised.
+|GET |`/PayRunCalendars` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/PayRunCalendars` |Missing |Payroll writes; deprioritised.
+|GET |`/PayRunCalendars/{PayRunCalendarID}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Employees/{EmployeeID}/SalaryAndWages` |Missing |Read-only detail; deprioritised (low usage).
+|POST |`/Employees/{EmployeeID}/SalaryAndWages` |Missing |Payroll writes; deprioritised.
+|GET |`/Employees/{EmployeeID}/SalaryAndWages/{SalaryAndWagesID}` |Missing |Read-only detail; deprioritised (low usage).
+|PUT |`/Employees/{EmployeeID}/SalaryAndWages/{SalaryAndWagesID}` |Missing |Payroll writes; deprioritised.
+|DELETE |`/Employees/{EmployeeID}/SalaryAndWages/{SalaryAndWagesID}` |Missing |Payroll writes; deprioritised.
+|GET |`/PayRuns` |Implemented |Pay runs list.
+|GET |`/PayRuns/{PayRunID}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Payslips` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Payslips/{PayslipID}` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Settings` |Missing |Read-only detail; deprioritised (low usage).
+|GET |`/Settings/trackingCategories` |Missing |Read-only detail; deprioritised (low usage).
+|===
+
+== Assets API
+
+Base URL: `https://api.xero.com/assets.xro/1.0`
+
+[cols="1,4,2,6",options="header"]
+|===
+|Method |Path |Status |Notes
+|GET |`/Assets` |Implemented |Fixed assets by status.
+|POST |`/Assets` |Missing |Asset detail, types, settings and draft assets; deprioritised.
+|GET |`/Assets/{id}` |Missing |Asset detail, types, settings and draft assets; deprioritised.
+|GET |`/AssetTypes` |Missing |Asset detail, types, settings and draft assets; deprioritised.
+|POST |`/AssetTypes` |Missing |Asset detail, types, settings and draft assets; deprioritised.
+|GET |`/Settings` |Missing |Asset detail, types, settings and draft assets; deprioritised.
+|===
+
+== Files API
+
+Base URL: `https://api.xero.com/files.xro/1.0`
+
+[cols="1,4,2,6",options="header"]
+|===
+|Method |Path |Status |Notes
+|GET |`/Files` |In progress |Files inbox builder.
+|POST |`/Files` |In progress |Files inbox builder.
+|GET |`/Files/{FileId}` |In progress |Files inbox builder.
+|PUT |`/Files/{FileId}` |In progress |Files inbox builder.
+|DELETE |`/Files/{FileId}` |In progress |Files inbox builder.
+|POST |`/Files/{FolderId}` |In progress |Files inbox builder.
+|GET |`/Files/{FileId}/Content` |In progress |Files inbox builder.
+|GET |`/Files/{FileId}/Associations` |In progress |Files inbox builder.
+|POST |`/Files/{FileId}/Associations` |In progress |Files inbox builder.
+|DELETE |`/Files/{FileId}/Associations/{ObjectId}` |In progress |Files inbox builder.
+|GET |`/Associations/{ObjectId}` |In progress |Files inbox builder.
+|GET |`/Associations/Count` |In progress |Files inbox builder.
+|GET |`/Folders` |In progress |Files inbox builder.
+|POST |`/Folders` |In progress |Files inbox builder.
+|GET |`/Folders/{FolderId}` |In progress |Files inbox builder.
+|PUT |`/Folders/{FolderId}` |In progress |Files inbox builder.
+|DELETE |`/Folders/{FolderId}` |In progress |Files inbox builder.
+|GET |`/Inbox` |In progress |Files inbox builder.
+|===
+
+== Projects API
+
+Base URL: `https://api.xero.com/projects.xro/2.0`
+
+[cols="1,4,2,6",options="header"]
+|===
+|Method |Path |Status |Notes
+|GET |`/Projects` |Out of scope |Product decision. Read-only list and detail code already exists (the Custom Connection gets 401).
+|POST |`/Projects` |Out of scope |Product decision.
+|GET |`/Projects/{projectId}` |Out of scope |Product decision. Read-only list and detail code already exists (the Custom Connection gets 401).
+|PUT |`/Projects/{projectId}` |Out of scope |Product decision.
+|PATCH |`/Projects/{projectId}` |Out of scope |Product decision.
+|GET |`/ProjectsUsers` |Out of scope |Product decision.
+|GET |`/Projects/{projectId}/Tasks` |Out of scope |Product decision.
+|POST |`/Projects/{projectId}/Tasks` |Out of scope |Product decision.
+|GET |`/Projects/{projectId}/Tasks/{taskId}` |Out of scope |Product decision.
+|PUT |`/Projects/{projectId}/Tasks/{taskId}` |Out of scope |Product decision.
+|DELETE |`/Projects/{projectId}/Tasks/{taskId}` |Out of scope |Product decision.
+|GET |`/Projects/{projectId}/Time` |Out of scope |Product decision.
+|POST |`/Projects/{projectId}/Time` |Out of scope |Product decision.
+|GET |`/Projects/{projectId}/Time/{timeEntryId}` |Out of scope |Product decision.
+|PUT |`/Projects/{projectId}/Time/{timeEntryId}` |Out of scope |Product decision.
+|DELETE |`/Projects/{projectId}/Time/{timeEntryId}` |Out of scope |Product decision.
+|===
+
+== Bank Feeds API
+
+Base URL: `https://api.xero.com/bankfeeds.xro/1.0`
+
+[cols="1,4,2,6",options="header"]
+|===
+|Method |Path |Status |Notes
+|GET |`/FeedConnections` |N/A: restricted |Closed API for financial institutions with a Xero financial services partnership.
+|POST |`/FeedConnections` |N/A: restricted |Closed API for financial institutions with a Xero financial services partnership.
+|GET |`/FeedConnections/{id}` |N/A: restricted |Closed API for financial institutions with a Xero financial services partnership.
+|POST |`/FeedConnections/DeleteRequests` |N/A: restricted |Closed API for financial institutions with a Xero financial services partnership.
+|GET |`/Statements` |N/A: restricted |Closed API for financial institutions with a Xero financial services partnership.
+|POST |`/Statements` |N/A: restricted |Closed API for financial institutions with a Xero financial services partnership.
+|GET |`/Statements/{statementId}` |N/A: restricted |Closed API for financial institutions with a Xero financial services partnership.
+|===
+
+== Finance API
+
+Base URL: `https://api.xero.com/finance.xro/1.0`
+
+[cols="1,4,2,6",options="header"]
+|===
+|Method |Path |Status |Notes
+|GET |`/CashValidation` |N/A: restricted |Finance API for lenders assessing loan applications; not an accounting UI feature.
+|GET |`/FinancialStatements/BalanceSheet` |N/A: restricted |Finance API for lenders assessing loan applications; not an accounting UI feature.
+|GET |`/FinancialStatements/Cashflow` |N/A: restricted |Finance API for lenders assessing loan applications; not an accounting UI feature.
+|GET |`/FinancialStatements/ProfitAndLoss` |N/A: restricted |Finance API for lenders assessing loan applications; not an accounting UI feature.
+|GET |`/FinancialStatements/TrialBalance` |N/A: restricted |Finance API for lenders assessing loan applications; not an accounting UI feature.
+|GET |`/FinancialStatements/contacts/revenue` |N/A: restricted |Finance API for lenders assessing loan applications; not an accounting UI feature.
+|GET |`/FinancialStatements/contacts/expense` |N/A: restricted |Finance API for lenders assessing loan applications; not an accounting UI feature.
+|GET |`/BankStatementsPlus/statements` |N/A: restricted |Finance API for lenders assessing loan applications; not an accounting UI feature.
+|===
+
+== App Store API
+
+Base URL: `https://api.xero.com/appstore/2.0`
+
+[cols="1,4,2,6",options="header"]
+|===
+|Method |Path |Status |Notes
+|GET |`/subscriptions/{subscriptionId}` |N/A: not applicable |App Store billing for Xero partners selling through the Xero App Store.
+|POST |`/subscriptions/{subscriptionId}/items/{subscriptionItemId}/usage-records` |N/A: not applicable |App Store billing for Xero partners selling through the Xero App Store.
+|PUT |`/subscriptions/{subscriptionId}/items/{subscriptionItemId}/usage-records/{usageRecordId}` |N/A: not applicable |App Store billing for Xero partners selling through the Xero App Store.
+|GET |`/subscriptions/{subscriptionId}/usage-records` |N/A: not applicable |App Store billing for Xero partners selling through the Xero App Store.
+|===
+
+== Identity API
+
+Base URL: `https://api.xero.com`
+
+[cols="1,4,2,6",options="header"]
+|===
+|Method |Path |Status |Notes
+|GET |`/Connections` |Implemented |Finds the organisations a connection can reach.
+|DELETE |`/Connections/{id}` |Missing |Disconnecting removes the stored connection in Bookie; the Xero grant is not revoked through the API.
+|===
