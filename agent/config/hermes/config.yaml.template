@@ -13,7 +13,7 @@ model:
   provider: azure-foundry
   default: "{{MODEL_MAIN}}"
   base_url: "{{AZURE_AI_BASE_URL}}"
-  api_mode: chat_completions
+  api_mode: codex_responses   # gpt-6.1-sol only allows function tools on /v1/responses
 
 fallback_providers: []            # one brain; a failure is reported, never answered by a weaker model
 

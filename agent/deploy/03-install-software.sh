@@ -19,7 +19,7 @@ sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   ca-certificates curl gnupg git jq unzip rsync gettext-base openssl \
   python3 python3-venv python3-pip python3-pil python3-numpy ffmpeg \
-  pulseaudio-utils v4l2loopback-dkms v4l-utils "linux-modules-extra-$(uname -r)" \
+  pulseaudio-utils v4l-utils "linux-modules-extra-$(uname -r)" \
   xdotool wmctrl poppler-utils file
 
 step "Microsoft Edge"
@@ -54,6 +54,18 @@ if ! command -v az >/dev/null; then
   curl -fsSL https://aka.ms/InstallAzureCLIDeb | sudo bash
 else
   info "already installed"
+fi
+
+step "v4l2loopback (upstream ${V4L2LOOPBACK_VERSION:-0.13.2} via DKMS; Ubuntu 22.04's 0.12.7 does not build on Azure 6.8 kernels)"
+V4L2_VER="${V4L2LOOPBACK_VERSION:-0.13.2}"
+if ! sudo dkms status -m v4l2loopback -v "${V4L2_VER}" 2>/dev/null | grep -q installed; then
+  dpkg -s v4l2loopback-dkms >/dev/null 2>&1 && sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y --purge v4l2loopback-dkms
+  tmpdir="$(mktemp -d)"
+  git clone -q --depth 1 --branch "v${V4L2_VER}" https://github.com/umlaeute/v4l2loopback.git "${tmpdir}/v4l2loopback"
+  sudo rm -rf "/usr/src/v4l2loopback-${V4L2_VER}" && sudo cp -r "${tmpdir}/v4l2loopback" "/usr/src/v4l2loopback-${V4L2_VER}"
+  sudo dkms add -m v4l2loopback -v "${V4L2_VER}" 2>/dev/null || true
+  sudo dkms install -m v4l2loopback -v "${V4L2_VER}"
+  rm -rf "${tmpdir}"
 fi
 
 step "v4l2loopback loads at boot"

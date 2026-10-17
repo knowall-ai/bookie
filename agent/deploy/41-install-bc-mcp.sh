@@ -57,7 +57,7 @@ local_mode() {
     step "New client secret (1 year), piped to the VM without being shown"
     az ad app credential reset --id "${APP_ID}" --append --display-name "bookie-vm-$(date +%Y%m%d)" --years 1 \
       --query password -o tsv \
-      | ssh "${VM_ADMIN_USER}@${PUBLIC_DOMAIN}" "BC_CLIENT_ID='${APP_ID}' BC_TENANT_ID='$(az account show --query tenantId -o tsv)' bash ~/bookie/agent/deploy/41-install-bc-mcp.sh --vm --secret-stdin"
+      | ssh "${VM_ADMIN_USER}@${VM_HOST:-${PUBLIC_DOMAIN}}" "BC_CLIENT_ID='${APP_ID}' BC_TENANT_ID='$(az account show --query tenantId -o tsv)' bash ~/bookie/agent/deploy/41-install-bc-mcp.sh --vm --secret-stdin"
     warn "diary the secret expiry (1 year); re-run --local --push-secret before then"
   fi
   cat <<EOF

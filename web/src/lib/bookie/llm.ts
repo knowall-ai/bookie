@@ -32,6 +32,8 @@ export async function azureHeaders(): Promise<Record<string, string>> {
 }
 
 export function bookieConfigured(): boolean {
+  // BOOKIE_DISABLE_AI=1 turns Bookie off (end-to-end tests: no live model calls).
+  if (process.env.BOOKIE_DISABLE_AI === '1') return false;
   return !!process.env.AZURE_OPENAI_ENDPOINT;
 }
 

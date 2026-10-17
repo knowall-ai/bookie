@@ -40,6 +40,8 @@ export default defineConfig({
           NEXT_DIST_DIR: '.next-e2e',
           BOOKIE_DEV_AUTH: 'demo',
           BOOKIE_CONFIG_STORE: 'file',
+          // Bookie's take and chat would call Azure OpenAI from .env.local: keep e2e offline.
+          BOOKIE_DISABLE_AI: '1',
           NEXTAUTH_URL: baseURL,
           NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? 'e2e-only-secret-not-used-in-production',
           BOOKIE_CONFIG_KEY:

@@ -74,7 +74,7 @@ Real pages, read live through Bookie's own connector code from **Microsoft's CRO
 
 **Bookie, the AI bookkeeper.**
 
-- **In the portal:** ask him anything about the open organisation ("who owes us the most?"). He looks it up live with read-only tools and explains it. A short "Bookie's take" on the Home page is planned.
+- **In the portal:** ask him anything about the open organisation ("who owes us the most?"). He looks it up live with read-only tools and explains it. **Bookie's take** on the Home page gives three live points worth your attention (hidden when Bookie isn't configured).
 - **By voice:** talk to him in the browser, or **Call on Teams** from the Ask Bookie panel.
 - **As a Hermes agent:** he has his own Microsoft 365 account, joins Teams calls with [Agent Presence](https://github.com/knowall-ai/agent-presence) using **GPT-Live-1**, and remembers people and context with [Reverie](https://github.com/knowall-ai/hermes-reverie). See [agent/](agent).
 - **Bill capture (in progress):** the agent reads supplier invoices sent to a shared accounts mailbox and turns them into **draft** bills (never approved or paid without a person), leaving anything it can't read with confidence blank and flagged for review.

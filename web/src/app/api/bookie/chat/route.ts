@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { respond, type ResponseItem } from '@/lib/bookie/llm';
+import { bookieConfigured, respond, type ResponseItem } from '@/lib/bookie/llm';
 import { bookieInstructions } from '@/lib/bookie/prompt';
 import { bookieContext, rateLimit } from '@/lib/bookie/session';
 import { runTool, toolsFor, toolStatus } from '@/lib/bookie/tools';
@@ -26,6 +26,9 @@ const MAX_TOOL_ROUNDS = 6;
  * Conversations are not stored on the server; the browser keeps the history.
  */
 export async function POST(request: Request) {
+  if (!bookieConfigured()) {
+    return Response.json({ error: 'Bookie is not configured on this server.' }, { status: 503 });
+  }
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return Response.json({ error: 'Invalid request.' }, { status: 400 });
   const { orgKey, mode, messages } = parsed.data;
