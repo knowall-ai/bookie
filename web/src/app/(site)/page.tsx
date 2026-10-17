@@ -200,15 +200,7 @@ export default function Landing() {
       </section>
 
       {/* Meet Bookie: his 30-second introduction, then what he does. */}
-      <section
-        aria-labelledby="bookie"
-        className={cn(HAIRLINE, 'relative isolate scroll-mt-16 overflow-hidden py-24 sm:py-32')}
-      >
-        {/* The same lamplight as the hero, falling from behind the video. */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-40 -z-10 mx-auto h-[640px] max-w-5xl rounded-[50%] bg-[radial-gradient(closest-side,rgb(255_200_90/0.13),transparent)] blur-2xl"
-        />
+      <section aria-labelledby="bookie" className={cn(HAIRLINE, 'scroll-mt-16 py-24 sm:py-32')}>
         <Container>
           <SectionHeading
             id="bookie"
