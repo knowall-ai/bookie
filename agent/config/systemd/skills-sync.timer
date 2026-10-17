@@ -1,0 +1,12 @@
+# Rendered by agent/deploy/33-setup-skills-sync.sh to /etc/systemd/system/skills-sync-{{AGENT_NAME}}.timer
+[Unit]
+Description=Skills sync for {{AGENT_NAME}}
+
+[Timer]
+# Wall-clock schedule so Persistent=true has an effect: a slot missed while the VM was off runs after boot.
+OnCalendar={{SKILLS_SYNC_ON_CALENDAR}}
+RandomizedDelaySec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,17 @@
+# Rendered by agent/deploy/21-setup-graph-webhooks.sh (ACCOUNTS_MAILBOX_WAKE=webhook only) to
+# /etc/systemd/system/accounts-subscription-{{AGENT_NAME}}.service
+[Unit]
+Description=Renew the Graph subscription on {{ACCOUNTS_MAILBOX}} Inbox for {{AGENT_NAME}}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{AGENT_NAME}}
+Environment=PRESENCE_STATE_DIR={{HERMES_DIR}}
+Environment=PRESENCE_DIR={{PRESENCE_DIR}}
+EnvironmentFile={{HERMES_DIR}}/graph-subscriptions.env
+ExecStart=/usr/bin/node {{AGENT_REPO}}/agent/hermes/scripts/accounts-subscription.mjs renew
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=accounts-subscription-{{AGENT_NAME}}

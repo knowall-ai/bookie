@@ -1,0 +1,12 @@
+# Rendered by agent/deploy/21-setup-graph-webhooks.sh to /etc/systemd/system/accounts-subscription-{{AGENT_NAME}}.timer
+[Unit]
+Description=Renew the accounts mailbox Graph subscription for {{AGENT_NAME}}
+
+[Timer]
+# Mail subscriptions last up to 4230 minutes (~2.9 days); renew twice a day.
+OnBootSec=2min
+OnUnitActiveSec=12h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,27 @@
+# Rendered by agent/deploy/11-setup-ssl-proxy.sh to /etc/caddy/Caddyfile.
+# Bookie has no web portal on his VM (the portal is the Bookie web app at getbook.ie).
+# The only public route is the Microsoft Graph change-notification webhook: Graph proves itself
+# with clientState and the Presence adapter verifies every notification. Everything else is 404.
+{
+    email {{ACME_EMAIL}}
+}
+
+{{PUBLIC_DOMAIN}} {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+
+    # Graph API webhooks -> Presence Graph adapter on loopback
+    handle /webhooks/* {
+        reverse_proxy 127.0.0.1:{{GRAPH_ADAPTER_PORT}}
+    }
+
+    handle {
+        respond "Bookie" 404
+    }
+}

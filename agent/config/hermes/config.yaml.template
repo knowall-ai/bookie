@@ -1,0 +1,172 @@
+# ~/.hermes/config.yaml for Bookie, rendered by agent/deploy/render-hermes-config.sh and installed by
+# agent/deploy/04-configure-hermes.sh. {{PLACEHOLDERS}} come from agent/deploy/config.env.
+# Secrets are NOT rendered here: they live in ~/.hermes/.env (chmod 600) and are referenced as
+# ${VAR}, which Hermes expands from that file at load time (an unset ${VAR} stays verbatim and is
+# logged). Keys marked VERIFY follow Poppie's live config and the Hermes docs; confirm them with
+# `hermes config show` on the first install.
+
+# ---- Brain ---------------------------------------------------------------------------------
+# gpt-6.1-sol on Bookie's own Azure OpenAI resource ({{AI_RESOURCE_NAME}}, swedencentral). Metered and
+# billed to that resource, so its Consumption budget and the Presence spend meter see every token.
+# Key: AZURE_FOUNDRY_API_KEY in ~/.hermes/.env. Confirm with `hermes model` (VERIFY api_mode).
+model:
+  provider: azure-foundry
+  default: "{{MODEL_MAIN}}"
+  base_url: "{{AZURE_AI_BASE_URL}}"
+  api_mode: chat_completions
+
+fallback_providers: []            # one brain; a failure is reported, never answered by a weaker model
+
+auxiliary:
+  vision:                         # screenshots of documents people share; same resource and deployment
+    provider: azure-foundry
+    base_url: "{{AZURE_AI_BASE_URL}}"
+    api_mode: chat_completions
+    model: "{{MODEL_MAIN}}"
+
+# Hermes reads the TOP-LEVEL timezone (cron schedules are wall-clock in it).
+timezone: {{TIMEZONE}}
+agent:
+  timezone: {{TIMEZONE}}
+
+# ---- Memory: Reverie --------------------------------------------------------------------------
+# Reverie (knowall-ai/hermes-reverie) recalls people, organisations and preferences before each turn
+# and stores curated entities after it. RULE (SOUL.md, agent/README.md): Reverie never stores ledger
+# data copied from Xero or Business Central: no amounts, balances, invoice lines, bank lines.
+# Xero's developer terms forbid using API data to train or fine-tune AI models; Bookie queries the
+# books live for every question instead.
+memory:
+  provider: reverie
+  enabled: true
+  write_approval: false
+
+# ---- Skills -----------------------------------------------------------------------------------
+# Search order: ~/.hermes/skills (implicit, kept empty), then these, most specific first.
+# DUPLICATE NAMES ARE A HARD ERROR in Hermes ("Ambiguous skill name ... Refusing to guess"), so the
+# union of these dirs must hold each name once. agent/hermes/scripts/check-skill-names.sh enforces it.
+#   1. Bookie's own skills: books, month-end-review, cash-advice, portal
+#   2. Presence: the shared media/M365 plane (teams, email, call, todo, ...). Never copy one here.
+#   3. The knowall-ai marketplace pack as a de-duplicated symlink farm (link-marketplace-skills.sh),
+#      which brings the xero and business-central skills and drops any name 1 or 2 already own.
+skills:
+  external_dirs:
+    - {{AGENT_REPO}}/agent/skills
+    - {{PRESENCE_DIR}}/presence-skills
+    - {{HERMES_DIR}}/marketplace-skills/knowall-ai
+
+# ---- MCP servers ----------------------------------------------------------------------------
+# Business Central: @knowall-ai/mcp-business-central, one server per BC company (the server binds one
+# company per process). Service-to-service sign-in (client_credentials) with Bookie's own Entra app,
+# registered in BC's "Microsoft Entra Applications" page with D365 READ (agent/README.md).
+# Read-only is enforced twice: BC grants only read permission sets, and Hermes registers only the
+# read tools (get_schema, list_items, get_items_by_field). With bill capture on (ACCOUNTS_MAILBOX set)
+# the renderer adds create_item/update_item, and BC grants only D365 PURCH DOC, EDIT (draft purchase
+# invoices, never posting) and D365 VENDOR, EDIT on top of D365 READ. Never delete_item.
+mcp_servers:
+  business-central:
+    command: "mcp-business-central"
+    args: []
+    env:
+      BC_URL_SERVER: "https://api.businesscentral.dynamics.com/v2.0/${BC_TENANT_ID}/{{BC_ENVIRONMENT}}/api/v2.0"
+      BC_COMPANY: "{{BC_COMPANY}}"
+      BC_AUTH_TYPE: "client_credentials"
+      BC_TENANT_ID: "${BC_TENANT_ID}"
+      BC_CLIENT_ID: "${BC_CLIENT_ID}"
+      BC_CLIENT_SECRET: "${BC_CLIENT_SECRET}"
+    tools:
+      include: {{BC_TOOLS}}
+      prompts: false
+      resources: false
+  # >>> bc-company-2 (removed by the renderer when BC_COMPANY_2 is empty)
+  business-central-2:
+    command: "mcp-business-central"
+    args: []
+    env:
+      BC_URL_SERVER: "https://api.businesscentral.dynamics.com/v2.0/${BC_TENANT_ID}/{{BC_ENVIRONMENT}}/api/v2.0"
+      BC_COMPANY: "{{BC_COMPANY_2}}"
+      BC_AUTH_TYPE: "client_credentials"
+      BC_TENANT_ID: "${BC_TENANT_ID}"
+      BC_CLIENT_ID: "${BC_CLIENT_ID}"
+      BC_CLIENT_SECRET: "${BC_CLIENT_SECRET}"
+    tools:
+      include: {{BC_TOOLS}}
+      prompts: false
+      resources: false
+  # <<< bc-company-2
+  # Reverie's read tools for explicit lookups ("what do we know about Fabrikam's finance team?").
+  # Writes go through the memory plugin's own `reverie` tool only, so the no-ledger-data rule has
+  # one enforcement point.
+  reverie:
+    command: "reverie"
+    args: []
+    env:
+      NEO4J_URI: "${NEO4J_URI}"
+      NEO4J_USERNAME: "${NEO4J_USERNAME}"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
+      REVERIE_EMBEDDINGS: "${REVERIE_EMBEDDINGS}"
+    tools:
+      include: [search_memories, query_memories, list_memory_labels]
+      prompts: false
+      resources: false
+
+# ---- Inbound: the Presence Graph adapter ----------------------------------------------------
+# Teams chats, mail and meeting timers arrive from {{PRESENCE_DIR}}/src/graph-adapter, signed with
+# X-Webhook-Signature-V2 (GRAPH_WEBHOOK_SECRET). Every route needs an explicit toolsets list, or a
+# webhook turn gets web tools only and cannot reply through graph.mjs (Poppie, 2026-09-04).
+# VERIFY: "mcp" is the toolset name for MCP-provided tools; check `hermes tools list` and adjust.
+# The route secret is rendered literally (it is the one secret in this file, which is chmod 600):
+# the webhook platform's `secret` is not documented as ${VAR}-expanded.
+platforms:
+  webhook:
+    enabled: true
+    extra:
+      host: 127.0.0.1
+      port: {{HERMES_WEBHOOK_PORT}}
+      secret: "{{GRAPH_WEBHOOK_SECRET}}"
+      rate_limit: 60
+      routes:
+        graph:                    # Teams DM / group chat / email to bookie@
+          prompt: "Session: {sessionKey}\n\n{text}"
+          session_key: '"{sessionKey}"'   # one Hermes session per chat/thread: never mixes two people's books
+          skills: ["teams", "email", "books"]
+          toolsets: ["terminal", "file", "web", "skills", "memory", "session_search", "todo", "vision", "mcp"]
+          deliver: log            # replies are sent by the skills through Graph as bookie@
+        graph-prep:               # ~10 min before an online meeting Bookie is invited to
+          prompt: "Session: {sessionKey}\n\n{text}"
+          skills: ["meeting-summary", "books"]
+          toolsets: ["terminal", "file", "web", "skills", "memory", "session_search", "todo", "vision", "mcp"]
+          deliver: log
+        graph-join:               # ~90 s before the meeting
+          prompt: "Session: {sessionKey}\n\n{text}"
+          skills: ["call", "video-bridge", "meeting-etiquette"]
+          toolsets: ["terminal", "file", "web", "skills", "memory", "session_search", "todo", "vision", "mcp"]
+          deliver: log
+  # OpenAI-compatible API server for the call-bot's ask_deepbrain (bearer API_SERVER_KEY), enabled
+  # by API_SERVER_ENABLED=true in ~/.hermes/.env; listens on 127.0.0.1:{{HERMES_API_PORT}}.
+
+# ---- Plugins ------------------------------------------------------------------------------------
+# reverie: memory provider (must be enabled AND selected above; a redeploy once dropped it silently).
+# agent-pulse: AgentActivity events for the Agents Portal; inert without APPLICATIONINSIGHTS_CONNECTION_STRING.
+plugins:
+  enabled:
+    - reverie
+    - agent-pulse
+  reverie:
+    server_command: reverie
+    embeddings: {{REVERIE_EMBEDDINGS}}
+    search_mode: hybrid
+    recall_limit: 5
+    recall_depth: 1
+    server_timeout: 30
+    server_startup_timeout: 60
+    dreaming_schedule: "0 3 * * *"
+
+# ---- Approvals --------------------------------------------------------------------------------
+# Same unattended setting as Poppie (her #9: approval prompts nobody could answer deadlocked
+# Teams/email wakes). Bookie's safety does not rest on this gate: the books are read-only by
+# credential (BC read permission sets, read-only MCP tools, Xero Custom Connection scopes), and
+# SOUL.md requires an authorised human's explicit confirmation in the same conversation before
+# any write is even drafted for execution.
+approvals:
+  mode: "off"
+  unattended_mode: allow

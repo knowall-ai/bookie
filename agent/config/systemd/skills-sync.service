@@ -1,0 +1,21 @@
+# Rendered by agent/deploy/33-setup-skills-sync.sh to /etc/systemd/system/skills-sync-{{AGENT_NAME}}.service
+[Unit]
+Description=Skills sync for {{AGENT_NAME}}: fast-forward the marketplace plugin clones
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{AGENT_NAME}}
+# Fast-forwards each clone under SKILLS_SYNC_ROOT only when it is on main, clean and behind;
+# anything else is left untouched with a WARNING (the unit then exits 1). Rebuilds the
+# de-duplicated skill farm when the set of skills changes. Never restarts the gateway.
+Environment=SKILLS_SYNC_ROOT={{SKILLS_SYNC_ROOT}}
+Environment="SKILLS_SYNC_PACKS={{SKILL_PACKS}}"
+Environment=SKILLS_SYNC_GATEWAY_UNIT=hermes-gateway-{{AGENT_NAME}}
+Environment=PRESENCE_DIR={{PRESENCE_DIR}}
+ExecStart={{AGENT_REPO}}/agent/hermes/scripts/skills-sync.sh
+TimeoutStartSec=10min
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=skills-sync-{{AGENT_NAME}}

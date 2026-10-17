@@ -1,0 +1,13 @@
+# Rendered by agent/deploy/21-setup-graph-webhooks.sh to /etc/systemd/system/renew-subscriptions-{{AGENT_NAME}}.timer
+# (the service is Presence's config/renew-subscriptions.service, rendered by the same step).
+[Unit]
+Description=Renew Graph API subscriptions for {{AGENT_NAME}}
+
+[Timer]
+# Teams chat subscriptions expire after 60 minutes: renew every 45.
+OnBootSec=1min
+OnUnitActiveSec=45min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

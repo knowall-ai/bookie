@@ -11,3 +11,6 @@ playwright-report/
 test-results/
 /tmp/
 .claude/
+
+# Bookie agent deploy settings (filled in per install)
+agent/deploy/config.env
