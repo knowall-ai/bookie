@@ -58,12 +58,15 @@ describe('bc sales quotes', () => {
     expect(bcQuoteStatus('Accepted')).toBe('accepted');
     expect(
       toBcSalesQuote({
-        contactId: 'c:cust-guid',
+        contactId: 'c:11111111-2222-3333-4444-555555555555',
         date: '2026-04-01',
         expiryDate: '2026-05-01',
         lineItems: [],
       })
-    ).toMatchObject({ customerId: 'cust-guid', validUntilDate: '2026-05-01' });
+    ).toMatchObject({
+      customerId: '11111111-2222-3333-4444-555555555555',
+      validUntilDate: '2026-05-01',
+    });
   });
 });
 
@@ -140,8 +143,12 @@ describe('bc purchase orders', () => {
       contact: { id: 'v:vend' },
     });
     expect(
-      toBcPurchaseOrder({ contactId: 'v:vend', date: '2026-01-10', lineItems: [] })
-    ).toMatchObject({ vendorId: 'vend', orderDate: '2026-01-10' });
+      toBcPurchaseOrder({
+        contactId: 'v:11111111-2222-3333-4444-555555555555',
+        date: '2026-01-10',
+        lineItems: [],
+      })
+    ).toMatchObject({ vendorId: '11111111-2222-3333-4444-555555555555', orderDate: '2026-01-10' });
   });
 
   it('prices purchase lines with directUnitCost and comments without amounts', () => {
