@@ -1,0 +1,10 @@
+{
+  "bg": "backdrops/bookie-bg-lights.png",
+  "stars": false,
+  "rain": null,
+  "city_lights": {
+    "windows": 0.4,
+    "neon": 0.4,
+    "beacons": 0
+  }
+}

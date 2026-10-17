@@ -64,7 +64,7 @@ interpolates the glass gradient from the box's edges, adds grain taken from the 
 glass just below, and is feathered over 4 px. The alpha channel and every pixel
 outside the box are unchanged.
 
-## Presence backdrop: the near-future study (`bookie-bg-future.png`)
+## Presence backdrop: the near-future study (`backdrops/bookie-bg-future.png`)
 
 This is the Teams video backdrop he sits in front of, at `1536x1024` (the same size as
 `bookie-bg-study.png`). The scene is empty, so it uses no reference images and none of
@@ -73,7 +73,7 @@ the character blocks. It calls the generations endpoint with the same model and 
 ```sh
 GEN=~/GitHub/claude-plugins/skills/gen-image/generate.py
 python3 "$GEN" --model gpt-image-2.5-flare --size 1536x1024 --background opaque --quality high \
-  --out bookie-bg-future.png --prompt "$LAYOUT $FUTURE_BASE"
+  --out backdrops/bookie-bg-future.png --prompt "$LAYOUT $FUTURE_BASE"
 ```
 
 **FUTURE_BASE:**
@@ -92,3 +92,48 @@ curve. Option 2 put ruled lines on some panels that read as pseudo-text, and its
 bokeh sat right behind his head. Option 3 had a green glow in the centre and was busier
 around him. Before committing a candidate, check it composited with Bookie:
 `python3 scripts/plate_test_render.py . /tmp/out --bg candidate.png --size 1920x1080`.
+
+## Presence backdrop options with motion (`backdrops/`)
+
+The owner wanted more choice than the study above, each with a subtle backdrop motion
+like Sallie's and Poppie's. Six more options were made, each a different composition
+from the study's shelves-left, navy-wall, window-right layout. Every one is empty,
+1536x1024, and keeps a calm, plain area behind his head. Each `bookie-bg-<slug>.json`
+is the `backdrop` block for `bookie-avatar.json`; the PNG paths are relative to
+`assets_dir`. They were made with the same command as the study, with the prompt
+`"$SCENE $BACKDROP_BASE"`:
+
+**BACKDROP_BASE:**
+
+> Wide 3:2 EMPTY BACKDROP PLATE for a video-call avatar, set in the near-future world of a calm, precise AI bookkeeper. Photoreal cinematic render, eye level, looking straight ahead. Palette: deep navy (#0b1120) and warm gold and brass light, with only small touches of KnowAll green (#22C55E); calm, warm, quietly futuristic and trustworthy, never cold or menacing. The CENTRE of the frame (the middle third, from top to bottom), where a character will be composited in front, is calm and uncluttered: smooth, dim, plain dark navy surface or dark sky, with no bright objects, no lights and no busy detail there. NO people, NO robots, NO characters, NO statues, NO furniture in the centre foreground, no readable text, letters, numbers, labels, signs or screens with writing anywhere, no logos, no watermark.
+
+Each scene was drawn to suit how its Presence effect picks pixels
+(`robot_avatar.py`). `city_lights` twinkles every bright speck (luminance above 120)
+right of the left 16% of the frame, and not under him. White specks count as
+"windows" and saturated ones (gold, green) as "neon", each with its own depth.
+`rain` treats the lit span of every row (luminance above 22) as glass, so the room
+around the window has to be near-black. `flicker_zones` dims a soft disc now and then,
+at a position given as a fraction of the 16:9 canvas.
+
+| # | Slug | Motion | SCENE |
+|---|---|---|---|
+| 1 | `skyline` | `city_lights`: window lights twinkle, 4 red beacons on the spires | Scene: an elevated private office at the very top of a tower, high above a futuristic city at dusk turning to night. One seamless, full-width, gently curved panoramic glass wall wraps the whole room from edge to edge, with only a slim brass frame line along the bottom. Outside, the sky is a smooth gradient from deep navy at the top to a last thin band of amber near the horizon. A vast city of slender glass towers fills the LEFT third and RIGHT third of the view, with thousands of tiny crisp warm gold window lights, a few soft green accent lights, and a tiny red aviation light on the tip of each of the tallest spires. In the CENTRE the towers fall away to a distant low horizon, so the middle of the frame is open, calm, dark navy sky with nothing in it. The window lights are small distinct points, not blurred bokeh. Inside, only a dark polished floor at the very bottom with soft gold reflections. |
+| 2 | `rain` | `rain`: Presence's bundled `avatar-rain-loop.mp4` (not copied here) runs down the glass | Scene: a quiet brass-and-glass study at night while it rains. The room interior is almost completely black, in deep shadow, with only a faint brass edge-glint on the window frame. One huge, tall, floor-to-ceiling window fills the frame from about one-fifth in from the left edge all the way to the right edge, top to bottom, divided only by two slim dark brass mullions. The glass is wet with fine rain streaks and droplets. Through the rainy glass a night city has melted into large, soft, out-of-focus bokeh discs of warm gold and amber, with a few soft green and teal discs, over deep navy. The CENTRE of the window is calmer and darker: smooth deep navy with only two or three faint, very soft bokeh discs. The far left fifth of the frame is a plain dark wall in deep shadow. |
+| 3 | `observatory` | `city_lights` with `neon` 0: only the white stars twinkle; the gold ribs and frame stay still | Scene: the inside of a private observatory study at night. A great dark navy dome curves overhead, ribbed with a few slim brushed-brass arcs that catch warm gold light from a soft concealed glow along the base of the dome. One large OCTAGONAL window is set into the dome on the RIGHT side of the frame, fully inside the frame with a clear margin above it (its top edge about one-fifth down from the top of the image, its bottom edge just above the middle, spanning from about 62% to 90% of the width), framed in thin brass. Through it: a clear, dark night sky densely scattered with many BRIGHT, crisp, sharp white and pale-gold stars of varied sizes, like a long-exposure astrophotograph, with a very faint gold-and-green nebula haze. The rest of the dome is smooth and dark. The CENTRE of the frame is the plain, smooth, dimly lit curve of the navy dome wall. A low ring of warm gold light runs along the bottom of the frame. No telescope. |
+| 4 | `atrium` | `flicker_zones` on the top-left and middle-right lamp globes | Scene: a tall, quiet atrium of a near-future counting house at night, seen straight on and symmetrical. Upper gallery balconies line the far LEFT and far RIGHT sides, each balcony edge traced by a thin warm gold LED strip. Several warm brass pendant lamps with softly glowing amber glass globes hang on long fine cables at different heights, two or three on the left side and two or three on the right side, each casting a soft pool of light. The CENTRE of the frame is a tall, smooth, plain dark navy wall rising into shadow, lit only by a faint soft gradient, with no lamps and no objects in front of it. A dark polished stone floor at the very bottom reflects the lamps faintly. Gently soft-focus, shallow depth of field. |
+| 5 | `lights` | `city_lights`, no beacons: the beads shimmer | Scene: a calm, abstract light installation in a dark gallery-like room of the near future, an artwork about ledgers and balance. Hundreds of fine vertical threads hang from the ceiling, each carrying many tiny glowing beads of warm gold light, with a few pale green beads; together the beads form two soft, gently flowing curved waves of light, one filling the LEFT third and one filling the RIGHT third of the frame, rising and falling like a balanced chart drawn in points of light. The beads are small, distinct, crisp points. The background is deep navy darkness. The CENTRE of the frame is empty dark navy space with only a faint soft gradient glow, and no beads or threads in it. A dark reflective floor at the very bottom mirrors a few of the lights. |
+| 6 | `vault` | `city_lights`, no beacons: the drawer lights twinkle | Scene: a vast, quiet, vault-like archive of the near future, seen in calm one-point perspective down a long symmetrical hall. Both side walls, LEFT and RIGHT, are floor-to-ceiling banks of brushed-brass ledger drawers in a neat grid, each drawer face plain and unmarked with one small softly glowing warm gold indicator light, and a rare few glowing green. Thin gold light lines run along the floor edges. The hall recedes into the distance, and its far end in the CENTRE of the frame dissolves into a soft, dark navy haze with no detail, so the middle of the frame is calm and dark. Smooth dark ceiling. Gently soft-focus, the drawer lights remaining small distinct points. |
+
+The study (option 0) uses `city_lights` too, on its skyline. Two candidates were made per
+scene. The first observatory had faint stars and a window cropped by the 16:9 frame, so
+it was re-rolled with brighter stars and a lower window. The `stars` effect was not
+used: it draws stars that drift sideways, like a ship in flight, inside a fixed window
+rectangle of Sallie's bridge, so it does not suit a still dome.
+
+Preview an option with the real renderer (6 s, 1280x720, one blink, no HUD), from the
+repo root, given an agent-presence checkout:
+
+```sh
+python3 agent/assets/scripts/backdrop_preview.py ~/GitHub/agent-presence/src/call-bot/media \
+  agent/assets agent/assets/backdrops/bookie-bg-skyline.json /tmp/skyline.mp4 --still /tmp/skyline.png
+```

@@ -1,0 +1,27 @@
+{
+  "bg": "backdrops/bookie-bg-atrium.png",
+  "stars": false,
+  "rain": null,
+  "flicker_zones": [
+    {
+      "pos": [
+        0.138,
+        0.13
+      ],
+      "r": 0.06,
+      "depth": 0.45,
+      "every": 9,
+      "chance": 0.5
+    },
+    {
+      "pos": [
+        0.811,
+        0.265
+      ],
+      "r": 0.06,
+      "depth": 0.45,
+      "every": 10,
+      "chance": 0.5
+    }
+  ]
+}
