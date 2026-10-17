@@ -54,7 +54,8 @@ render_template() {
   for v in "$@"; do
     args+=(-e "s|{{${v}}}|$(sed_esc "${!v:-}")|g")
   done
-  sed "${args[@]}" "${file}"
+  # The agent user's files are not readable by the admin user, so read via sudo.
+  sudo cat "${file}" | sed "${args[@]}"
 }
 
 # install_text DEST MODE OWNER : write stdin to DEST atomically with mode/owner (via sudo).

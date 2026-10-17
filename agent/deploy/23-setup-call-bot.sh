@@ -87,7 +87,7 @@ for k in LIVEKIT_API_SECRET SPEND_TOKEN; do
 done
 env_has "${CB_ENV}" LIVEKIT_API_KEY || set_env_line "${CB_ENV}" LIVEKIT_API_KEY "key_$(openssl rand -hex 12)"
 if ! env_has "${CB_ENV}" TEAMS_PASSWORD; then
-  if [ -t 0 ]; then
+  if [ -t 0 ] || [ -n "${TEAMS_PASSWORD:-}" ]; then
     prompt_secret TEAMS_PASSWORD "Microsoft 365 password for ${AGENT_UPN} (Teams web sign-in)"
     set_env_line "${CB_ENV}" TEAMS_PASSWORD "${TEAMS_PASSWORD}"
   else
