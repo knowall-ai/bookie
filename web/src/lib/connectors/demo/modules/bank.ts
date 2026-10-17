@@ -35,8 +35,20 @@ function seedSpendMoney(data: DemoData) {
       currency: 'GBP',
       isReconciled: i > 1,
       status: 'authorised' as const,
+      lineAmountType: 'inclusive' as const,
+      subTotal: amount,
+      totalTax: 0,
+      hasAttachments: i === 0,
       lineItems: [
-        { description, quantity: 1, unitAmount: amount, accountCode, lineAmount: amount },
+        {
+          description,
+          quantity: 1,
+          unitAmount: amount,
+          accountCode,
+          taxType: 'NONE',
+          taxAmount: 0,
+          lineAmount: amount,
+        },
       ],
     })
   );
@@ -82,6 +94,27 @@ function seedSpendMoney(data: DemoData) {
   }
 }
 
+/**
+ * The generated demo register entries `bt-<n>` are invoice and bill payments
+ * (their reference is the document number); everything else is spend/receive/transfer money.
+ */
+function withSource(data: DemoData, t: BankTransaction): BankTransaction {
+  if (t.source) return t;
+  if (!/^bt-\d+$/.test(t.id)) return { ...t, source: 'bank-transaction' };
+  const invoice = data.invoices.find((i) => i.number === t.reference);
+  return {
+    ...t,
+    source: 'payment',
+    document: invoice
+      ? {
+          id: invoice.id,
+          number: invoice.number,
+          kind: invoice.type === 'sales' ? 'invoice' : 'bill',
+        }
+      : undefined,
+  };
+}
+
 export function demoBank(data: DemoData): BankModule {
   // Seed once per demo org, up front, so the dashboard's bank balances agree with this module.
   demoSlot(data, 'bank-seeded', () => {
@@ -104,16 +137,27 @@ export function demoBank(data: DemoData): BankModule {
     async transactions(bankAccountId, query) {
       const d = ready();
       if (!d.bankAccounts.some((a) => a.id === bankAccountId)) notFound('Bank account');
+      const incoming = (t: BankTransaction) => t.type === 'receive' || t.type === 'transfer-in';
       const all = d.bankTransactions.filter(
         (t) =>
           t.bankAccountId === bankAccountId &&
           t.status === 'authorised' &&
           (!query?.from || t.date >= query.from) &&
           (!query?.to || t.date <= query.to) &&
+          (query?.reconciled === undefined || t.isReconciled === query.reconciled) &&
+          (!query?.direction || (query.direction === 'received') === incoming(t)) &&
+          (!query?.contactId || t.contact?.id === query.contactId) &&
           matches([t.reference, t.description, t.contact?.name], query?.search)
       );
-      return paginate(structuredClone(all), query);
+      return paginate(structuredClone(all.map((t) => withSource(d, t))), query);
     },
+    async transaction(id) {
+      const t = ready().bankTransactions.find((x) => x.id === id) ?? notFound('Transaction');
+      return structuredClone(withSource(ready(), t));
+    },
+    filters: { direction: true, reconciled: true, contact: true },
+    limitations:
+      'Demo books: this register lists spend and receive money, transfers and payments. Like Xero, there are no bank statement lines or running balance here.',
     async createTransaction(input) {
       const d = ready();
       const account = d.bankAccounts.find((a) => a.id === input.bankAccountId);

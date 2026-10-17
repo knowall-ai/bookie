@@ -59,6 +59,47 @@ export interface OrgDetails {
   address?: Address;
   /** Deep link to open this org in its source system (Xero / BC web client). */
   sourceUrl?: string;
+  /* Settings detail, shown on the org Settings page. Each is set only when the source provides it. */
+  /** e.g. Xero "COMPANY", "SOLETRADER". */
+  organisationType?: string;
+  lineOfBusiness?: string;
+  /** Xero plan class and edition, e.g. "STANDARD" / "BUSINESS". */
+  plan?: string;
+  edition?: string;
+  phone?: string;
+  /** Sales tax (VAT) accounting basis, e.g. Xero "ACCRUALS", "CASH", "FLATRATECASH". */
+  salesTaxBasis?: string;
+  /** e.g. "QUARTERLY1", "MONTHLY". */
+  salesTaxPeriod?: string;
+  paysTax?: boolean;
+  /** "Inclusive" / "Exclusive" / "NoTax": the default line amount type for sales and purchases. */
+  defaultSalesTax?: string;
+  defaultPurchasesTax?: string;
+  /** Lock dates: no changes allowed on or before. */
+  periodLockDate?: IsoDate;
+  endOfYearLockDate?: IsoDate;
+  createdAt?: string;
+  status?: string;
+  isDemoCompany?: boolean;
+  paymentTerms?: { sales?: PaymentTerm; bills?: PaymentTerm };
+}
+
+/** Xero payment terms: `day` with a rule such as "DAYSAFTERBILLDATE" or "OFFOLLOWINGMONTH". */
+export interface PaymentTerm {
+  day: number;
+  type: string;
+}
+
+/** A person with access to the organisation (Xero Users). */
+export interface OrgUser {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  /** Source role code, e.g. Xero "STANDARD", "READONLY", "FINANCIALADVISER". */
+  role?: string;
+  isSubscriber?: boolean;
+  updatedAt?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -450,6 +491,30 @@ export interface BankTransaction {
   isReconciled: boolean;
   status: 'authorised' | 'deleted';
   lineItems?: LineItem[];
+  /**
+   * Which register entry this is. Xero keeps spend/receive/transfer money
+   * (`bank-transaction`) apart from invoice and bill payments (`payment`).
+   */
+  source?: 'bank-transaction' | 'payment';
+  lineAmountType?: LineAmountType;
+  subTotal?: number;
+  totalTax?: number;
+  hasAttachments?: boolean;
+  /** For payments: the document that was paid. */
+  document?: {
+    id: string;
+    number?: string;
+    kind: 'invoice' | 'bill' | 'credit-note' | 'prepayment' | 'overpayment';
+  };
+  /** Set when the payment was made as part of a batch payment. */
+  batchPaymentId?: string;
+  updatedAt?: string;
+}
+
+/** Filters for an account register ("Account transactions"). */
+export interface BankTransactionQuery extends ListQuery {
+  direction?: 'spent' | 'received';
+  reconciled?: boolean;
 }
 
 export interface BankTransactionInput {
@@ -510,7 +575,15 @@ export interface ManualJournal {
   lines: JournalLine[];
   total: number;
   sourceUrl?: string;
+  lineAmountType?: LineAmountType;
+  /** Xero: whether the journal shows on cash-basis reports. */
+  showOnCashBasisReports?: boolean;
+  hasAttachments?: boolean;
+  updatedAt?: string;
 }
+
+/** Status changes on an existing manual journal (Xero: post a draft, delete a draft, void a posted one). */
+export type JournalStatusChange = 'posted' | 'deleted' | 'voided';
 
 export interface ManualJournalInput {
   date: IsoDate;
@@ -613,7 +686,9 @@ export type ReportId =
   | 'aged-payables'
   | 'bank-summary'
   | 'executive-summary'
-  | 'cash-flow';
+  | 'cash-flow'
+  | 'account-transactions'
+  | 'journal-report';
 
 export interface ReportParams {
   from?: IsoDate;
@@ -622,6 +697,8 @@ export interface ReportParams {
   date?: IsoDate;
   periods?: number;
   timeframe?: 'month' | 'quarter' | 'year';
+  /** Account transactions: limit to one account code (all accounts when unset). */
+  accountCode?: string;
 }
 
 export type ReportCell = string | number | null;
@@ -644,6 +721,8 @@ export interface Report {
   subtitles: string[];
   /** Column headings; the first column is the row label. */
   columns: string[];
+  /** Indexes of text columns (left-aligned); other columns after the first are numbers. */
+  textColumns?: number[];
   sections: ReportSection[];
   generatedAt: string;
   /** Shown above the report when the source can only partly answer it. */

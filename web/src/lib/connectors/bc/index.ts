@@ -956,6 +956,8 @@ export function createBcConnector({
     attachments: bcAttachments(client),
     // No capture inbox: BC API v2.0 has no incomingDocuments entity (checked live).
     capture: undefined,
+    // users: Business Central's standard API v2.0 has no users endpoint (only the
+    // separate automation API, which needs admin permissions), so no Users list.
 
     sourceLink(entity, id) {
       const pages = { invoice: 9301, bill: 9308, quote: 9300, contact: 22 };

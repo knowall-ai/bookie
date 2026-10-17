@@ -12,6 +12,8 @@ import {
   shiftRange,
   type DateRange,
 } from '@/lib/reports/periods';
+import { buildAccountTransactions, buildJournalReport } from '@/lib/reports/ledger';
+import { bcLedgerJournals } from './ledger';
 
 /**
  * Business Central's financial-report API pages. BC has no bank summary or
@@ -24,6 +26,8 @@ const AVAILABLE: ReportId[] = [
   'aged-receivables',
   'aged-payables',
   'cash-flow',
+  'account-transactions',
+  'journal-report',
 ];
 
 /* ------------------------------------------------------------------ */
@@ -400,6 +404,21 @@ export function bcReports(client: BcClient, lcy: () => Promise<string>): Reports
             party: receivables ? 'Customer' : 'Vendor',
             lines,
           });
+        }
+        case 'account-transactions':
+        case 'journal-report': {
+          const from = params.from ?? monthStart(today());
+          const to = params.to ?? today();
+          const journals = await bcLedgerJournals(
+            client,
+            from,
+            to,
+            id === 'account-transactions' ? params.accountCode : undefined
+          );
+          const options = { orgName: name, from, to, journals, notes: ['From G/L entries'] };
+          return id === 'account-transactions'
+            ? buildAccountTransactions({ ...options, accountCode: params.accountCode })
+            : buildJournalReport(options);
         }
         default:
           throw new ConnectorError(

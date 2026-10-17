@@ -49,7 +49,7 @@ export function ReportTable({ report }: { report: Report }) {
                   scope="col"
                   className={cn(
                     'text-muted px-3 pt-5 pb-2 text-xs font-semibold whitespace-nowrap print:text-black',
-                    i === 0 ? 'text-left' : 'text-right'
+                    i === 0 || report.textColumns?.includes(i) ? 'text-left' : 'text-right'
                   )}
                 >
                   {report.columns[i] ?? ''}
@@ -58,7 +58,7 @@ export function ReportTable({ report }: { report: Report }) {
             </tr>
           </thead>
           {report.sections.map((section, s) => (
-            <Section key={s} section={section} width={width} />
+            <Section key={s} section={section} width={width} textColumns={report.textColumns} />
           ))}
         </table>
         {report.sections.every((s) => !s.rows.length) && (
@@ -69,7 +69,15 @@ export function ReportTable({ report }: { report: Report }) {
   );
 }
 
-function Section({ section, width }: { section: ReportSection; width: number }) {
+function Section({
+  section,
+  width,
+  textColumns,
+}: {
+  section: ReportSection;
+  width: number;
+  textColumns?: number[];
+}) {
   const heading = !!section.title;
   // A title with no rows is a group heading ("Assets", "Liabilities").
   const group = heading && section.rows.length === 0;
@@ -122,6 +130,19 @@ function Section({ section, width }: { section: ReportSection; width: number }) 
                   >
                     {value ?? ''}
                   </th>
+                );
+              }
+              if (textColumns?.includes(i)) {
+                return (
+                  <td
+                    key={i}
+                    className={cn(
+                      'px-3 py-2 text-left print:text-black',
+                      summary ? 'text-ink' : 'text-body'
+                    )}
+                  >
+                    {formatReportCell(value)}
+                  </td>
                 );
               }
               return (

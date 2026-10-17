@@ -23,6 +23,7 @@ import type {
   BankAccount,
   BankTransaction,
   BankTransactionInput,
+  BankTransactionQuery,
   Contact,
   ContactInput,
   CreditNote,
@@ -38,12 +39,14 @@ import type {
   IsoDate,
   Item,
   ItemInput,
+  JournalStatusChange,
   LedgerEntry,
   ListQuery,
   ManualJournal,
   ManualJournalInput,
   OrgDetails,
   OrgRef,
+  OrgUser,
   Page,
   PayRun,
   Payment,
@@ -134,8 +137,14 @@ export interface PaymentsModule {
 
 export interface BankModule {
   accounts(): Promise<BankAccount[]>;
-  transactions(bankAccountId: string, query?: ListQuery): Promise<Page<BankTransaction>>;
+  transactions(bankAccountId: string, query?: BankTransactionQuery): Promise<Page<BankTransaction>>;
+  /** One register entry with its line coding. `source` says which kind of entry the id is. */
+  transaction?(id: string, source?: BankTransaction['source']): Promise<BankTransaction>;
   createTransaction?(input: BankTransactionInput): Promise<BankTransaction>;
+  /** Which register filters the source supports. */
+  readonly filters?: { direction?: boolean; reconciled?: boolean; contact?: boolean };
+  /** What the source's API can't show here (e.g. bank statement lines), shown above the register. */
+  readonly limitations?: string;
 }
 
 export interface AccountsModule {
@@ -150,6 +159,15 @@ export interface JournalsModule {
   list(query?: ListQuery): Promise<Page<ManualJournal>>;
   get(id: string): Promise<ManualJournal>;
   create?(input: ManualJournalInput): Promise<ManualJournal>;
+  /** Post or delete a draft, or void a posted journal. */
+  setStatus?(id: string, change: JournalStatusChange): Promise<ManualJournal>;
+  /** Status tabs the source can list, besides "All". */
+  readonly statuses?: ManualJournal['status'][];
+}
+
+export interface UsersModule {
+  /** People with access to the organisation, read-only. */
+  list(): Promise<OrgUser[]>;
 }
 
 export interface TaxRatesModule {
@@ -247,6 +265,7 @@ export interface AccountingConnector {
   projects?: ProjectsModule;
   attachments?: AttachmentsModule;
   capture?: CaptureModule;
+  users?: UsersModule;
 
   /** Deep link to a document in the source system, for "Open in Xero/BC". */
   sourceLink?(entity: 'invoice' | 'bill' | 'quote' | 'contact', id: string): string | undefined;

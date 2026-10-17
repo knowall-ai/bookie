@@ -1,6 +1,7 @@
-import type { ManualJournal, ManualJournalInput } from '@/lib/domain/types';
-import { xeroDate, type XeroClient } from '../client';
-import type { JournalsModule } from '../../types';
+import type { JournalStatusChange, ManualJournal, ManualJournalInput } from '@/lib/domain/types';
+import { xeroDate, xeroTimestamp, type XeroClient } from '../client';
+import { fromLineAmountTypes } from '../mappers';
+import { ConnectorError, type JournalsModule } from '../../types';
 
 export interface XeroManualJournal {
   ManualJournalID: string;
@@ -9,11 +10,15 @@ export interface XeroManualJournal {
   Status: 'DRAFT' | 'POSTED' | 'DELETED' | 'VOIDED' | 'ARCHIVED';
   LineAmountTypes?: string;
   DebitTotal?: number;
+  ShowOnCashBasisReports?: boolean;
+  HasAttachments?: boolean;
+  UpdatedDateUTC?: string;
   JournalLines?: {
     AccountCode?: string;
     Description?: string;
     LineAmount?: number;
     TaxType?: string;
+    Tracking?: unknown[];
   }[];
 }
 
@@ -28,6 +33,7 @@ const STATUS: Record<XeroManualJournal['Status'], ManualJournal['status']> = {
 const STATUS_FILTER: Record<string, string | undefined> = {
   draft: 'Status=="DRAFT"',
   posted: 'Status=="POSTED"',
+  voided: 'Status=="VOIDED"',
   all: 'Status!="DELETED"',
 };
 
@@ -48,6 +54,40 @@ export function fromXeroManualJournal(raw: XeroManualJournal): ManualJournal {
     status: STATUS[raw.Status] ?? 'draft',
     lines,
     total: raw.DebitTotal ?? round(debits),
+    lineAmountType: fromLineAmountTypes(raw.LineAmountTypes),
+    showOnCashBasisReports: raw.ShowOnCashBasisReports,
+    hasAttachments: raw.HasAttachments,
+    updatedAt: xeroTimestamp(raw.UpdatedDateUTC),
+  };
+}
+
+const CHANGE: Record<JournalStatusChange, { status: string; from: XeroManualJournal['Status'] }> = {
+  posted: { status: 'POSTED', from: 'DRAFT' },
+  deleted: { status: 'DELETED', from: 'DRAFT' },
+  voided: { status: 'VOIDED', from: 'POSTED' },
+};
+
+/**
+ * The update body for a status change. Xero allows draft → posted or deleted
+ * and posted → voided. The journal is re-sent as Xero has it (same lines,
+ * tax treatment and tracking), so only the status changes. Exported for tests.
+ */
+export function toXeroJournalStatusUpdate(
+  raw: XeroManualJournal,
+  change: JournalStatusChange
+): Record<string, unknown> {
+  const rule = CHANGE[change];
+  if (raw.Status !== rule.from) {
+    throw new Error(`Only ${rule.from.toLowerCase()} journals can be ${change}.`);
+  }
+  return {
+    ManualJournalID: raw.ManualJournalID,
+    Narration: raw.Narration,
+    Date: xeroDate(raw.Date),
+    LineAmountTypes: raw.LineAmountTypes,
+    ShowOnCashBasisReports: raw.ShowOnCashBasisReports,
+    JournalLines: raw.JournalLines,
+    Status: rule.status,
   };
 }
 
@@ -70,6 +110,12 @@ export function toXeroManualJournal(input: ManualJournalInput): Record<string, u
 }
 
 export function xeroJournals(client: XeroClient): JournalsModule {
+  const raw = async (id: string) => {
+    const result = await client.request<{ ManualJournals: XeroManualJournal[] }>(
+      `ManualJournals/${encodeURIComponent(id)}`
+    );
+    return result.ManualJournals[0];
+  };
   return {
     async list(query) {
       const pageSize = query?.pageSize ?? 50;
@@ -98,12 +144,22 @@ export function xeroJournals(client: XeroClient): JournalsModule {
         total: query?.search ? undefined : total,
       };
     },
-    async get(id) {
+    get: async (id) => fromXeroManualJournal(await raw(id)),
+    async setStatus(id, change) {
+      const current = await raw(id);
+      let body: Record<string, unknown>;
+      try {
+        body = toXeroJournalStatusUpdate(current, change);
+      } catch (error) {
+        throw new ConnectorError((error as Error).message, 400, 'xero');
+      }
       const result = await client.request<{ ManualJournals: XeroManualJournal[] }>(
-        `ManualJournals/${encodeURIComponent(id)}`
+        `ManualJournals/${encodeURIComponent(id)}`,
+        { method: 'POST', body: { ManualJournals: [body] } }
       );
       return fromXeroManualJournal(result.ManualJournals[0]);
     },
+    statuses: ['draft', 'posted', 'voided'],
     async create(input) {
       const result = await client.request<{ ManualJournals: XeroManualJournal[] }>(
         'ManualJournals',

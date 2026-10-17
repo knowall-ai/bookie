@@ -8,21 +8,33 @@ import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Money } from '@/components/ui/Money';
 import { StatusBadge } from '@/components/ui/Badge';
 import { Pagination } from '@/components/ui/Pagination';
-import { SearchBox } from '@/components/ui/SearchBox';
-import { ButtonLink } from '@/components/ui/Button';
+import { Button, ButtonLink } from '@/components/ui/Button';
+import { Field, Input } from '@/components/ui/Field';
 import { EmptyState, NotAvailable } from '@/components/ui/States';
 import { SourceNote } from '@/components/accounting/SourceNote';
 
 export const metadata = { title: 'Manual journals' };
 
-const STATUSES = ['all', 'draft', 'posted'];
+const LABELS: Record<string, string> = {
+  all: 'All',
+  draft: 'Draft',
+  posted: 'Posted',
+  voided: 'Voided',
+};
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 export default async function Page({
   params,
   searchParams,
 }: {
   params: Promise<{ org: string }>;
-  searchParams: Promise<{ status?: string; search?: string; page?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    search?: string;
+    page?: string;
+    from?: string;
+    to?: string;
+  }>;
 }) {
   const [{ org: orgParam }, query] = await Promise.all([params, searchParams]);
   const { connector, base, org } = await orgContext(orgParam);
@@ -35,11 +47,16 @@ export default async function Page({
       </>
     );
   }
-  const status = STATUSES.includes(query.status ?? '') ? query.status! : 'all';
+  const statuses = ['all', ...(connector.journals.statuses ?? ['draft', 'posted'])];
+  const status = statuses.includes(query.status ?? '') ? query.status! : 'all';
+  const from = query.from && ISO.test(query.from) ? query.from : undefined;
+  const to = query.to && ISO.test(query.to) ? query.to : undefined;
   const page = Math.max(1, Number(query.page) || 1);
   const result = await connector.journals.list({
     status,
     search: query.search,
+    from,
+    to,
     page,
     pageSize: 50,
   });
@@ -85,17 +102,34 @@ export default async function Page({
       <StatusTabs
         basePath={listPath}
         current={status}
-        params={{ search: query.search }}
-        tabs={[
-          { value: 'all', label: 'All' },
-          { value: 'draft', label: 'Draft' },
-          { value: 'posted', label: 'Posted' },
-        ]}
+        params={{ search: query.search, from, to }}
+        tabs={statuses.map((value) => ({ value, label: LABELS[value] ?? value }))}
       />
       <SourceNote>{result.note}</SourceNote>
-      <div className="mb-4">
-        <SearchBox placeholder="Search by narration" className="w-full max-w-md" />
-      </div>
+      <form
+        method="get"
+        action={listPath}
+        aria-label="Filter journals"
+        className="mb-4 flex flex-wrap items-end gap-3"
+      >
+        {status !== 'all' && <input type="hidden" name="status" value={status} />}
+        <Field label="Narration" htmlFor="journal-search" className="w-full sm:w-72">
+          <Input
+            id="journal-search"
+            name="search"
+            type="search"
+            placeholder="Search by narration"
+            defaultValue={query.search}
+          />
+        </Field>
+        <Field label="From" htmlFor="journal-from" className="w-[calc(50%-0.375rem)] sm:w-40">
+          <Input id="journal-from" name="from" type="date" defaultValue={from} />
+        </Field>
+        <Field label="To" htmlFor="journal-to" className="w-[calc(50%-0.375rem)] sm:w-40">
+          <Input id="journal-to" name="to" type="date" defaultValue={to} />
+        </Field>
+        <Button type="submit">Apply</Button>
+      </form>
       <DataTable
         columns={columns}
         rows={result.items}
@@ -105,8 +139,8 @@ export default async function Page({
           <EmptyState
             icon={<BookOpen className="h-6 w-6" />}
             title={
-              query.search
-                ? `No journals match “${query.search}”`
+              query.search || from || to
+                ? 'No journals match these filters'
                 : status === 'all'
                   ? 'No manual journals yet'
                   : `No ${status} journals`
@@ -125,7 +159,7 @@ export default async function Page({
         page={result.page}
         hasMore={result.hasMore}
         basePath={listPath}
-        params={{ status: query.status, search: query.search }}
+        params={{ status: query.status, search: query.search, from, to }}
       />
     </>
   );

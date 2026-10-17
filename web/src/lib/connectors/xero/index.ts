@@ -41,6 +41,7 @@ import { xeroActivity } from './modules/activity';
 import { xeroAttachments } from './modules/attachments';
 import { xeroCapture } from './modules/capture';
 import { xeroCurrencies } from './modules/currencies';
+import { fromXeroOrganisation, xeroUsers, type XeroOrganisation } from './modules/organisation';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -51,28 +52,6 @@ export function pageOf<T>(items: T[], query: ListQuery | undefined, pageSize: nu
     pageSize,
     hasMore: items.length >= pageSize,
   };
-}
-
-interface XeroOrganisation {
-  Name: string;
-  LegalName?: string;
-  CountryCode?: string;
-  BaseCurrency: string;
-  TaxNumber?: string;
-  RegistrationNumber?: string;
-  FinancialYearEndDay?: number;
-  FinancialYearEndMonth?: number;
-  Timezone?: string;
-  ShortCode?: string;
-  Addresses?: {
-    AddressType?: string;
-    AddressLine1?: string;
-    AddressLine2?: string;
-    City?: string;
-    Region?: string;
-    PostalCode?: string;
-    Country?: string;
-  }[];
 }
 
 /** Xero deep links go through organisationlogin so the right org opens. */
@@ -279,31 +258,9 @@ export function createXeroConnector({
   const getOrganisation = () =>
     (organisation ??= client
       .request<{ Organisations: XeroOrganisation[] }>('Organisation')
-      .then(({ Organisations: [o] }) => {
-        const a = o.Addresses?.find((x) => x.AddressLine1) ?? o.Addresses?.[0];
-        return {
-          name: o.Name,
-          legalName: o.LegalName,
-          country: o.CountryCode,
-          baseCurrency: o.BaseCurrency,
-          taxNumber: o.TaxNumber,
-          registrationNumber: o.RegistrationNumber,
-          financialYearEndDay: o.FinancialYearEndDay,
-          financialYearEndMonth: o.FinancialYearEndMonth,
-          timezone: o.Timezone,
-          address: a
-            ? {
-                line1: a.AddressLine1,
-                line2: a.AddressLine2,
-                city: a.City,
-                region: a.Region,
-                postalCode: a.PostalCode,
-                country: a.Country,
-              }
-            : undefined,
-          sourceUrl: xeroDeepLink(o.ShortCode ?? shortCode, '/Dashboard/'),
-        } satisfies OrgDetails;
-      }));
+      .then(({ Organisations: [o] }) =>
+        fromXeroOrganisation(o, xeroDeepLink(o.ShortCode ?? shortCode, '/Dashboard/'))
+      ));
 
   const runReport = async (name: string, query: Record<string, string | number | undefined>) => {
     const result = await client.request<{ Reports: XeroReport[] }>(`Reports/${name}`, { query });
@@ -411,6 +368,7 @@ export function createXeroConnector({
     projects: xeroProjects(client),
     attachments: xeroAttachments(client),
     capture: xeroCapture(client, shortCode),
+    users: xeroUsers(client),
 
     sourceLink(entity, id) {
       const paths = {

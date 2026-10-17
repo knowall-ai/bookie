@@ -150,6 +150,14 @@ export function OrgSwitcher({ org, orgs }: { org?: OrgRef; orgs: OrgRef[] }) {
             )}
           </ul>
           <div className="border-line mt-1 border-t pt-1">
+            {org && (
+              <Link
+                href={`/portal/${encodeURIComponent(org.key)}/settings`}
+                className="text-body hover:bg-surface-3 block rounded-lg px-3 py-2 text-sm"
+              >
+                Organisation settings
+              </Link>
+            )}
             <Link
               href="/portal"
               className="text-body hover:bg-surface-3 block rounded-lg px-3 py-2 text-sm"

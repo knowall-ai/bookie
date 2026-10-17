@@ -30,6 +30,9 @@ function seedJournals(): ManualJournal[] {
       amount,
     })),
     total: lines.reduce((s, [, , a]) => s + (a > 0 ? a : 0), 0),
+    lineAmountType: 'none',
+    showOnCashBasisReports: true,
+    hasAttachments: n === 6,
   });
   return [
     journal(1, today, 'Accrue October electricity (Trey Energy bill not yet received)', 'draft', [
@@ -118,5 +121,15 @@ export function demoJournals(data: DemoData): JournalsModule {
       journals(data).unshift(journal);
       return structuredClone(journal);
     },
+    async setStatus(id, change) {
+      const journal = journals(data).find((j) => j.id === id) ?? notFound('Journal');
+      const from = change === 'voided' ? 'posted' : 'draft';
+      if (journal.status !== from) {
+        throw new ConnectorError(`Only ${from} journals can be ${change}.`, 400, 'demo');
+      }
+      journal.status = change;
+      return structuredClone(journal);
+    },
+    statuses: ['draft', 'posted', 'voided'],
   };
 }
