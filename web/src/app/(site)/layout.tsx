@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Newsreader } from 'next/font/google';
 import { SiteHeader } from '@/components/site/SiteHeader';
 import { SiteFooter } from '@/components/site/SiteFooter';
+import { PublicBookieLauncher } from '@/components/public-bookie/PublicBookieLauncher';
 
 /** Display serif for the public site only: a printed-ledger voice for headlines. */
 const display = Newsreader({
@@ -34,6 +35,8 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         {children}
       </main>
       <SiteFooter />
+      {/* Bookie's public helper: product questions only, no access to any books. */}
+      <PublicBookieLauncher />
     </div>
   );
 }

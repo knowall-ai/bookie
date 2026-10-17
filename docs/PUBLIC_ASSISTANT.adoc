@@ -1,0 +1,254 @@
+= Bookie's public helper: design and threat model
+KnowAll AI
+2026-10-17
+:toc: left
+:toclevels: 2
+:sectnums:
+
+== Purpose
+
+Visitors to the public website (getbook.ie, bookie.knowall.ai), signed out, can talk to Bookie by
+voice or text to ask about the product: what Bookie is, how it works with Xero and Business Central,
+pricing and installing, security, the agent add-on and booking a demo.
+
+It looks and sounds like Bookie (same avatar, same "cedar" voice) but it is a *completely separate
+assistant*. It has no tools, no connection to any books, no sign-in, no settings and none of the
+portal Bookie's prompt. There is nothing for it to leak: it cannot reach KnowAll AI's (or anyone's)
+accounting data, connections, settings or secrets, because it has none of them.
+
+== How it differs from the other Bookies
+
+[cols="1,2,2,2", options="header"]
+|===
+| | Public helper (this) | Portal Bookie | Bookie the agent (Teams)
+
+| Who
+| Anyone on the public site, signed out
+| A signed-in user, in their own tenant
+| People in the customer's Microsoft 365
+
+| Knows
+| Public site content only (`lib/public-bookie/knowledge.ts`)
+| The open organisation's live books, via tools
+| Live books, mailbox, Reverie memory
+
+| Tools
+| *None* (`tools: []`, `tool_choice: 'none'`)
+| Read tools over the connectors (`lib/bookie/tools.ts`)
+| Hermes skills, BC MCP, Xero
+
+| Prompt
+| `lib/public-bookie/prompt.ts`
+| `lib/bookie/prompt.ts`
+| `agent/hermes/SOUL.md`, `voice_persona.md`
+
+| Azure OpenAI
+| Its own resource and key (`PUBLIC_*`)
+| `AZURE_OPENAI_*` (ka-bookie-ai-swc)
+| The agent VM's own settings
+
+| Routes
+| `/api/public/{status,pass,chat,voice/session}`
+| `/api/bookie/{chat,voice,tool}` (signed in)
+| n/a
+|===
+
+== Data flow
+
+.Text chat
+. The widget (only loaded when the visitor opens it) gets a *pass*: `GET /api/public/pass` returns a
+  challenge; the browser solves it (or Cloudflare Turnstile, when configured) and `POST`s it back for a
+  pass valid 30 minutes and bound to its IP.
+. `POST /api/public/chat` with the pass and the conversation (at most 20 messages, visitor messages at
+  most 600 characters). Bookie's earlier replies carry a server signature; unsigned or forged
+  "assistant" turns are dropped, so a visitor cannot put words in his mouth.
+. The server calls the Responses API on the *public* resource: public prompt, `tools: []`,
+  `tool_choice: 'none'`, `store: false`.
+. The reply is checked on the way out: images removed, links other than our own pages, knowall.ai and
+  the GitHub repository reduced to text, raw HTML stripped, and a reply that reproduces the private
+  rules replaced with a polite decline. An Azure content-filter refusal also becomes a decline.
+
+.Voice
+. The browser asks for the microphone first (a refusal does not use up a call), gets a pass, creates a
+  WebRTC offer and `POST`s it to `/api/public/voice/session`.
+. The server mints a 30-second realtime client secret with the session fixed server-side (public
+  prompt, no tools, voice `cedar`, `max_output_tokens` capped), *uses it itself* to place the call
+  with the browser's offer, and returns only the SDP answer. The secret never reaches the browser, so
+  it cannot be reused to open more calls or call the model directly.
+. Audio flows browser <-> Azure OpenAI directly. The visitor's speech is not transcribed; Bookie's
+  own captions come over the data channel.
+. The server attaches to the call over the realtime *sideband* (`wss://.../realtime?call_id=`) and
+  hangs up (`POST /realtime/calls/{id}/hangup`) when:
+  ** five minutes have passed (the widget also counts down and ends the call);
+  ** the browser tampers with the session over its data channel: a `session.update` that changes the
+     instructions or adds tools, a system message, a typed message or a function item (the widget
+     only ever sends audio and a single bare `response.create`);
+  ** the call has produced more than 40 responses.
+
+Nothing is stored. Transcripts are not logged; see <<logging>>.
+
+== Threat model
+
+[cols="2,3", options="header"]
+|===
+| Threat | Mitigation
+
+| Extracting KnowAll AI's or a customer's accounting data
+| There is none to extract. The public code cannot import connectors, settings, sign-in or the
+  portal Bookie's tools and prompt: an ESLint `no-restricted-imports` rule on
+  `src/app/api/public/**`, `src/lib/public-bookie/**` and `src/components/public-bookie/**`, and
+  `tests/unit/public-bookie-isolation.test.ts`, which walks the whole import graph and fails if it
+  reaches anything outside the public helper's own modules (plus two pure UI helpers) or any package
+  beyond a short allow-list. The same test checks the code reads only `PUBLIC_*` environment
+  variables (bar a development-only fallback).
+
+| Leaking secrets or ids through the prompt
+| The prompt holds only public site content. `prompt.test.ts` fails if it contains a GUID, an email
+  address, an org key, an API key shape, an environment variable name, an Azure resource name, an
+  internal code path or any secret value from the environment.
+
+| Prompt injection: "ignore your instructions", "you are now the portal assistant", fake tool results
+| The rules treat these as ordinary chat to decline. Even a successful jailbreak gains nothing: no
+  tools, no data, and the voice session is hung up if its instructions change.
+
+| Revealing the prompt
+| The rules say no; output is checked for runs of the rules' text. The prompt contains nothing
+  sensitive anyway.
+
+| Exfiltration via markdown images or links
+| Images are stripped and only allow-listed links survive, on the server and again when the widget
+  renders (`lib/public-bookie/links.ts`). The widget renders text itself; no HTML.
+
+| Forged conversation history
+| Bookie's replies are HMAC-signed; unsigned assistant turns are dropped; only `user` and
+  `assistant` roles are accepted.
+
+| Cost abuse / free model proxy
+| Origin check, human pass, per-IP and global limits, a concurrent-call cap, a 5-minute call limit,
+  message and turn limits, and the Azure deployment's own TPM quota as the final ceiling. A visitor who
+  overrides a single voice response's instructions over the data channel (which the sideband cannot
+  see) gets at most five minutes of a model with no tools or data, in a call only they can hear.
+
+| Unsafe advice
+| Rule 6: general product information only; tax, legal, financial and investment questions go to an
+  accountant or qualified adviser.
+
+| Being embedded by another site
+| `Origin` (or `Referer`) must be one of the site origins; the site already sends
+  `X-Frame-Options: DENY`.
+
+| A leaked public key
+| The public helper runs on its *own* Azure OpenAI resource (see <<azure>>). A leaked public key
+  reaches only that resource's two deployments, never the portal's or the agent's.
+|===
+
+=== What it cannot do
+
+* See, look up or change any organisation's books, connections, settings or users.
+* Sign anyone in, take contact details, book meetings or send email. It points to
+  https://knowall.ai for demos and pricing, and to `/install` to get started.
+* Remember anything between conversations. Text conversations live only in the open panel.
+
+== Abuse limits
+
+All in memory, per App Service instance (Bookie runs on one; scaled out, multiply by the instance
+count). Defined in `lib/public-bookie/rate-limit.ts` and `shared.ts`.
+
+[cols="2,3", options="header"]
+|===
+| Limit | Value
+
+| Challenge requests (per IP) | 20 a minute, 100 an hour
+| Pass verifications (per IP) | 6 a minute, 30 an hour; pass valid 30 minutes, bound to the IP
+| Chat messages (per IP) | 10 a minute, 60 an hour, 150 a day
+| Chat messages (global) | 120 a minute, 3,000 a day (`PUBLIC_BOOKIE_CHAT_DAILY_CAP`)
+| Voice calls (per IP) | 2 a minute, 6 an hour, 10 a day
+| Voice calls (global) | 20 an hour, 100 a day (`PUBLIC_BOOKIE_VOICE_DAILY_CAP`)
+| Concurrent voice calls | 5 (`PUBLIC_BOOKIE_VOICE_MAX_CONCURRENT`)
+| Voice call length | 5 minutes, enforced by the server (hang-up) and the widget
+| Message length | 600 characters
+| Conversation length | 20 messages, then "start a new conversation"
+| Model output | 1,200 tokens per chat reply; 1,024 per voice response
+|===
+
+The client IP is the rightmost `X-Forwarded-For` entry (the one App Service added). Behind
+Cloudflare, set `PUBLIC_BOOKIE_CLIENT_IP_HEADER=cf-connecting-ip`.
+
+=== Bot check
+
+* *Cloudflare Turnstile* when `PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET` are both set: the panel
+  shows Cloudflare's check and the server verifies the token with `siteverify`.
+* Otherwise a *proof-of-work*: the server issues an HMAC-signed, IP-bound challenge valid 5 minutes;
+  the browser finds a nonce whose SHA-256 has `PUBLIC_BOOKIE_POW_BITS` (default 16) leading zero
+  bits, about 65,000 hashes, which a browser does in well under a second while the visitor reads
+  the panel. Each challenge is single-use. It does not stop a determined script, but makes bulk abuse
+  cost CPU on top of the rate limits.
+
+[[logging]]
+=== Logging
+
+Only counts and errors, one JSON line per event (`{"evt":"public_bookie","kind":"chat","ok":true,
+"turns":3,"ms":5900}`). Never message text, transcripts or IP addresses.
+
+=== Kill switch
+
+`PUBLIC_BOOKIE_ENABLED=false` (an App Service setting, no redeploy): every `/api/public/*` route
+returns 503 and the widget does not appear (it reads `/api/public/status` at runtime, since the site
+pages are static). Removing the deployments on the public resource also stops it.
+
+== Environment variables
+
+[cols="2,3", options="header"]
+|===
+| Variable | Purpose
+
+| `PUBLIC_BOOKIE_ENABLED` | `false` turns the helper off (default on).
+| `PUBLIC_AZURE_OPENAI_ENDPOINT` | The public resource, e.g. `https://ka-bookie-public-swc.openai.azure.com`.
+| `PUBLIC_AZURE_OPENAI_API_KEY` | Its key. Empty: managed identity (Cognitive Services OpenAI User on that resource).
+| `PUBLIC_BOOKIE_CHAT_DEPLOYMENT` | Text model deployment on the public resource.
+| `PUBLIC_BOOKIE_VOICE_DEPLOYMENT` | Realtime deployment on the public resource.
+| `PUBLIC_BOOKIE_VOICE` | Voice, default `cedar` (Bookie's voice).
+| `PUBLIC_BOOKIE_SECRET` | 32+ random bytes signing passes and replies. Without it, a random per-process key (passes reset on restart).
+| `PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET` | Cloudflare Turnstile; both set to use it.
+| `PUBLIC_BOOKIE_POW_BITS` | Proof-of-work difficulty (8 to 24, default 16).
+| `PUBLIC_BOOKIE_ALLOWED_ORIGINS` | Extra allowed origins, comma-separated (getbook.ie, www.getbook.ie, bookie.knowall.ai and `NEXTAUTH_URL` are built in).
+| `PUBLIC_BOOKIE_CLIENT_IP_HEADER` | Trusted client-IP header behind a proxy, e.g. `cf-connecting-ip`.
+| `PUBLIC_BOOKIE_CHAT_DAILY_CAP`, `PUBLIC_BOOKIE_VOICE_DAILY_CAP`, `PUBLIC_BOOKIE_VOICE_MAX_CONCURRENT` | Global caps.
+| `BOOKIE_DISABLE_AI=1` | Tests: chat answers with a fixed offline reply, voice is hidden, no model calls.
+|===
+
+In *development only*, with no `PUBLIC_AZURE_OPENAI_ENDPOINT`, the helper borrows the portal's
+`AZURE_OPENAI_*` and `BOOKIE_*_DEPLOYMENT` settings from `.env.local` so it can be tried locally.
+Production never falls back (`config.test.ts`).
+
+[[azure]]
+== Recommended Azure set-up
+
+A *dedicated* Azure OpenAI resource for the public helper, e.g. `ka-bookie-public-swc` (Sweden
+Central, beside `ka-bookie-ai-swc`), in its own resource group or at least with its own budget:
+
+* Two deployments only: a small chat model and a realtime model (the same families the portal uses),
+  each with a *low TPM quota*. The quota is the hard global ceiling on spend whatever happens to the
+  app's limits.
+* Default content filters on; `local auth` disabled and the App Service's managed identity granted
+  *Cognitive Services OpenAI User* on this resource only, or, if a key is needed, the key in Key Vault as
+  a Key Vault reference, rotated on its own schedule.
+* A monthly budget with alerts (e.g. 50% / 80% / 100%) on the resource group.
+* Diagnostic metrics (requests, tokens) to `appi-bookie`, but no request/response logging.
+
+Because the resource is separate, a leaked public key, or a bug in the public routes, can only spend
+that resource's small quota. It can never call the portal's or the agent's deployments.
+
+== Tests
+
+* `tests/unit/public-bookie-isolation.test.ts`: import graph, packages, environment variables, ESLint rule.
+* `src/lib/public-bookie/*.test.ts`: prompt hardening and knowledge sync, rate limiter, origin and IP,
+  pass and proof-of-work, reply signing, sanitising, kill switch and config, voice session and
+  sideband tamper rules.
+* `tests/unit/public-bookie-routes.test.ts`: kill switch 503s, origin 403, pass 401, limits, offline
+  reply, forged history dropped, no tools sent, content-filter decline.
+* `tests/e2e/public-bookie.spec.ts`: the widget on `/` and `/security`, not in `/portal`; the notice;
+  text chat with `BOOKIE_DISABLE_AI=1`; keyboard; mobile.
+* `scripts/redteam-public-bookie.ts`: about 25 adversarial prompts against a running server with the
+  real model: `bun scripts/redteam-public-bookie.ts http://localhost:3103 --out /tmp/redteam.json`.
+  Prints pass/fail only; keep the `--out` file outside the repository.
