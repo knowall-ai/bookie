@@ -66,14 +66,19 @@ export async function InvoiceListPage({
   const page = Math.max(1, Number(searchParams.page) || 1);
   const from = isoOrUndefined(searchParams.from);
   const to = isoOrUndefined(searchParams.to);
-  const result = await connector.invoices.list(type, {
-    status,
-    search: searchParams.search,
-    from,
-    to,
-    page,
-    pageSize: 50,
-  });
+  // "Captured by Bookie": draft bills the Bookie agent drafted from captured documents.
+  const capture = type === 'purchase' ? connector.capture : undefined;
+  const result =
+    status === 'captured' && capture
+      ? await capture.capturedBills({ page })
+      : await connector.invoices.list(type, {
+          status,
+          search: searchParams.search,
+          from,
+          to,
+          page,
+          pageSize: 50,
+        });
   const listPath = `${base}${copy.path}`;
   const clearDates = new URLSearchParams(
     Object.entries({ status: searchParams.status, search: searchParams.search }).filter(
@@ -153,28 +158,31 @@ export async function InvoiceListPage({
           { value: 'authorised', label: 'Awaiting payment' },
           { value: 'overdue', label: 'Overdue' },
           { value: 'paid', label: 'Paid' },
+          ...(capture ? [{ value: 'captured', label: 'Captured by Bookie' }] : []),
         ]}
       />
-      <div className="mb-4 flex items-center gap-3">
-        <SearchBox
-          placeholder={`Search ${copy.noun} by number, reference or contact`}
-          className="w-full max-w-md"
-        />
-        {(from || to) && (
-          <span className="border-line text-body inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs whitespace-nowrap">
-            {from === to
-              ? `Dated ${formatDate(from)}`
-              : `Dated ${from ? formatDate(from) : '…'} to ${to ? formatDate(to) : '…'}`}
-            <Link
-              href={`${listPath}${clearDates.size ? `?${clearDates}` : ''}`}
-              className="text-muted hover:text-ink"
-              aria-label="Clear date filter"
-            >
-              <X className="h-3.5 w-3.5" />
-            </Link>
-          </span>
-        )}
-      </div>
+      {status !== 'captured' && (
+        <div className="mb-4 flex items-center gap-3">
+          <SearchBox
+            placeholder={`Search ${copy.noun} by number, reference or contact`}
+            className="w-full max-w-md"
+          />
+          {(from || to) && (
+            <span className="border-line text-body inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs whitespace-nowrap">
+              {from === to
+                ? `Dated ${formatDate(from)}`
+                : `Dated ${from ? formatDate(from) : '…'} to ${to ? formatDate(to) : '…'}`}
+              <Link
+                href={`${listPath}${clearDates.size ? `?${clearDates}` : ''}`}
+                className="text-muted hover:text-ink"
+                aria-label="Clear date filter"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Link>
+            </span>
+          )}
+        </div>
+      )}
       <DataTable
         columns={columns}
         rows={result.items}
@@ -184,13 +192,15 @@ export async function InvoiceListPage({
           <EmptyState
             icon={<FileText className="h-6 w-6" />}
             title={
-              searchParams.search
-                ? `No ${copy.noun} match “${searchParams.search}”`
-                : from && from === to
-                  ? `No ${copy.noun} dated ${formatDate(from)}`
-                  : from || to
-                    ? `No ${copy.noun} in this date range`
-                    : `No ${copy.noun} here yet`
+              status === 'captured'
+                ? 'No bills captured by Bookie are waiting'
+                : searchParams.search
+                  ? `No ${copy.noun} match “${searchParams.search}”`
+                  : from && from === to
+                    ? `No ${copy.noun} dated ${formatDate(from)}`
+                    : from || to
+                      ? `No ${copy.noun} in this date range`
+                      : `No ${copy.noun} here yet`
             }
             action={
               canCreate && (

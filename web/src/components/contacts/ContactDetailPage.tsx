@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ExternalLink, FileText, Mail, Phone, Globe } from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
+import { AttachmentsCard } from '@/components/attachments/AttachmentsCard';
 import { isConnectorError } from '@/lib/connectors/types';
 import type { Contact, Invoice, InvoiceType, Page } from '@/lib/domain/types';
 import { describeError } from '@/lib/portal/actions/util';
@@ -113,6 +114,7 @@ export async function ContactDetailPage({ orgParam, id }: { orgParam: string; id
               newHref={connector.invoices?.create ? `${base}/purchases/bills/new` : undefined}
             />
           )}
+          <AttachmentsCard connector={connector} org={org} entity="contact" id={contact.id} />
         </div>
       </div>
     </>

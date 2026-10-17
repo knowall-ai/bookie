@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // We maintain our own AGENTS.md at the repo root.
   agentRules: false,
+  experimental: {
+    // Attachment uploads (PDF/PNG/JPG up to 10 MB) go through a server action.
+    serverActions: { bodySizeLimit: '11mb' },
+  },
   turbopack: {
     rules: {
       '*.css': {

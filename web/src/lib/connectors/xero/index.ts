@@ -38,6 +38,8 @@ import { xeroReports } from './modules/reports';
 import { xeroPayroll } from './modules/payroll';
 import { xeroProjects } from './modules/projects';
 import { xeroActivity } from './modules/activity';
+import { xeroAttachments } from './modules/attachments';
+import { xeroCapture } from './modules/capture';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -389,6 +391,8 @@ export function createXeroConnector({
     reports: xeroReports(client),
     payroll: xeroPayroll(client),
     projects: xeroProjects(client),
+    attachments: xeroAttachments(client),
+    capture: xeroCapture(client, shortCode),
 
     sourceLink(entity, id) {
       const paths = {

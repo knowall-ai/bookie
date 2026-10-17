@@ -34,6 +34,7 @@ import {
 import { bcPayroll } from './modules/payroll';
 import { bcProjects } from './modules/projects';
 import { bcActivity } from './modules/activity';
+import { bcAttachments } from './modules/attachments';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -832,6 +833,9 @@ export function createBcConnector({
     reports: bcReports(client, lcy),
     payroll: bcPayroll(client),
     projects: bcProjects(client, lcy),
+    attachments: bcAttachments(client),
+    // No capture inbox: BC API v2.0 has no incomingDocuments entity (checked live).
+    capture: undefined,
 
     sourceLink(entity, id) {
       const pages = { invoice: 9301, bill: 9308, quote: 9300, contact: 22 };

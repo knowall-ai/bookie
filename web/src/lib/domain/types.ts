@@ -613,3 +613,61 @@ export interface ActivityDay {
   /** Sales and purchase credit notes. */
   creditNotes: number;
 }
+
+/* ------------------------------------------------------------------ */
+/* Attachments and the capture inbox                                   */
+/* ------------------------------------------------------------------ */
+
+/** Documents that can carry file attachments. */
+export type AttachmentEntity =
+  'invoice' | 'bill' | 'credit-note' | 'quote' | 'contact' | 'bank-transaction' | 'manual-journal';
+
+export const ATTACHMENT_ENTITIES: readonly AttachmentEntity[] = [
+  'invoice',
+  'bill',
+  'credit-note',
+  'quote',
+  'contact',
+  'bank-transaction',
+  'manual-journal',
+];
+
+export interface Attachment {
+  id: string;
+  fileName: string;
+  /** MIME type as the source reports it (or, where the source sends none, from the file extension). */
+  contentType?: string;
+  /** Bytes; undefined when the source doesn't report a reliable size. */
+  size?: number;
+  updatedAt?: string;
+}
+
+/** The bytes of one attachment or inbox file. */
+export interface AttachmentFile {
+  bytes: ArrayBuffer;
+  contentType: string;
+  fileName: string;
+}
+
+export interface AttachmentUpload {
+  fileName: string;
+  contentType: string;
+  bytes: ArrayBuffer;
+}
+
+/** A document waiting in the source system's capture inbox (Xero Files › Inbox). */
+export interface InboxFile {
+  id: string;
+  fileName: string;
+  contentType?: string;
+  size?: number;
+  receivedAt?: string;
+}
+
+export interface Inbox {
+  files: InboxFile[];
+  /** Address that forwards documents into the inbox, when the source has one. */
+  email?: string;
+  /** Shown when the list may be incomplete. */
+  note?: string;
+}

@@ -15,6 +15,11 @@ import type {
   Account,
   AccountInput,
   ActivityDay,
+  Attachment,
+  AttachmentEntity,
+  AttachmentFile,
+  AttachmentUpload,
+  Inbox,
   BankAccount,
   BankTransaction,
   BankTransactionInput,
@@ -168,6 +173,33 @@ export interface ProjectsModule {
   get(id: string): Promise<Project>;
 }
 
+export interface AttachmentsModule {
+  /** Entities this back end can attach files to (others show "not available"). */
+  readonly entities: readonly AttachmentEntity[];
+  list(entity: AttachmentEntity, id: string): Promise<Attachment[]>;
+  download(entity: AttachmentEntity, id: string, attachmentId: string): Promise<AttachmentFile>;
+  upload?(entity: AttachmentEntity, id: string, file: AttachmentUpload): Promise<Attachment>;
+  /** Source limits, enforced before upload. */
+  readonly maxUploadBytes?: number;
+  readonly maxFilesPerDocument?: number;
+}
+
+/**
+ * Documents captured for bookkeeping: the source system's inbox of files
+ * waiting to become bills, and the draft bills the Bookie agent has captured.
+ */
+export interface CaptureModule {
+  inbox(): Promise<Inbox>;
+  inboxFile(fileId: string): Promise<AttachmentFile>;
+  /** Attach an inbox file to a bill (it then appears in the bill's attachments). */
+  attachToBill?(fileId: string, billId: string): Promise<void>;
+  /** Draft bills drafted by the Bookie agent ("Captured by Bookie"). */
+  capturedBills(query?: ListQuery): Promise<Page<Invoice>>;
+}
+
+/** The text the Bookie agent puts on bills it drafts from captured documents. */
+export const CAPTURED_BY_BOOKIE = 'Captured by Bookie';
+
 export interface AccountingConnector {
   readonly kind: OrgRef['kind'];
   readonly org: OrgRef;
@@ -192,6 +224,8 @@ export interface AccountingConnector {
   reports?: ReportsModule;
   payroll?: PayrollModule;
   projects?: ProjectsModule;
+  attachments?: AttachmentsModule;
+  capture?: CaptureModule;
 
   /** Deep link to a document in the source system, for "Open in Xero/BC". */
   sourceLink?(entity: 'invoice' | 'bill' | 'quote' | 'contact', id: string): string | undefined;

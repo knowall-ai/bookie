@@ -9,6 +9,7 @@ export const XERO_APIS = {
   payrollUk: 'https://api.xero.com/payroll.xro/2.0',
   assets: 'https://api.xero.com/assets.xro/1.0',
   projects: 'https://api.xero.com/projects.xro/2.0',
+  files: 'https://api.xero.com/files.xro/1.0',
 } as const;
 
 export type XeroApi = keyof typeof XERO_APIS;
@@ -40,6 +41,9 @@ export interface XeroRequest {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   query?: Record<string, string | number | boolean | undefined>;
   body?: unknown;
+  /** Raw request body (file uploads), sent with `contentType` instead of JSON. */
+  rawBody?: ArrayBuffer;
+  contentType?: string;
   accept?: string;
   /** Pass a summaryOnly / If-Modified-Since style header if needed. */
   headers?: Record<string, string>;
@@ -115,6 +119,27 @@ export class XeroClient {
   }
 
   async request<T>(path: string, request: XeroRequest = {}): Promise<T> {
+    const response = await this.send(path, request);
+    if (response.status === 204) return undefined as T;
+    if (request.accept && request.accept !== 'application/json') {
+      return (await response.arrayBuffer()) as T;
+    }
+    return (await response.json()) as T;
+  }
+
+  /** File bytes plus the Content-Type Xero sent (attachments, Files API content). */
+  async requestBytes(
+    path: string,
+    request: XeroRequest = {}
+  ): Promise<{ bytes: ArrayBuffer; contentType?: string }> {
+    const response = await this.send(path, { accept: '*/*', ...request });
+    return {
+      bytes: await response.arrayBuffer(),
+      contentType: response.headers.get('Content-Type')?.split(';')[0].trim() || undefined,
+    };
+  }
+
+  private async send(path: string, request: XeroRequest): Promise<Response> {
     const url = new URL(`${XERO_APIS[request.api ?? 'accounting']}/${path.replace(/^\//, '')}`);
     for (const [name, value] of Object.entries(request.query ?? {})) {
       if (value !== undefined && value !== '') url.searchParams.set(name, String(value));
@@ -127,10 +152,19 @@ export class XeroClient {
           Authorization: `Bearer ${await this.accessToken()}`,
           'Xero-tenant-id': this.options.xeroTenantId,
           Accept: request.accept ?? 'application/json',
-          ...(request.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(request.rawBody !== undefined
+            ? { 'Content-Type': request.contentType ?? 'application/octet-stream' }
+            : request.body !== undefined
+              ? { 'Content-Type': 'application/json' }
+              : {}),
           ...request.headers,
         },
-        body: request.body !== undefined ? JSON.stringify(request.body) : undefined,
+        body:
+          request.rawBody !== undefined
+            ? request.rawBody
+            : request.body !== undefined
+              ? JSON.stringify(request.body)
+              : undefined,
         cache: 'no-store',
       });
 
@@ -144,17 +178,15 @@ export class XeroClient {
         continue;
       }
       if (!response.ok) throw await toConnectorError(response);
-      if (response.status === 204) return undefined as T;
-      if (request.accept && request.accept !== 'application/json') {
-        return (await response.arrayBuffer()) as T;
-      }
-      return (await response.json()) as T;
+      return response;
     }
   }
 }
 
 async function toConnectorError(response: Response): Promise<ConnectorError> {
-  const body = (await response.json().catch(() => undefined)) as
+  const parsed: unknown = await response.json().catch(() => undefined);
+  // The Files API sends an array of problems: `[{ type, title, detail }]`.
+  const body = (Array.isArray(parsed) ? parsed[0] : parsed) as
     | {
         Message?: string;
         Detail?: string;

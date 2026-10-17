@@ -81,6 +81,8 @@ export const NAV: NavTab[] = [
     items: [
       { label: 'Purchases overview', href: '/purchases', module: 'invoices' },
       { label: 'Bills', href: '/purchases/bills', module: 'invoices' },
+      // Shown everywhere; the page says when the source has no capture inbox (BC).
+      { label: 'Inbox', href: '/purchases/inbox', module: 'invoices' },
       { label: 'Purchase orders', href: '/purchases/orders', module: 'purchaseOrders' },
       { label: 'Supplier credit notes', href: '/purchases/credit-notes', module: 'creditNotes' },
       { label: 'Suppliers', href: '/contacts?role=supplier', module: 'contacts' },
