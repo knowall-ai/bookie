@@ -11,6 +11,7 @@ import { Money } from '@/components/ui/Money';
 import { DocumentFacts, DocumentLines, DocumentTotals } from './DocumentParts';
 import { InvoiceActions } from './InvoiceActions';
 import { PaymentPanel } from '@/components/sales/PaymentPanel';
+import { AttachmentsCard } from '@/components/attachments/AttachmentsCard';
 
 export async function InvoiceDetailPage({
   orgParam,
@@ -139,6 +140,12 @@ export async function InvoiceDetailPage({
                 </ul>
               </div>
             )}
+            <AttachmentsCard
+              connector={connector}
+              org={org}
+              entity={isSales ? 'invoice' : 'bill'}
+              id={invoice.id}
+            />
           </div>
           <DocumentTotals
             currency={invoice.currency}

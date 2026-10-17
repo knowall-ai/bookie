@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/Badge';
 import { ButtonLink } from '@/components/ui/Button';
 import { DocumentFacts, DocumentLines, DocumentTotals } from '@/components/documents/DocumentParts';
+import { AttachmentsCard } from '@/components/attachments/AttachmentsCard';
 import { QuoteActions } from './QuoteActions';
 
 /** Which status changes make sense from each status (the back end may allow fewer). */
@@ -115,13 +116,14 @@ export async function QuoteDetailPage({ orgParam, id }: { orgParam: string; id: 
         <DocumentLines lines={quote.lineItems ?? []} currency={quote.currency} />
 
         <div className="flex flex-col gap-6 lg:flex-row">
-          <div className="flex-1">
+          <div className="flex-1 space-y-5">
             {quote.terms && (
               <div className="card p-5">
                 <h2 className="text-ink mb-2 text-sm font-semibold">Terms</h2>
                 <p className="text-muted text-sm whitespace-pre-line">{quote.terms}</p>
               </div>
             )}
+            <AttachmentsCard connector={connector} org={org} entity="quote" id={quote.id} />
           </div>
           <DocumentTotals
             currency={quote.currency}

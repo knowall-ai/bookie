@@ -57,12 +57,17 @@ export async function InvoiceListPage({
 
   const status = searchParams.status ?? 'all';
   const page = Math.max(1, Number(searchParams.page) || 1);
-  const result = await connector.invoices.list(type, {
-    status,
-    search: searchParams.search,
-    page,
-    pageSize: 50,
-  });
+  // "Captured by Bookie": draft bills the Bookie agent drafted from captured documents.
+  const capture = type === 'purchase' ? connector.capture : undefined;
+  const result =
+    status === 'captured' && capture
+      ? await capture.capturedBills({ page })
+      : await connector.invoices.list(type, {
+          status,
+          search: searchParams.search,
+          page,
+          pageSize: 50,
+        });
   const listPath = `${base}${copy.path}`;
 
   const columns: Column<Invoice>[] = [
@@ -137,14 +142,17 @@ export async function InvoiceListPage({
           { value: 'authorised', label: 'Awaiting payment' },
           { value: 'overdue', label: 'Overdue' },
           { value: 'paid', label: 'Paid' },
+          ...(capture ? [{ value: 'captured', label: 'Captured by Bookie' }] : []),
         ]}
       />
-      <div className="mb-4 flex items-center gap-3">
-        <SearchBox
-          placeholder={`Search ${copy.noun} by number, reference or contact`}
-          className="w-full max-w-md"
-        />
-      </div>
+      {status !== 'captured' && (
+        <div className="mb-4 flex items-center gap-3">
+          <SearchBox
+            placeholder={`Search ${copy.noun} by number, reference or contact`}
+            className="w-full max-w-md"
+          />
+        </div>
+      )}
       <DataTable
         columns={columns}
         rows={result.items}
@@ -154,9 +162,11 @@ export async function InvoiceListPage({
           <EmptyState
             icon={<FileText className="h-6 w-6" />}
             title={
-              searchParams.search
-                ? `No ${copy.noun} match “${searchParams.search}”`
-                : `No ${copy.noun} here yet`
+              status === 'captured'
+                ? 'No bills captured by Bookie are waiting'
+                : searchParams.search
+                  ? `No ${copy.noun} match “${searchParams.search}”`
+                  : `No ${copy.noun} here yet`
             }
             action={
               canCreate && (

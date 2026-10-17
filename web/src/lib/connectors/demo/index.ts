@@ -29,6 +29,7 @@ import { demoAssets } from './modules/assets';
 import { demoReports } from './modules/reports';
 import { demoPayroll } from './modules/payroll';
 import { demoProjects } from './modules/projects';
+import { demoAttachments, demoCapture } from './modules/attachments';
 
 export const DEMO_ORGS: OrgRef[] = [
   {
@@ -394,5 +395,7 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
     reports: demoReports(data, org.name),
     payroll: demoPayroll(data),
     projects: demoProjects(data),
+    attachments: demoAttachments(data, org.key),
+    capture: demoCapture(data, org.key),
   };
 }

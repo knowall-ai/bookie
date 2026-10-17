@@ -19,6 +19,9 @@ export interface BcRequest {
   /** Required by BC for PATCH/DELETE; `*` means "whatever the current version is". */
   etag?: string;
   raw?: boolean;
+  /** Raw request body (media uploads such as attachment content), sent as `contentType`. */
+  rawBody?: ArrayBuffer;
+  contentType?: string;
 }
 
 export interface ODataList<T> {
@@ -54,10 +57,19 @@ export class BcClient {
         headers: {
           Authorization: `Bearer ${await this.options.token()}`,
           Accept: 'application/json',
-          ...(request.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(request.rawBody !== undefined
+            ? { 'Content-Type': request.contentType ?? 'application/octet-stream' }
+            : request.body !== undefined
+              ? { 'Content-Type': 'application/json' }
+              : {}),
           ...(request.etag ? { 'If-Match': request.etag } : {}),
         },
-        body: request.body !== undefined ? JSON.stringify(request.body) : undefined,
+        body:
+          request.rawBody !== undefined
+            ? request.rawBody
+            : request.body !== undefined
+              ? JSON.stringify(request.body)
+              : undefined,
         cache: 'no-store',
       });
       if (response.status === 429 && attempt < 2) {

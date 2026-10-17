@@ -1,7 +1,8 @@
 import 'server-only';
 import type { AccountingConnector } from '@/lib/connectors/types';
 import { isConnectorError } from '@/lib/connectors/types';
-import type { ReportId } from '@/lib/domain/types';
+import { ATTACHMENT_ENTITIES, type ReportId } from '@/lib/domain/types';
+import { isAttachmentEntity } from '@/lib/attachments';
 import type { ToolDefinition } from './llm';
 
 /**
@@ -173,6 +174,30 @@ const TOOLS: Tool[] = [
     available: (c) => !!c.accounts,
     run: (c) => c.accounts!.list(),
   },
+  {
+    definition: fn(
+      'list_attachments',
+      'Files attached to one document (name, type, size). Read-only: lists the files, does not open them.',
+      {
+        entity: {
+          type: 'string',
+          enum: [...ATTACHMENT_ENTITIES],
+          description: 'invoice = sales invoice, bill = supplier bill',
+        },
+        id: { type: 'string', description: 'The document id' },
+      },
+      ['entity', 'id']
+    ),
+    available: (c) => !!c.attachments,
+    run: async (c, a) => {
+      const entity = str(a.entity);
+      const id = str(a.id);
+      if (!entity || !id || !isAttachmentEntity(entity)) return { error: 'Give an entity and id.' };
+      if (!c.attachments!.entities.includes(entity))
+        return { error: `Attachments on a ${entity} aren't available for this organisation.` };
+      return c.attachments!.list(entity, id);
+    },
+  },
 ];
 
 export function toolsFor(connector: AccountingConnector | undefined): ToolDefinition[] {
@@ -234,6 +259,8 @@ export function toolStatus(name: string, rawArgs: string): string {
       return 'Checking the bank…';
     case 'list_quotes':
       return 'Checking your quotes…';
+    case 'list_attachments':
+      return 'Looking at the attached files…';
     default:
       return 'Looking that up…';
   }
