@@ -424,20 +424,47 @@ function bcInvoices(
         const { id } = parseContactId(query.contactId);
         filters.push(`${type === 'sales' ? 'customerId' : 'vendorId'} eq ${id}`);
       }
+      const orderby = 'invoiceDate desc,number desc';
       if (query?.search) {
+        // BC rejects `or` across different fields, so search each field separately and merge.
         const s = odataString(query.search);
-        filters.push(
+        const fields =
           type === 'sales'
-            ? `(contains(number,${s}) or contains(customerName,${s}) or contains(externalDocumentNumber,${s}))`
-            : `(contains(number,${s}) or contains(vendorName,${s}) or contains(vendorInvoiceNumber,${s}))`
+            ? ['number', 'customerName', 'externalDocumentNumber']
+            : ['number', 'vendorName', 'vendorInvoiceNumber'];
+        const results = await Promise.all(
+          fields.map((field) =>
+            client.all<BcSalesInvoice | BcPurchaseInvoice>(
+              entity(type),
+              {
+                $filter: [...filters, `contains(${field},${s})`].join(' and '),
+                $orderby: orderby,
+                $top: 500,
+              },
+              1
+            )
+          )
         );
+        const byId = new Map(results.flat().map((raw) => [raw.id, raw]));
+        const merged = [...byId.values()].sort(
+          (a, b) => b.invoiceDate.localeCompare(a.invoiceDate) || b.number.localeCompare(a.number)
+        );
+        const slice = merged.slice((page - 1) * pageSize, page * pageSize);
+        const items = await Promise.all(slice.map((raw) => map(type, raw)));
+        return {
+          items,
+          page,
+          pageSize,
+          hasMore: merged.length > page * pageSize,
+          total: merged.length,
+        };
       }
       const result = await client.request<ODataList<BcSalesInvoice | BcPurchaseInvoice>>(
         entity(type),
         {
           query: {
             $filter: filters.join(' and ') || undefined,
-            $orderby: 'invoiceDate desc,number desc',
+            $orderby: orderby,
             $top: pageSize + 1,
             $skip: (page - 1) * pageSize,
           },

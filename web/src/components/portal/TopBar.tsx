@@ -88,7 +88,7 @@ export function OrgSwitcher({ org, orgs }: { org?: OrgRef; orgs: OrgRef[] }) {
         aria-haspopup="listbox"
         aria-expanded={open}
         data-testid="org-switcher"
-        className="hover:bg-surface-2 flex max-w-[230px] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors"
+        className="hover:bg-surface-2 flex max-w-[150px] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors sm:max-w-[230px]"
       >
         <span className="min-w-0">
           <span className="text-ink block truncate text-sm leading-tight font-semibold">
@@ -376,7 +376,7 @@ export function TopBar({
 
   return (
     <header className="bg-canvas/90 border-line no-print sticky top-0 z-40 border-b backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-2 px-3 sm:px-5">
+      <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-1.5 px-2 sm:gap-2 sm:px-5">
         <Link href={org ? base : '/portal'} aria-label="Bookie home" className="mr-1 shrink-0">
           <LogoTile className="h-8 w-8" />
         </Link>
@@ -396,7 +396,7 @@ export function TopBar({
           </nav>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           {org && modules && (
             <>
               <Link
@@ -406,7 +406,9 @@ export function TopBar({
               >
                 <Search className="h-4 w-4" />
               </Link>
-              <CreateMenu base={base} modules={modules} />
+              <div className="hidden sm:block">
+                <CreateMenu base={base} modules={modules} />
+              </div>
             </>
           )}
           <BookieLauncher orgKey={org?.key} orgName={org?.name} />

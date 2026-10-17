@@ -101,3 +101,16 @@ test.describe('settings and Bookie', () => {
     await expect(panel).toBeHidden();
   });
 });
+
+test.describe('mobile @mobile', () => {
+  test.use({ viewport: { width: 360, height: 760 } });
+  for (const path of ['/portal', `${ORG}`, `${ORG}/sales/invoices`, `${ORG}/contacts`]) {
+    test(`no sideways scroll on ${path}`, async ({ page }) => {
+      await page.goto(path);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+    });
+  }
+});
