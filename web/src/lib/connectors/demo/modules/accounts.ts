@@ -48,7 +48,7 @@ const XERO_TYPES: Record<string, { label: string; class: Account['class'] }> = {
   SALES: { label: 'Sales', class: 'revenue' },
 };
 
-function chart(data: DemoData): Account[] {
+export function chart(data: DemoData): Account[] {
   demoSlot(data, 'accounts-seeded', () => {
     for (const extra of EXTRA_ACCOUNTS) {
       if (!data.accounts.some((a) => a.code === extra.code))

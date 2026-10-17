@@ -29,6 +29,7 @@ import { demoAssets } from './modules/assets';
 import { demoReports } from './modules/reports';
 import { demoPayroll } from './modules/payroll';
 import { demoProjects } from './modules/projects';
+import { demoUsers } from './modules/users';
 
 export const DEMO_ORGS: OrgRef[] = [
   {
@@ -334,6 +335,24 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
           postalCode: 'M1 1AA',
           country: 'United Kingdom',
         },
+        organisationType: 'COMPANY',
+        lineOfBusiness: 'Coffee roasting and wholesale',
+        plan: 'STANDARD',
+        edition: 'BUSINESS',
+        phone: '+44 161 496 0000',
+        paysTax: true,
+        salesTaxBasis: 'ACCRUALS',
+        salesTaxPeriod: 'QUARTERLY',
+        defaultSalesTax: 'Tax Exclusive',
+        defaultPurchasesTax: 'Tax Inclusive',
+        periodLockDate: '2026-03-31',
+        endOfYearLockDate: '2026-03-31',
+        status: 'ACTIVE',
+        isDemoCompany: true,
+        paymentTerms: {
+          sales: { day: 30, type: 'DAYSAFTERBILLDATE' },
+          bills: { day: 20, type: 'OFFOLLOWINGMONTH' },
+        },
       };
     },
     async dashboard(): Promise<DashboardSummary> {
@@ -394,5 +413,6 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
     reports: demoReports(data, org.name),
     payroll: demoPayroll(data),
     projects: demoProjects(data),
+    users: demoUsers(),
   };
 }

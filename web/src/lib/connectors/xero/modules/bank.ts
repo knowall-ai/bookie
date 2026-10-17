@@ -2,11 +2,12 @@ import type {
   BankAccount,
   BankTransaction,
   BankTransactionInput,
-  ListQuery,
+  BankTransactionQuery,
   Page,
 } from '@/lib/domain/types';
-import { xeroDate, xeroString, type XeroClient } from '../client';
+import { xeroDate, xeroString, xeroTimestamp, type XeroClient } from '../client';
 import {
+  fromLineAmountTypes,
   fromXeroLineItem,
   today,
   toLineAmountTypes,
@@ -32,6 +33,11 @@ export interface XeroBankTransaction {
   IsReconciled?: boolean;
   Status: 'AUTHORISED' | 'DELETED' | 'VOIDED';
   LineItems?: XeroLineItem[];
+  LineAmountTypes?: string;
+  SubTotal?: number;
+  TotalTax?: number;
+  HasAttachments?: boolean;
+  UpdatedDateUTC?: string;
 }
 
 export interface XeroPayment {
@@ -43,12 +49,18 @@ export interface XeroPayment {
   Reference?: string;
   IsReconciled?: boolean;
   Status: 'AUTHORISED' | 'DELETED';
-  Account?: { AccountID: string; Code?: string };
+  Account?: { AccountID: string; Code?: string; Name?: string };
+  /** Xero puts credit notes paid out or refunded here too, with a credit-note `Type`. */
   Invoice?: {
+    InvoiceID?: string;
     InvoiceNumber?: string;
+    Type?: string;
     CurrencyCode?: string;
     Contact?: { ContactID: string; Name?: string };
   };
+  BatchPaymentID?: string;
+  HasAccount?: boolean;
+  UpdatedDateUTC?: string;
 }
 
 interface Pagination {
@@ -118,8 +130,26 @@ export function fromXeroBankTransaction(raw: XeroBankTransaction): BankTransacti
     isReconciled: !!raw.IsReconciled,
     status: raw.Status === 'AUTHORISED' ? 'authorised' : 'deleted',
     lineItems: lines,
+    source: 'bank-transaction',
+    lineAmountType: fromLineAmountTypes(raw.LineAmountTypes),
+    subTotal: raw.SubTotal,
+    totalTax: raw.TotalTax,
+    hasAttachments: raw.HasAttachments,
+    updatedAt: xeroTimestamp(raw.UpdatedDateUTC),
   };
 }
+
+/** The document a payment settles, from the payment's `Invoice.Type`. */
+const DOCUMENT_KIND: Record<string, NonNullable<BankTransaction['document']>['kind']> = {
+  ACCREC: 'invoice',
+  ACCPAY: 'bill',
+  ACCRECCREDIT: 'credit-note',
+  ACCPAYCREDIT: 'credit-note',
+  APPREPAYMENT: 'prepayment',
+  ARPREPAYMENT: 'prepayment',
+  APOVERPAYMENT: 'overpayment',
+  AROVERPAYMENT: 'overpayment',
+};
 
 /** Payments that money comes in on: customer payments and supplier refunds. */
 const RECEIVING_PAYMENTS = new Set([
@@ -144,8 +174,67 @@ export function fromXeroPaymentAsTransaction(raw: XeroPayment): BankTransaction 
     currency: raw.Invoice?.CurrencyCode,
     isReconciled: !!raw.IsReconciled,
     status: raw.Status === 'AUTHORISED' ? 'authorised' : 'deleted',
+    source: 'payment',
+    document:
+      raw.Invoice?.InvoiceID && raw.Invoice.Type && DOCUMENT_KIND[raw.Invoice.Type]
+        ? {
+            id: raw.Invoice.InvoiceID,
+            number: raw.Invoice.InvoiceNumber || undefined,
+            kind: DOCUMENT_KIND[raw.Invoice.Type],
+          }
+        : undefined,
+    batchPaymentId: raw.BatchPaymentID || undefined,
+    updatedAt: xeroTimestamp(raw.UpdatedDateUTC),
   };
 }
+
+/** Spend-side bank transaction types (money out of the account). */
+const SPEND_TYPES = ['SPEND', 'SPEND-TRANSFER', 'SPEND-OVERPAYMENT', 'SPEND-PREPAYMENT'];
+const RECEIVE_TYPES = ['RECEIVE', 'RECEIVE-TRANSFER', 'RECEIVE-OVERPAYMENT', 'RECEIVE-PREPAYMENT'];
+/** Payment types that pay money out (the rest bring money in, see RECEIVING_PAYMENTS). */
+const PAYING_PAYMENTS = [
+  'ACCPAYPAYMENT',
+  'ARCREDITPAYMENT',
+  'AROVERPAYMENTPAYMENT',
+  'ARPREPAYMENTPAYMENT',
+];
+
+const guid = (id: string) => id.replace(/[^0-9a-f-]/gi, '');
+const anyOf = (field: string, values: string[]) =>
+  `(${values.map((v) => `${field}=="${v}"`).join(' OR ')})`;
+
+/**
+ * `where` clauses for the two endpoints behind a register. Exported for tests.
+ * Xero rejects operations on optional fields without a null guard, hence `Reference!=null`.
+ */
+export function registerFilters(bankAccountId: string, query?: BankTransactionQuery) {
+  const id = guid(bankAccountId);
+  const common: string[] = ['Status=="AUTHORISED"'];
+  if (query?.from) common.push(`Date>=DateTime(${query.from.replaceAll('-', ',')})`);
+  if (query?.to) common.push(`Date<=DateTime(${query.to.replaceAll('-', ',')})`);
+  if (query?.reconciled !== undefined) common.push(`IsReconciled==${query.reconciled}`);
+  if (query?.search) {
+    common.push(`Reference!=null AND Reference.Contains("${xeroString(query.search)}")`);
+  }
+  const transactions = [`BankAccount.AccountID==guid("${id}")`, ...common];
+  const payments = [`Account.AccountID==guid("${id}")`, ...common];
+  if (query?.contactId) {
+    transactions.push(`Contact.ContactID==guid("${guid(query.contactId)}")`);
+    payments.push(`Invoice.Contact.ContactID==guid("${guid(query.contactId)}")`);
+  }
+  if (query?.direction === 'spent') {
+    transactions.push(anyOf('Type', SPEND_TYPES));
+    payments.push(anyOf('PaymentType', PAYING_PAYMENTS));
+  } else if (query?.direction === 'received') {
+    transactions.push(anyOf('Type', RECEIVE_TYPES));
+    payments.push(anyOf('PaymentType', [...RECEIVING_PAYMENTS]));
+  }
+  return { transactions: transactions.join(' AND '), payments: payments.join(' AND ') };
+}
+
+/** Shown above every Xero register: what Xero's API doesn't expose. */
+export const XERO_BANK_LIMITATIONS =
+  "Xero's API doesn't share bank statement lines, so this is the account's transactions in Xero (spend and receive money, transfers and payments), not the bank feed. Reconcile in Xero. There's no running balance: Xero's Bank Statement report isn't available to this connection.";
 
 export function toXeroBankTransaction(input: BankTransactionInput): Record<string, unknown> {
   return {
@@ -222,37 +311,21 @@ export function xeroBank(client: XeroClient): BankModule {
      * list correctly we read the first `page * pageSize` of each, newest first,
      * merge, and slice; Xero allows up to 1,000 per call, so this goes 1,000 deep.
      */
-    async transactions(bankAccountId: string, query?: ListQuery): Promise<Page<BankTransaction>> {
+    async transactions(
+      bankAccountId: string,
+      query?: BankTransactionQuery
+    ): Promise<Page<BankTransaction>> {
       const pageSize = query?.pageSize ?? 50;
       const page = Math.max(1, Math.min(query?.page ?? 1, Math.floor(MAX_MERGE / pageSize)));
       const depth = page * pageSize;
-      const id = bankAccountId.replace(/[^0-9a-f-]/gi, '');
-      const search = query?.search
-        ? ` AND Reference!=null AND Reference.Contains("${xeroString(query.search)}")`
-        : '';
-      const range = [
-        query?.from ? ` AND Date>=DateTime(${query.from.replaceAll('-', ',')})` : '',
-        query?.to ? ` AND Date<=DateTime(${query.to.replaceAll('-', ',')})` : '',
-      ].join('');
+      const where = registerFilters(bankAccountId, query);
       const [transactions, payments] = await Promise.all([
         client.request<{ BankTransactions: XeroBankTransaction[]; pagination?: Pagination }>(
           'BankTransactions',
-          {
-            query: {
-              where: `BankAccount.AccountID==guid("${id}") AND Status=="AUTHORISED"${range}${search}`,
-              order: 'Date DESC',
-              page: 1,
-              pageSize: depth,
-            },
-          }
+          { query: { where: where.transactions, order: 'Date DESC', page: 1, pageSize: depth } }
         ),
         client.request<{ Payments: XeroPayment[]; pagination?: Pagination }>('Payments', {
-          query: {
-            where: `Account.AccountID==guid("${id}") AND Status=="AUTHORISED"${range}${search}`,
-            order: 'Date DESC',
-            page: 1,
-            pageSize: depth,
-          },
+          query: { where: where.payments, order: 'Date DESC', page: 1, pageSize: depth },
         }),
       ]);
       const merged = [
@@ -278,6 +351,22 @@ export function xeroBank(client: XeroClient): BankModule {
             : undefined,
       };
     },
+
+    async transaction(id, source) {
+      if (source === 'payment') {
+        const result = await client.request<{ Payments: XeroPayment[] }>(
+          `Payments/${encodeURIComponent(id)}`
+        );
+        return fromXeroPaymentAsTransaction(result.Payments[0]);
+      }
+      const result = await client.request<{ BankTransactions: XeroBankTransaction[] }>(
+        `BankTransactions/${encodeURIComponent(id)}`
+      );
+      return fromXeroBankTransaction(result.BankTransactions[0]);
+    },
+
+    filters: { direction: true, reconciled: true, contact: true },
+    limitations: XERO_BANK_LIMITATIONS,
 
     async createTransaction(input) {
       const result = await client.request<{ BankTransactions: XeroBankTransaction[] }>(

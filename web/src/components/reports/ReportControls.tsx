@@ -14,6 +14,9 @@ export interface ReportControlsProps {
   value: { from?: string; to?: string; date?: string; periods: number; timeframe: Timeframe };
   rangePresets: RangePreset[];
   datePresets: DatePreset[];
+  /** Account picker (Account Transactions); omitted for other reports. */
+  accounts?: { code: string; name: string }[];
+  accountCode?: string;
 }
 
 const TIMEFRAMES: { value: Timeframe; label: string }[] = [
@@ -29,6 +32,8 @@ export function ReportControls({
   value,
   rangePresets,
   datePresets,
+  accounts,
+  accountCode,
 }: ReportControlsProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -38,6 +43,7 @@ export function ReportControls({
   const [date, setDate] = useState(value.date ?? '');
   const [periods, setPeriods] = useState(value.periods);
   const [timeframe, setTimeframe] = useState<Timeframe>(value.timeframe);
+  const [account, setAccount] = useState(accountCode ?? '');
   const id = useId();
 
   if (kind === 'today') {
@@ -60,6 +66,7 @@ export function ReportControls({
     } else if (date) {
       query.set('date', date);
     }
+    if (accounts && account) query.set('account', account);
     if (compare && periods > 0) {
       query.set('periods', String(periods));
       query.set('timeframe', timeframe);
@@ -145,6 +152,19 @@ export function ReportControls({
             />
           </Field>
         </>
+      )}
+
+      {accounts && (
+        <Field label="Account" htmlFor={`${id}-account`} className="w-full sm:w-72">
+          <Select id={`${id}-account`} value={account} onChange={(e) => setAccount(e.target.value)}>
+            <option value="">All accounts</option>
+            {accounts.map((a) => (
+              <option key={a.code} value={a.code}>
+                {a.code} - {a.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
       )}
 
       {compare && (

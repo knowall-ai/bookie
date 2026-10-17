@@ -63,7 +63,15 @@ export default async function ReportPage({
     error = e.message;
   }
 
+  const accounts = definition.account
+    ? ((await connector.accounts?.list().catch(() => undefined)) ?? [])
+        .filter((a) => a.code && a.status === 'active')
+        .map((a) => ({ code: a.code, name: a.name }))
+    : undefined;
+
   const controls = {
+    accounts,
+    accountCode: resolved.accountCode,
     kind: definition.params,
     compare: definition.compare,
     value: resolved,

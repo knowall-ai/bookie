@@ -98,6 +98,8 @@ export const NAV: NavTab[] = [
       { label: 'Aged payables', href: '/reporting/aged-payables', module: 'reports' },
       { label: 'Trial balance', href: '/reporting/trial-balance', module: 'reports' },
       { label: 'Bank summary', href: '/reporting/bank-summary', module: 'reports' },
+      { label: 'Account transactions', href: '/reporting/account-transactions', module: 'reports' },
+      { label: 'Journal report', href: '/reporting/journal-report', module: 'reports' },
     ],
   },
   {

@@ -8,7 +8,7 @@ const total = (report: Report, label: RegExp, column = 1) => findReportValue(rep
 
 describe('demo reports', () => {
   it('offers every report', () => {
-    expect(connector.reports?.available).toHaveLength(8);
+    expect(connector.reports?.available).toHaveLength(10);
   });
 
   it('P&L for the financial year to date agrees with the home dashboard', async () => {

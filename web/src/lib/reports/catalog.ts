@@ -6,13 +6,18 @@ import type { IsoDate, ReportId, ReportParams } from '@/lib/domain/types';
 import { datePresets, rangePresets, type Timeframe } from './periods';
 
 export type ReportGroup =
-  'Financial performance' | 'Financial position' | 'Receivables and payables' | 'Bank';
+  | 'Financial performance'
+  | 'Financial position'
+  | 'Receivables and payables'
+  | 'Bank'
+  | 'Accounting';
 
 export const REPORT_GROUPS: ReportGroup[] = [
   'Financial performance',
   'Financial position',
   'Receivables and payables',
   'Bank',
+  'Accounting',
 ];
 
 /**
@@ -31,6 +36,8 @@ export interface ReportDefinition {
   params: ReportParamKind;
   /** Offers "compare with previous periods". */
   compare: boolean;
+  /** Offers an account picker (Account Transactions). */
+  account?: boolean;
 }
 
 export const REPORTS: Record<ReportId, ReportDefinition> = {
@@ -98,6 +105,23 @@ export const REPORTS: Record<ReportId, ReportDefinition> = {
     params: 'range',
     compare: false,
   },
+  'account-transactions': {
+    id: 'account-transactions',
+    title: 'Account transactions',
+    description: 'Every posted transaction for one account or all accounts in a period.',
+    group: 'Accounting',
+    params: 'range',
+    compare: false,
+    account: true,
+  },
+  'journal-report': {
+    id: 'journal-report',
+    title: 'Journal report',
+    description: 'Each posted journal in a period, with the accounts it debited and credited.',
+    group: 'Accounting',
+    params: 'range',
+    compare: false,
+  },
 };
 
 export function isReportId(value: string): value is ReportId {
@@ -110,6 +134,7 @@ export interface ReportSearchParams {
   date?: string;
   periods?: string;
   timeframe?: string;
+  account?: string;
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -141,7 +166,10 @@ export function resolveReportParams(
       let from = validDate(search.from) ?? thisMonth.from;
       let to = validDate(search.to) ?? thisMonth.to;
       if (from > to) [from, to] = [to, from];
-      return { from, to, ...compare };
+      const accountCode = definition.account
+        ? search.account?.trim().slice(0, 40) || undefined
+        : undefined;
+      return { from, to, ...compare, ...(accountCode ? { accountCode } : {}) };
     }
     case 'date':
     case 'month': {

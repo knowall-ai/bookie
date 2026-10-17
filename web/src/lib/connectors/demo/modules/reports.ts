@@ -15,6 +15,9 @@ import type {
   ReportSection,
 } from '@/lib/domain/types';
 import { buildAgedReport } from '@/lib/reports/aged';
+import { buildAccountTransactions, buildJournalReport } from '@/lib/reports/ledger';
+import { chart, demoLedger } from './accounts';
+import { demoLedgerJournals } from './ledger';
 import {
   addDays,
   asAtLabel,
@@ -38,6 +41,8 @@ const AVAILABLE: ReportId[] = [
   'bank-summary',
   'executive-summary',
   'cash-flow',
+  'account-transactions',
+  'journal-report',
 ];
 
 /** Fixed monthly overheads; together they are the £4,200 the demo dashboard adds per month. */
@@ -606,6 +611,22 @@ export function demoReports(
           return executiveSummary(params);
         case 'cash-flow':
           return cashFlow(params);
+        case 'account-transactions':
+        case 'journal-report': {
+          const now = today();
+          const options = {
+            orgName,
+            from: params.from ?? now,
+            to: params.to ?? now,
+            journals: demoLedgerJournals(
+              demoLedger(data),
+              new Map(chart(data).map((a) => [a.code, a.name]))
+            ),
+          };
+          return id === 'account-transactions'
+            ? buildAccountTransactions({ ...options, accountCode: params.accountCode })
+            : buildJournalReport(options);
+        }
         default:
           throw new ConnectorError('Report not found.', 404, 'demo');
       }

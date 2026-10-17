@@ -6,6 +6,9 @@ import { xeroDate } from '../client';
 import type { XeroInvoice } from '../mappers';
 import { buildAgedReport, type AgedItem } from '@/lib/reports/aged';
 import { asAtLabel } from '@/lib/reports/periods';
+import { buildAccountTransactions, buildJournalReport } from '@/lib/reports/ledger';
+import { formatDate } from '@/lib/ui/format';
+import { fromXeroJournalToLedger, journalsEnteredSince, lookbackStart } from './ledger';
 
 const AVAILABLE: ReportId[] = [
   'profit-and-loss',
@@ -15,6 +18,8 @@ const AVAILABLE: ReportId[] = [
   'aged-payables',
   'bank-summary',
   'executive-summary',
+  'account-transactions',
+  'journal-report',
 ];
 
 const TIMEFRAME = { month: 'MONTH', quarter: 'QUARTER', year: 'YEAR' } as const;
@@ -146,6 +151,27 @@ export function xeroReports(client: XeroClient): ReportsModule {
         case 'aged-receivables':
         case 'aged-payables':
           return aged(id);
+        case 'account-transactions':
+        case 'journal-report': {
+          const from = params.from ?? today();
+          const to = params.to ?? today();
+          const since = lookbackStart(from);
+          const [details, journals] = await Promise.all([
+            organisation(),
+            journalsEnteredSince(client, since),
+          ]);
+          const options = {
+            orgName: details.Name,
+            from,
+            to,
+            journals: journals.map(fromXeroJournalToLedger),
+            // Xero's API has no Account Transactions or Journal report, so these come from its Journals.
+            notes: [`Accrual basis · From Xero journals entered since ${formatDate(since)}`],
+          };
+          return id === 'account-transactions'
+            ? buildAccountTransactions({ ...options, accountCode: params.accountCode })
+            : buildJournalReport(options);
+        }
         default:
           throw new ConnectorError('Xero has no API for this report.', 404, 'xero');
       }

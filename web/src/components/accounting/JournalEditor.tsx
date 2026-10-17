@@ -53,6 +53,18 @@ export function toJournalLines(lines: Line[]): ManualJournalInput['lines'] {
     }));
 }
 
+/** A saved journal line back into the editor's debit/credit form. */
+export function fromJournalLine(line: ManualJournalInput['lines'][number]): Line {
+  const amount = Math.round(line.amount * 100) / 100;
+  return {
+    description: line.description ?? '',
+    accountCode: line.accountCode,
+    taxType: line.taxType ?? '',
+    debit: amount > 0 ? amount.toFixed(2) : '',
+    credit: amount < 0 ? (-amount).toFixed(2) : '',
+  };
+}
+
 /**
  * Xero's manual journal form: narration, date, then a debit/credit grid that
  * must balance before it can be saved or posted.
@@ -64,7 +76,10 @@ export function JournalEditor({
   save,
   cancelHref,
   savedHref,
+  initial,
 }: {
+  /** Prefill, e.g. a reversal of an existing journal (debits and credits swapped). */
+  initial?: Pick<ManualJournalInput, 'narration' | 'lines'> & { date?: string };
   currency: string;
   accounts: EditorOption[];
   taxRates: EditorTaxRate[];
@@ -74,9 +89,11 @@ export function JournalEditor({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [narration, setNarration] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [lines, setLines] = useState<Line[]>([blank(), blank()]);
+  const [narration, setNarration] = useState(initial?.narration ?? '');
+  const [date, setDate] = useState(() => initial?.date ?? new Date().toISOString().slice(0, 10));
+  const [lines, setLines] = useState<Line[]>(() =>
+    initial?.lines.length ? initial.lines.map(fromJournalLine) : [blank(), blank()]
+  );
   const [confirmPost, setConfirmPost] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

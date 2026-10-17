@@ -1,5 +1,13 @@
 import Link from 'next/link';
-import { BarChart3, ChevronRight, Clock3, Landmark, Scale, type LucideIcon } from 'lucide-react';
+import {
+  BarChart3,
+  BookOpen,
+  ChevronRight,
+  Clock3,
+  Landmark,
+  Scale,
+  type LucideIcon,
+} from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
 import { REPORT_GROUPS, REPORTS, type ReportGroup } from '@/lib/reports/catalog';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -13,6 +21,7 @@ const ICONS: Record<ReportGroup, LucideIcon> = {
   'Financial position': Scale,
   'Receivables and payables': Clock3,
   Bank: Landmark,
+  Accounting: BookOpen,
 };
 
 export default async function ReportsPage({ params }: { params: Promise<{ org: string }> }) {

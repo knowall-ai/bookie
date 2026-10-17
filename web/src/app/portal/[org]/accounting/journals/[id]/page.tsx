@@ -5,12 +5,15 @@ import { formatDate, formatMoney } from '@/lib/ui/format';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/Badge';
 import { DocumentFacts } from '@/components/documents/DocumentParts';
+import { JournalActions } from '@/components/accounting/JournalActions';
+import { SourceNote } from '@/components/accounting/SourceNote';
+import type { JournalStatusChange, ManualJournal } from '@/lib/domain/types';
 
 export const metadata = { title: 'Manual journal' };
 
 export default async function Page({ params }: { params: Promise<{ org: string; id: string }> }) {
   const { org: orgParam, id } = await params;
-  const { connector, base } = await orgContext(orgParam);
+  const { connector, base, org } = await orgContext(orgParam);
   if (!connector.journals) notFound();
   const [journal, accounts, taxRates, details] = await Promise.all([
     connector.journals.get(decodeURIComponent(id)).catch((error) => {
@@ -27,6 +30,33 @@ export default async function Page({ params }: { params: Promise<{ org: string; 
   const debit = journal.lines.reduce((s, l) => s + (l.amount > 0 ? l.amount : 0), 0);
   const credit = journal.lines.reduce((s, l) => s + (l.amount < 0 ? -l.amount : 0), 0);
   const currency = details?.baseCurrency ?? '';
+  const listPath = `${base}/accounting/journals`;
+  const changes: JournalStatusChange[] = !connector.journals.setStatus
+    ? []
+    : journal.status === 'draft'
+      ? ['posted', 'deleted']
+      : journal.status === 'posted'
+        ? ['voided']
+        : [];
+  const canReverse = journal.status === 'posted' && !!connector.journals.create;
+  const AMOUNTS_ARE: Record<NonNullable<ManualJournal['lineAmountType']>, string> = {
+    exclusive: 'Tax exclusive',
+    inclusive: 'Tax inclusive',
+    none: 'No tax',
+  };
+  const facts = [
+    { label: 'Date', value: formatDate(journal.date) },
+    { label: 'Total', value: formatMoney(journal.total, currency || undefined) },
+  ];
+  if (journal.lineAmountType) {
+    facts.push({ label: 'Amounts are', value: AMOUNTS_ARE[journal.lineAmountType] });
+  }
+  if (journal.showOnCashBasisReports !== undefined) {
+    facts.push({
+      label: 'Cash basis reports',
+      value: journal.showOnCashBasisReports ? 'Shown' : 'Not shown',
+    });
+  }
 
   return (
     <>
@@ -42,14 +72,20 @@ export default async function Page({ params }: { params: Promise<{ org: string; 
           </span>
         }
         meta="Manual journal"
+        actions={
+          <JournalActions
+            orgKey={org.key}
+            id={journal.id}
+            changes={changes}
+            listPath={listPath}
+            reverseHref={
+              canReverse ? `${listPath}/new?reverse=${encodeURIComponent(journal.id)}` : undefined
+            }
+          />
+        }
       />
       <div className="space-y-5">
-        <DocumentFacts
-          facts={[
-            { label: 'Date', value: formatDate(journal.date) },
-            { label: 'Total', value: formatMoney(journal.total, currency || undefined) },
-          ]}
-        />
+        <DocumentFacts facts={facts} />
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -94,6 +130,11 @@ export default async function Page({ params }: { params: Promise<{ org: string; 
             </tfoot>
           </table>
         </div>
+        {journal.hasAttachments && (
+          <SourceNote>
+            This journal has attachments in {org.kind === 'xero' ? 'Xero' : 'the source system'}.
+          </SourceNote>
+        )}
       </div>
     </>
   );
