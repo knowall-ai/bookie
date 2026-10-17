@@ -103,6 +103,29 @@ test.describe('public site', () => {
     await expect(video).toHaveJSProperty('controls', true);
   });
 
+  test('your data stays yours: full-bleed Bookie by the vault, with the four promises @mobile', async ({
+    page,
+  }) => {
+    await page.goto('/#security');
+    const section = page.locator('section[aria-labelledby="security"]');
+    await expect(section.getByRole('heading', { name: 'Your data stays yours' })).toBeVisible();
+    await expect(section.getByRole('img', { name: /closed brass vault door/ })).toBeVisible();
+    await expect(section.locator('dt')).toHaveText([
+      'Bookie never stores your accounts',
+      'Settings sealed, and kept in your own Microsoft 365',
+      'Each organisation is walled off',
+      'Xero data is never used to train AI',
+    ]);
+    await expect(
+      section.getByRole('link', { name: 'Read how Bookie handles data' })
+    ).toHaveAttribute('href', '/security');
+    // Edge to edge: the band is as wide as the viewport.
+    const box = await section.boundingBox();
+    const width = page.viewportSize()!.width;
+    expect(box!.x).toBe(0);
+    expect(Math.round(box!.width)).toBe(width);
+  });
+
   test('mobile: no horizontal scroll, menu opens', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 760 });
     await page.goto('/');
