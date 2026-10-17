@@ -6,7 +6,8 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'sm' | 'md';
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-brand text-brand-ink hover:bg-brand-bright font-semibold shadow-[0_6px_20px_-8px_rgb(34_197_94/0.7)]',
+  primary:
+    'bg-brand text-brand-ink hover:bg-brand-bright font-semibold shadow-[0_6px_20px_-8px_rgb(34_197_94/0.7)]',
   secondary: 'bg-surface-2 text-ink border border-line-strong hover:bg-surface-3',
   ghost: 'text-body hover:bg-surface-2 hover:text-ink',
   danger: 'bg-danger/10 text-danger border border-danger/30 hover:bg-danger/20',
@@ -35,7 +36,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { variant, size, className, type = 'button', ...props },
   ref
 ) {
-  return <button ref={ref} type={type} className={buttonClass(variant, size, className)} {...props} />;
+  return (
+    <button ref={ref} type={type} className={buttonClass(variant, size, className)} {...props} />
+  );
 });
 
 export function ButtonLink({
@@ -45,11 +48,20 @@ export function ButtonLink({
   className,
   children,
   ...props
-}: { href: string; variant?: Variant; size?: Size } & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>) {
+}: { href: string; variant?: Variant; size?: Size } & Omit<
+  React.AnchorHTMLAttributes<HTMLAnchorElement>,
+  'href'
+>) {
   const external = href.startsWith('http');
   if (external) {
     return (
-      <a href={href} target="_blank" rel="noreferrer" className={buttonClass(variant, size, className)} {...props}>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className={buttonClass(variant, size, className)}
+        {...props}
+      >
         {children}
       </a>
     );

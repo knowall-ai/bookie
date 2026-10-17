@@ -43,7 +43,11 @@ export function DocumentLines({ lines, currency }: { lines: LineItem[]; currency
               <td className="text-ink px-4 py-3 whitespace-pre-line">{line.description}</td>
               <td className="num px-4 py-3 text-right">{formatNumber(line.quantity, 4)}</td>
               <td className="num px-4 py-3 text-right">{formatMoney(line.unitAmount)}</td>
-              {showDiscount && <td className="num px-4 py-3 text-right">{line.discountRate ? formatNumber(line.discountRate) : ''}</td>}
+              {showDiscount && (
+                <td className="num px-4 py-3 text-right">
+                  {line.discountRate ? formatNumber(line.discountRate) : ''}
+                </td>
+              )}
               <td className="text-muted hidden px-4 py-3 md:table-cell">{line.accountCode}</td>
               <td className="text-muted hidden px-4 py-3 md:table-cell">{line.taxType}</td>
               <td className="num text-ink px-4 py-3 text-right">{formatMoney(line.lineAmount)}</td>

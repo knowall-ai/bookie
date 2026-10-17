@@ -6,7 +6,13 @@ import { useEffect, useState, useTransition } from 'react';
 import { cn } from '@/lib/ui/cn';
 
 /** Debounced search that writes `?search=` into the URL so results are shareable. */
-export function SearchBox({ placeholder = 'Search', className }: { placeholder?: string; className?: string }) {
+export function SearchBox({
+  placeholder = 'Search',
+  className,
+}: {
+  placeholder?: string;
+  className?: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -29,7 +35,12 @@ export function SearchBox({ placeholder = 'Search', className }: { placeholder?:
   return (
     <label className={cn('relative block', className)}>
       <span className="sr-only">{placeholder}</span>
-      <Search className={cn('text-faint pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2', pending && 'animate-pulse')} />
+      <Search
+        className={cn(
+          'text-faint pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2',
+          pending && 'animate-pulse'
+        )}
+      />
       <input
         type="search"
         value={value}

@@ -4,7 +4,13 @@ import { ErrorPanel } from '@/components/ui/States';
 import { Button } from '@/components/ui/Button';
 
 /** Friendly failure for any page inside an org (a source outage, a revoked connection...). */
-export default function OrgError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function OrgError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   const message =
     process.env.NODE_ENV === 'production'
       ? 'Bookie could not load this from your accounting system. It may be busy or the connection may need attention in Settings.'

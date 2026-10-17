@@ -4,7 +4,17 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Check, ChevronDown, LogOut, Menu, Plus, Search, Settings, X } from 'lucide-react';
+import {
+  Building2,
+  Check,
+  ChevronDown,
+  LogOut,
+  Menu,
+  Plus,
+  Search,
+  Settings,
+  X,
+} from 'lucide-react';
 import { LogoTile } from '@/components/brand/Logo';
 import { cn } from '@/lib/ui/cn';
 import type { OrgRef } from '@/lib/domain/types';
@@ -19,7 +29,12 @@ function usePopover() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
-  useEffect(() => setOpen(false), [pathname]);
+  // Close on navigation (state adjusted during render, not in an effect).
+  const [lastPath, setLastPath] = useState(pathname);
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
+    setOpen(false);
+  }
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
@@ -44,7 +59,11 @@ const panel =
 /* ------------------------------------------------------------------ */
 
 function sourceDot(kind: OrgRef['kind']) {
-  return kind === 'xero' ? 'bg-[#13b5ea]' : kind === 'business-central' ? 'bg-[#0f9a8e]' : 'bg-lime';
+  return kind === 'xero'
+    ? 'bg-[#13b5ea]'
+    : kind === 'business-central'
+      ? 'bg-[#0f9a8e]'
+      : 'bg-lime';
 }
 
 export function OrgSwitcher({ org, orgs }: { org?: OrgRef; orgs: OrgRef[] }) {
@@ -72,7 +91,9 @@ export function OrgSwitcher({ org, orgs }: { org?: OrgRef; orgs: OrgRef[] }) {
         className="hover:bg-surface-2 flex max-w-[230px] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors"
       >
         <span className="min-w-0">
-          <span className="text-ink block truncate text-sm leading-tight font-semibold">{org?.name ?? 'Choose an organisation'}</span>
+          <span className="text-ink block truncate text-sm leading-tight font-semibold">
+            {org?.name ?? 'Choose an organisation'}
+          </span>
           {org && (
             <span className="text-muted flex items-center gap-1.5 truncate text-[11px] leading-tight whitespace-nowrap">
               <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', sourceDot(org.kind))} />
@@ -80,7 +101,9 @@ export function OrgSwitcher({ org, orgs }: { org?: OrgRef; orgs: OrgRef[] }) {
             </span>
           )}
         </span>
-        <ChevronDown className={cn('text-muted h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')} />
+        <ChevronDown
+          className={cn('text-muted h-4 w-4 shrink-0 transition-transform', open && 'rotate-180')}
+        />
       </button>
       {open && (
         <div className={cn(panel, 'left-0 w-80')}>
@@ -95,7 +118,9 @@ export function OrgSwitcher({ org, orgs }: { org?: OrgRef; orgs: OrgRef[] }) {
               />
             </div>
           )}
-          <p className="text-faint px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">Organisations</p>
+          <p className="text-faint px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">
+            Organisations
+          </p>
           <ul role="listbox" className="max-h-80 overflow-y-auto">
             {shown.map((o) => (
               <li key={o.key}>
@@ -120,13 +145,21 @@ export function OrgSwitcher({ org, orgs }: { org?: OrgRef; orgs: OrgRef[] }) {
                 </button>
               </li>
             ))}
-            {shown.length === 0 && <li className="text-muted px-3 py-3 text-sm">No organisations match.</li>}
+            {shown.length === 0 && (
+              <li className="text-muted px-3 py-3 text-sm">No organisations match.</li>
+            )}
           </ul>
           <div className="border-line mt-1 border-t pt-1">
-            <Link href="/portal" className="text-body hover:bg-surface-3 block rounded-lg px-3 py-2 text-sm">
+            <Link
+              href="/portal"
+              className="text-body hover:bg-surface-3 block rounded-lg px-3 py-2 text-sm"
+            >
               My organisations
             </Link>
-            <Link href="/portal/settings" className="text-body hover:bg-surface-3 block rounded-lg px-3 py-2 text-sm">
+            <Link
+              href="/portal/settings"
+              className="text-body hover:bg-surface-3 block rounded-lg px-3 py-2 text-sm"
+            >
               Add or manage connections
             </Link>
           </div>
@@ -140,17 +173,33 @@ export function OrgSwitcher({ org, orgs }: { org?: OrgRef; orgs: OrgRef[] }) {
 /* Tabs                                                                */
 /* ------------------------------------------------------------------ */
 
-function TabMenu({ tab, base, modules, active }: { tab: NavTab; base: string; modules: ModuleAvailability; active: boolean }) {
+function TabMenu({
+  tab,
+  base,
+  modules,
+  active,
+}: {
+  tab: NavTab;
+  base: string;
+  modules: ModuleAvailability;
+  active: boolean;
+}) {
   const { open, setOpen, ref } = usePopover();
   const tabClass = cn(
     'relative flex h-14 items-center gap-1 px-2.5 text-sm font-medium transition-colors',
     active ? 'text-ink' : 'text-muted hover:text-ink'
   );
-  const underline = active && <span className="bg-brand absolute inset-x-3 bottom-0 h-0.5 rounded-full" />;
+  const underline = active && (
+    <span className="bg-brand absolute inset-x-3 bottom-0 h-0.5 rounded-full" />
+  );
 
   if (!tab.items) {
     return (
-      <Link href={`${base}${tab.href}`} className={tabClass} aria-current={active ? 'page' : undefined}>
+      <Link
+        href={`${base}${tab.href}`}
+        className={tabClass}
+        aria-current={active ? 'page' : undefined}
+      >
         {tab.label}
         {underline}
       </Link>
@@ -220,9 +269,16 @@ function CreateMenu({ base, modules }: { base: string; modules: ModuleAvailabili
       </button>
       {open && (
         <div role="menu" className={cn(panel, 'right-0 w-56')}>
-          <p className="text-faint px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">Create new</p>
+          <p className="text-faint px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wider uppercase">
+            Create new
+          </p>
           {items.map((item) => (
-            <Link key={item.href} role="menuitem" href={`${base}${item.href}`} className="text-body hover:bg-surface-3 hover:text-ink block rounded-lg px-3 py-2 text-sm">
+            <Link
+              key={item.href}
+              role="menuitem"
+              href={`${base}${item.href}`}
+              className="text-body hover:bg-surface-3 hover:text-ink block rounded-lg px-3 py-2 text-sm"
+            >
               {item.label}
             </Link>
           ))}
@@ -241,7 +297,13 @@ function initials(name: string) {
     .join('');
 }
 
-export function UserMenu({ user, devMode }: { user: { name: string; email: string }; devMode?: string }) {
+export function UserMenu({
+  user,
+  devMode,
+}: {
+  user: { name: string; email: string };
+  devMode?: string;
+}) {
   const { open, setOpen, ref } = usePopover();
   return (
     <div ref={ref} className="relative">
@@ -261,7 +323,10 @@ export function UserMenu({ user, devMode }: { user: { name: string; email: strin
             <p className="text-muted truncate text-xs">{user.email}</p>
             {devMode && <p className="text-warn mt-1 text-[11px]">Dev sign-in: {devMode}</p>}
           </div>
-          <Link href="/portal/settings" className="text-body hover:bg-surface-3 mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
+          <Link
+            href="/portal/settings"
+            className="text-body hover:bg-surface-3 mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+          >
             <Settings className="h-4 w-4" /> Settings and connections
           </Link>
           <button
@@ -296,9 +361,13 @@ export function TopBar({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  useEffect(() => setMobileOpen(false), [pathname]);
+  const [lastPath, setLastPath] = useState(pathname);
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
+    setMobileOpen(false);
+  }
   const base = org ? `/portal/${encodeURIComponent(org.key)}` : '';
-  const section = org ? pathname.slice(base.length).split('/')[1] ?? '' : '';
+  const section = org ? (pathname.slice(base.length).split('/')[1] ?? '') : '';
   const activeKey = (tab: NavTab) => {
     if (tab.key === 'home') return section === '';
     if (tab.key === 'contacts') return section === 'contacts';
@@ -316,7 +385,13 @@ export function TopBar({
         {org && modules && (
           <nav aria-label="Main" className="ml-1 hidden items-center xl:flex">
             {NAV.map((tab) => (
-              <TabMenu key={tab.key} tab={tab} base={base} modules={modules} active={activeKey(tab)} />
+              <TabMenu
+                key={tab.key}
+                tab={tab}
+                base={base}
+                modules={modules}
+                active={activeKey(tab)}
+              />
             ))}
           </nav>
         )}
@@ -350,17 +425,26 @@ export function TopBar({
       </div>
 
       {org && modules && mobileOpen && (
-        <nav aria-label="Main (mobile)" className="border-line max-h-[70vh] overflow-y-auto border-t px-4 py-3 xl:hidden">
+        <nav
+          aria-label="Main (mobile)"
+          className="border-line max-h-[70vh] overflow-y-auto border-t px-4 py-3 xl:hidden"
+        >
           {NAV.map((tab) => (
             <div key={tab.key} className="py-1">
               <Link href={`${base}${tab.href}`} className="text-ink block py-1.5 font-semibold">
                 {tab.label}
               </Link>
-              {tab.items?.filter((i) => !i.module || modules[i.module]).map((item) => (
-                <Link key={item.href + item.label} href={`${base}${item.href}`} className="text-muted hover:text-ink block py-1 pl-3 text-sm">
-                  {item.label}
-                </Link>
-              ))}
+              {tab.items
+                ?.filter((i) => !i.module || modules[i.module])
+                .map((item) => (
+                  <Link
+                    key={item.href + item.label}
+                    href={`${base}${item.href}`}
+                    className="text-muted hover:text-ink block py-1 pl-3 text-sm"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
             </div>
           ))}
         </nav>

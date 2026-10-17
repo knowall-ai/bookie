@@ -11,7 +11,11 @@ function safeCallback(url: string | undefined) {
   return url && url.startsWith('/') && !url.startsWith('//') ? url : '/portal';
 }
 
-export default async function SignInPage({ searchParams }: { searchParams: Promise<{ callbackUrl?: string; error?: string }> }) {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
+}) {
   const { callbackUrl, error } = await searchParams;
   const target = safeCallback(callbackUrl);
   if (await getAuthContext()) redirect(target);
@@ -24,11 +28,14 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         </Link>
         <h1 className="text-ink mt-8 text-2xl font-bold tracking-tight">Sign in to your books</h1>
         <p className="text-muted mt-2 text-sm">
-          Use your work Microsoft account. Bookie reads Xero and Business Central as you, and keeps your connection
-          settings inside your own Microsoft 365.
+          Use your work Microsoft account. Bookie reads Xero and Business Central as you, and keeps
+          your connection settings inside your own Microsoft 365.
         </p>
         {error && (
-          <p role="alert" className="bg-danger/10 text-danger border-danger/30 mt-5 rounded-lg border px-3 py-2 text-sm">
+          <p
+            role="alert"
+            className="bg-danger/10 text-danger border-danger/30 mt-5 rounded-lg border px-3 py-2 text-sm"
+          >
             {error === 'AccessDenied'
               ? 'Your organisation has not approved Bookie yet. Ask an administrator to install it.'
               : 'Sign-in did not complete. Please try again.'}

@@ -27,9 +27,10 @@ export async function saveInvoice(
   try {
     const parsed = invoiceSchema.parse(input) as InvoiceInput;
     const { connector, base } = await orgContext(orgKey);
-    const module = connector.invoices;
-    const save = id ? module?.update?.bind(null, id) : module?.create;
-    if (!save) return { ok: false, error: 'This organisation does not allow editing invoices here.' };
+    const mod = connector.invoices;
+    const save = id ? mod?.update?.bind(null, id) : mod?.create;
+    if (!save)
+      return { ok: false, error: 'This organisation does not allow editing invoices here.' };
     const invoice = await save(parsed);
     revalidatePath(base, 'layout');
     return { ok: true, data: { id: invoice.id } };

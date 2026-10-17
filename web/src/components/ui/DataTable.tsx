@@ -47,7 +47,11 @@ export function DataTable<T>({
                   className={cn(
                     pad,
                     'text-muted text-xs font-semibold tracking-wide whitespace-nowrap uppercase',
-                    c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left',
+                    c.align === 'right'
+                      ? 'text-right'
+                      : c.align === 'center'
+                        ? 'text-center'
+                        : 'text-left',
                     c.hideOnMobile && 'hidden md:table-cell',
                     c.className
                   )}
@@ -63,14 +67,21 @@ export function DataTable<T>({
               return (
                 <tr
                   key={rowKey(row)}
-                  className={cn('border-line/70 group border-b last:border-0', href && 'hover:bg-surface-2/70 cursor-pointer')}
+                  className={cn(
+                    'border-line/70 group border-b last:border-0',
+                    href && 'hover:bg-surface-2/70 cursor-pointer'
+                  )}
                 >
                   {columns.map((c, i) => (
                     <td
                       key={c.key}
                       className={cn(
                         'text-body p-0 align-middle',
-                        c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : 'text-left',
+                        c.align === 'right'
+                          ? 'text-right'
+                          : c.align === 'center'
+                            ? 'text-center'
+                            : 'text-left',
                         c.hideOnMobile && 'hidden md:table-cell',
                         c.className
                       )}

@@ -51,7 +51,9 @@ async function discoverBcOrgs(auth: AuthContext): Promise<BcOrg[]> {
   const environments = await listBcEnvironments(token).catch(() => []);
   const perEnvironment = await Promise.all(
     environments.map(async (environment) => {
-      const companies = await listBcCompanies(auth.user.tenantId, environment.name, token).catch(() => []);
+      const companies = await listBcCompanies(auth.user.tenantId, environment.name, token).catch(
+        () => []
+      );
       return companies.map<BcOrg>((company) => ({
         key: bcOrgKey(environment.name, company.id),
         kind: 'business-central',
@@ -113,41 +115,43 @@ export const listOrgs = cache(async (auth: AuthContext): Promise<OrgDirectory> =
 });
 
 /** Build the connector for an org key, after checking the user can reach it. */
-export const getConnector = cache(async (auth: AuthContext, orgKey: string): Promise<AccountingConnector> => {
-  const { orgs, store } = await listOrgs(auth);
-  const org = orgs.find((o) => o.key === orgKey);
-  if (!org) throw new ConnectorError('Organisation not found.', 404, 'demo');
+export const getConnector = cache(
+  async (auth: AuthContext, orgKey: string): Promise<AccountingConnector> => {
+    const { orgs, store } = await listOrgs(auth);
+    const org = orgs.find((o) => o.key === orgKey);
+    if (!org) throw new ConnectorError('Organisation not found.', 404, 'demo');
 
-  if (org.kind === 'demo') return createDemoConnector(org);
+    if (org.kind === 'demo') return createDemoConnector(org);
 
-  if (org.kind === 'xero') {
-    const [, connectionId, xeroTenantId] = orgKey.split('.');
-    const connection = (await store.getConnection(connectionId)) as XeroConnection | undefined;
-    const meta = connection?.orgs.find((o) => o.xeroTenantId === xeroTenantId);
-    if (!connection || !meta) throw new ConnectorError('Xero connection not found.', 404, 'xero');
-    const client = new XeroClient({
-      ownerTenantId: auth.user.tenantId,
-      connection,
-      xeroTenantId,
-      onRefreshTokenRotated: async (refreshToken) => {
-        if (connection.auth.type === 'oauth') {
-          await store.saveConnection({
-            ...connection,
-            auth: { ...connection.auth, refreshToken },
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      },
+    if (org.kind === 'xero') {
+      const [, connectionId, xeroTenantId] = orgKey.split('.');
+      const connection = (await store.getConnection(connectionId)) as XeroConnection | undefined;
+      const meta = connection?.orgs.find((o) => o.xeroTenantId === xeroTenantId);
+      if (!connection || !meta) throw new ConnectorError('Xero connection not found.', 404, 'xero');
+      const client = new XeroClient({
+        ownerTenantId: auth.user.tenantId,
+        connection,
+        xeroTenantId,
+        onRefreshTokenRotated: async (refreshToken) => {
+          if (connection.auth.type === 'oauth') {
+            await store.saveConnection({
+              ...connection,
+              auth: { ...connection.auth, refreshToken },
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        },
+      });
+      return createXeroConnector({ org, client, shortCode: meta.shortCode });
+    }
+
+    const bcOrg = org as BcOrg;
+    const client = new BcClient({
+      tenantId: auth.user.tenantId,
+      environment: bcOrg.environment!,
+      companyId: bcOrg.companyId,
+      token: () => auth.getToken('bc'),
     });
-    return createXeroConnector({ org, client, shortCode: meta.shortCode });
+    return createBcConnector({ org, client, companyName: bcOrg.companyName });
   }
-
-  const bcOrg = org as BcOrg;
-  const client = new BcClient({
-    tenantId: auth.user.tenantId,
-    environment: bcOrg.environment!,
-    companyId: bcOrg.companyId,
-    token: () => auth.getToken('bc'),
-  });
-  return createBcConnector({ org, client, companyName: bcOrg.companyName });
-});
+);

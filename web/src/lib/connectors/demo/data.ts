@@ -49,27 +49,196 @@ const SUPPLIERS = [
 ] as const;
 
 export const ITEMS: Item[] = [
-  { id: 'item-1', code: 'ESP-1KG', name: 'Espresso blend 1kg', salePrice: 24, purchasePrice: 11, salesAccountCode: '200', purchaseAccountCode: '310', isSold: true, isPurchased: true },
-  { id: 'item-2', code: 'FIL-1KG', name: 'Filter roast 1kg', salePrice: 22, purchasePrice: 10, salesAccountCode: '200', purchaseAccountCode: '310', isSold: true, isPurchased: true },
-  { id: 'item-3', code: 'DEC-500', name: 'Decaf 500g', salePrice: 13, purchasePrice: 6, salesAccountCode: '200', purchaseAccountCode: '310', isSold: true, isPurchased: true },
-  { id: 'item-4', code: 'TRAIN', name: 'Barista training (half day)', salePrice: 350, salesAccountCode: '260', isSold: true, isPurchased: false },
-  { id: 'item-5', code: 'GRIND-SVC', name: 'Grinder service', salePrice: 120, salesAccountCode: '260', isSold: true, isPurchased: false },
+  {
+    id: 'item-1',
+    code: 'ESP-1KG',
+    name: 'Espresso blend 1kg',
+    salePrice: 24,
+    purchasePrice: 11,
+    salesAccountCode: '200',
+    purchaseAccountCode: '310',
+    isSold: true,
+    isPurchased: true,
+  },
+  {
+    id: 'item-2',
+    code: 'FIL-1KG',
+    name: 'Filter roast 1kg',
+    salePrice: 22,
+    purchasePrice: 10,
+    salesAccountCode: '200',
+    purchaseAccountCode: '310',
+    isSold: true,
+    isPurchased: true,
+  },
+  {
+    id: 'item-3',
+    code: 'DEC-500',
+    name: 'Decaf 500g',
+    salePrice: 13,
+    purchasePrice: 6,
+    salesAccountCode: '200',
+    purchaseAccountCode: '310',
+    isSold: true,
+    isPurchased: true,
+  },
+  {
+    id: 'item-4',
+    code: 'TRAIN',
+    name: 'Barista training (half day)',
+    salePrice: 350,
+    salesAccountCode: '260',
+    isSold: true,
+    isPurchased: false,
+  },
+  {
+    id: 'item-5',
+    code: 'GRIND-SVC',
+    name: 'Grinder service',
+    salePrice: 120,
+    salesAccountCode: '260',
+    isSold: true,
+    isPurchased: false,
+  },
 ];
 
 export const ACCOUNTS: Account[] = [
-  { id: 'acc-090', code: '090', name: 'Business Current Account', type: 'BANK', typeLabel: 'Bank', class: 'asset', status: 'active', isBank: true },
-  { id: 'acc-091', code: '091', name: 'Business Savings Account', type: 'BANK', typeLabel: 'Bank', class: 'asset', status: 'active', isBank: true },
-  { id: 'acc-200', code: '200', name: 'Sales', type: 'REVENUE', typeLabel: 'Revenue', class: 'revenue', status: 'active', isBank: false, taxType: 'OUTPUT2' },
-  { id: 'acc-260', code: '260', name: 'Other Revenue', type: 'REVENUE', typeLabel: 'Revenue', class: 'revenue', status: 'active', isBank: false, taxType: 'OUTPUT2' },
-  { id: 'acc-310', code: '310', name: 'Cost of Goods Sold', type: 'DIRECTCOSTS', typeLabel: 'Direct Costs', class: 'expense', status: 'active', isBank: false, taxType: 'INPUT2' },
-  { id: 'acc-400', code: '400', name: 'Advertising', type: 'EXPENSE', typeLabel: 'Expense', class: 'expense', status: 'active', isBank: false, taxType: 'INPUT2' },
-  { id: 'acc-445', code: '445', name: 'Light, Power, Heating', type: 'EXPENSE', typeLabel: 'Expense', class: 'expense', status: 'active', isBank: false, taxType: 'INPUT2' },
-  { id: 'acc-469', code: '469', name: 'Rent', type: 'EXPENSE', typeLabel: 'Expense', class: 'expense', status: 'active', isBank: false, taxType: 'INPUT2' },
-  { id: 'acc-477', code: '477', name: 'Salaries', type: 'EXPENSE', typeLabel: 'Expense', class: 'expense', status: 'active', isBank: false },
-  { id: 'acc-610', code: '610', name: 'Accounts Receivable', type: 'CURRENT', typeLabel: 'Current Asset', class: 'asset', status: 'active', isBank: false },
-  { id: 'acc-800', code: '800', name: 'Accounts Payable', type: 'CURRLIAB', typeLabel: 'Current Liability', class: 'liability', status: 'active', isBank: false },
-  { id: 'acc-820', code: '820', name: 'VAT', type: 'CURRLIAB', typeLabel: 'Current Liability', class: 'liability', status: 'active', isBank: false },
-  { id: 'acc-970', code: '970', name: 'Owner A Funds Introduced', type: 'EQUITY', typeLabel: 'Equity', class: 'equity', status: 'active', isBank: false },
+  {
+    id: 'acc-090',
+    code: '090',
+    name: 'Business Current Account',
+    type: 'BANK',
+    typeLabel: 'Bank',
+    class: 'asset',
+    status: 'active',
+    isBank: true,
+  },
+  {
+    id: 'acc-091',
+    code: '091',
+    name: 'Business Savings Account',
+    type: 'BANK',
+    typeLabel: 'Bank',
+    class: 'asset',
+    status: 'active',
+    isBank: true,
+  },
+  {
+    id: 'acc-200',
+    code: '200',
+    name: 'Sales',
+    type: 'REVENUE',
+    typeLabel: 'Revenue',
+    class: 'revenue',
+    status: 'active',
+    isBank: false,
+    taxType: 'OUTPUT2',
+  },
+  {
+    id: 'acc-260',
+    code: '260',
+    name: 'Other Revenue',
+    type: 'REVENUE',
+    typeLabel: 'Revenue',
+    class: 'revenue',
+    status: 'active',
+    isBank: false,
+    taxType: 'OUTPUT2',
+  },
+  {
+    id: 'acc-310',
+    code: '310',
+    name: 'Cost of Goods Sold',
+    type: 'DIRECTCOSTS',
+    typeLabel: 'Direct Costs',
+    class: 'expense',
+    status: 'active',
+    isBank: false,
+    taxType: 'INPUT2',
+  },
+  {
+    id: 'acc-400',
+    code: '400',
+    name: 'Advertising',
+    type: 'EXPENSE',
+    typeLabel: 'Expense',
+    class: 'expense',
+    status: 'active',
+    isBank: false,
+    taxType: 'INPUT2',
+  },
+  {
+    id: 'acc-445',
+    code: '445',
+    name: 'Light, Power, Heating',
+    type: 'EXPENSE',
+    typeLabel: 'Expense',
+    class: 'expense',
+    status: 'active',
+    isBank: false,
+    taxType: 'INPUT2',
+  },
+  {
+    id: 'acc-469',
+    code: '469',
+    name: 'Rent',
+    type: 'EXPENSE',
+    typeLabel: 'Expense',
+    class: 'expense',
+    status: 'active',
+    isBank: false,
+    taxType: 'INPUT2',
+  },
+  {
+    id: 'acc-477',
+    code: '477',
+    name: 'Salaries',
+    type: 'EXPENSE',
+    typeLabel: 'Expense',
+    class: 'expense',
+    status: 'active',
+    isBank: false,
+  },
+  {
+    id: 'acc-610',
+    code: '610',
+    name: 'Accounts Receivable',
+    type: 'CURRENT',
+    typeLabel: 'Current Asset',
+    class: 'asset',
+    status: 'active',
+    isBank: false,
+  },
+  {
+    id: 'acc-800',
+    code: '800',
+    name: 'Accounts Payable',
+    type: 'CURRLIAB',
+    typeLabel: 'Current Liability',
+    class: 'liability',
+    status: 'active',
+    isBank: false,
+  },
+  {
+    id: 'acc-820',
+    code: '820',
+    name: 'VAT',
+    type: 'CURRLIAB',
+    typeLabel: 'Current Liability',
+    class: 'liability',
+    status: 'active',
+    isBank: false,
+  },
+  {
+    id: 'acc-970',
+    code: '970',
+    name: 'Owner A Funds Introduced',
+    type: 'EQUITY',
+    typeLabel: 'Equity',
+    class: 'equity',
+    status: 'active',
+    isBank: false,
+  },
 ];
 
 export interface DemoData {
@@ -81,7 +250,12 @@ export interface DemoData {
   accounts: Account[];
 }
 
-function makeInvoices(contacts: Contact[], type: 'sales' | 'purchase', count: number, seed: number): Invoice[] {
+function makeInvoices(
+  contacts: Contact[],
+  type: 'sales' | 'purchase',
+  count: number,
+  seed: number
+): Invoice[] {
   const random = rng(seed);
   const today = DEMO_TODAY();
   const parties = contacts.filter((c) => (type === 'sales' ? c.isCustomer : c.isSupplier));
@@ -110,12 +284,23 @@ function makeInvoices(contacts: Contact[], type: 'sales' | 'purchase', count: nu
     const roll = random();
     const age = (Date.parse(today) - Date.parse(date)) / 86_400_000;
     const status: InvoiceStatus =
-      i < 2 ? 'draft' : i < 3 ? 'submitted' : age > 75 && roll < 0.85 ? 'paid' : roll < 0.45 ? 'paid' : 'authorised';
+      i < 2
+        ? 'draft'
+        : i < 3
+          ? 'submitted'
+          : age > 75 && roll < 0.85
+            ? 'paid'
+            : roll < 0.45
+              ? 'paid'
+              : 'authorised';
     const amountDue = status === 'paid' ? 0 : total;
     return {
       id: `${type === 'sales' ? 'inv' : 'bill'}-${String(i + 1).padStart(4, '0')}`,
       type,
-      number: type === 'sales' ? `INV-${String(1040 + count - i).padStart(4, '0')}` : `BILL-${String(500 + count - i)}`,
+      number:
+        type === 'sales'
+          ? `INV-${String(1040 + count - i).padStart(4, '0')}`
+          : `BILL-${String(500 + count - i)}`,
       reference: type === 'sales' ? `PO ${4000 + Math.floor(random() * 900)}` : undefined,
       contact: { id: contact.id, name: contact.name },
       date,
@@ -130,7 +315,10 @@ function makeInvoices(contacts: Contact[], type: 'sales' | 'purchase', count: nu
       amountPaid: total - amountDue,
       isOverdue: status === 'authorised' && dueDate < today,
       lineItems: lines,
-      payments: status === 'paid' ? [{ id: `pay-${type}-${i}`, date: addDays(date, 20), amount: total }] : [],
+      payments:
+        status === 'paid'
+          ? [{ id: `pay-${type}-${i}`, date: addDays(date, 20), amount: total }]
+          : [],
     } satisfies Invoice;
   }).sort((a, b) => b.date.localeCompare(a.date));
 }
@@ -151,7 +339,12 @@ export function demoData(slug = 'contoso'): DemoData {
       isCustomer: true,
       isSupplier: false,
       status: 'active' as const,
-      address: { line1: `${10 + i} Market Street`, city: 'Manchester', postalCode: `M${i + 1} 1AA`, country: 'United Kingdom' },
+      address: {
+        line1: `${10 + i} Market Street`,
+        city: 'Manchester',
+        postalCode: `M${i + 1} 1AA`,
+        country: 'United Kingdom',
+      },
     })),
     ...SUPPLIERS.map(([name, email], i) => ({
       id: `supp-${i + 1}`,
@@ -161,15 +354,26 @@ export function demoData(slug = 'contoso'): DemoData {
       isCustomer: false,
       isSupplier: true,
       status: 'active' as const,
-      address: { line1: `${2 + i} Harbour Road`, city: 'Bristol', postalCode: `BS${i + 1} 4QT`, country: 'United Kingdom' },
+      address: {
+        line1: `${2 + i} Harbour Road`,
+        city: 'Bristol',
+        postalCode: `BS${i + 1} 4QT`,
+        country: 'United Kingdom',
+      },
     })),
   ];
-  const invoices = [...makeInvoices(contacts, 'sales', 36, 7 + seed), ...makeInvoices(contacts, 'purchase', 22, 11 + seed)];
+  const invoices = [
+    ...makeInvoices(contacts, 'sales', 36, 7 + seed),
+    ...makeInvoices(contacts, 'purchase', 22, 11 + seed),
+  ];
   for (const contact of contacts) {
     const open = invoices.filter((i) => i.contact.id === contact.id && i.status === 'authorised');
     const due = open.reduce((s, i) => s + i.amountDue, 0);
     contact.balances = contact.isCustomer
-      ? { receivable: due, overdueReceivable: open.filter((i) => i.isOverdue).reduce((s, i) => s + i.amountDue, 0) }
+      ? {
+          receivable: due,
+          overdueReceivable: open.filter((i) => i.isOverdue).reduce((s, i) => s + i.amountDue, 0),
+        }
       : { payable: due };
   }
 
@@ -192,7 +396,10 @@ export function demoData(slug = 'contoso'): DemoData {
     }))
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  const balance = bankTransactions.reduce((s, t) => s + (t.type === 'receive' ? t.amount : -t.amount), 18_500);
+  const balance = bankTransactions.reduce(
+    (s, t) => s + (t.type === 'receive' ? t.amount : -t.amount),
+    18_500
+  );
   const data: DemoData = {
     contacts,
     invoices,

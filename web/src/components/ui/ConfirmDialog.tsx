@@ -32,8 +32,17 @@ export function ConfirmDialog({
     return () => document.removeEventListener('keydown', onKey);
   }, [onCancel]);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onCancel}>
-      <div role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" className="card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        className="card w-full max-w-md p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 id="confirm-title" className="text-ink text-lg font-semibold">
           {title}
         </h2>
@@ -42,7 +51,13 @@ export function ConfirmDialog({
           <Button variant="ghost" onClick={onCancel} disabled={busy}>
             Cancel
           </Button>
-          <Button ref={confirmRef} variant={danger ? 'danger' : 'primary'} onClick={onConfirm} disabled={busy} data-testid="confirm-action">
+          <Button
+            ref={confirmRef}
+            variant={danger ? 'danger' : 'primary'}
+            onClick={onConfirm}
+            disabled={busy}
+            data-testid="confirm-action"
+          >
             {busy ? 'Working…' : cta}
           </Button>
         </div>

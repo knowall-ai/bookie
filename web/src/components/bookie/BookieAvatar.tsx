@@ -6,9 +6,19 @@ import { cn } from '@/lib/ui/cn';
  */
 export function BookieAvatar({ className }: { className?: string }) {
   return (
-    <span className={cn('relative inline-flex overflow-hidden rounded-full bg-[#0d1424] ring-1 ring-brand/40', className ?? 'h-8 w-8')}>
+    <span
+      className={cn(
+        'ring-brand/40 relative inline-flex overflow-hidden rounded-full bg-[#0d1424] ring-1',
+        className ?? 'h-8 w-8'
+      )}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/bookie/avatar-64.png" alt="Bookie" className="h-full w-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+      <img
+        src="/bookie/avatar-64.png"
+        alt="Bookie"
+        className="h-full w-full object-cover"
+        onError={(e) => (e.currentTarget.style.display = 'none')}
+      />
     </span>
   );
 }

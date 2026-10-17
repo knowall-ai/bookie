@@ -54,7 +54,9 @@ type Intent = 'draft' | 'approve';
 const blankLine = (): LineItemInput => ({ description: '', quantity: 1, unitAmount: 0 });
 
 function lineAmount(line: LineItemInput) {
-  return Math.round(line.quantity * line.unitAmount * (1 - (line.discountRate ?? 0) / 100) * 100) / 100;
+  return (
+    Math.round(line.quantity * line.unitAmount * (1 - (line.discountRate ?? 0) / 100) * 100) / 100
+  );
 }
 
 /**
@@ -142,9 +144,13 @@ export function DocumentEditor({
     return { subTotal, tax, total: subTotal + tax };
   }, [values.lineItems, values.lineAmountType, rateFor]);
 
-  const set = <K extends keyof EditorValues>(key: K, value: EditorValues[K]) => setValues((v) => ({ ...v, [key]: value }));
+  const set = <K extends keyof EditorValues>(key: K, value: EditorValues[K]) =>
+    setValues((v) => ({ ...v, [key]: value }));
   const setLine = (index: number, patch: Partial<LineItemInput>) =>
-    setValues((v) => ({ ...v, lineItems: v.lineItems.map((l, i) => (i === index ? { ...l, ...patch } : l)) }));
+    setValues((v) => ({
+      ...v,
+      lineItems: v.lineItems.map((l, i) => (i === index ? { ...l, ...patch } : l)),
+    }));
 
   const chooseItem = (index: number, code: string) => {
     const item = items.find((i) => i.code === code);
@@ -195,7 +201,13 @@ export function DocumentEditor({
 
       <div className="card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-5">
         <Field label={contactLabel} htmlFor="contact" className="lg:col-span-2">
-          <Select id="contact" value={values.contactId} onChange={(e) => set('contactId', e.target.value)} required data-testid="editor-contact">
+          <Select
+            id="contact"
+            value={values.contactId}
+            onChange={(e) => set('contactId', e.target.value)}
+            required
+            data-testid="editor-contact"
+          >
             <option value="">Choose…</option>
             {contacts.map((c) => (
               <option key={c.value} value={c.value}>
@@ -205,23 +217,46 @@ export function DocumentEditor({
           </Select>
         </Field>
         <Field label={dateLabel} htmlFor="date">
-          <Input id="date" type="date" value={values.date} onChange={(e) => set('date', e.target.value)} required />
+          <Input
+            id="date"
+            type="date"
+            value={values.date}
+            onChange={(e) => set('date', e.target.value)}
+            required
+          />
         </Field>
         {secondDateLabel && (
           <Field label={secondDateLabel} htmlFor="due">
-            <Input id="due" type="date" value={values.dueDate ?? ''} onChange={(e) => set('dueDate', e.target.value || undefined)} />
+            <Input
+              id="due"
+              type="date"
+              value={values.dueDate ?? ''}
+              onChange={(e) => set('dueDate', e.target.value || undefined)}
+            />
           </Field>
         )}
         {numberLabel && (
           <Field label={numberLabel} htmlFor="number" hint="Leave blank to auto-number">
-            <Input id="number" value={values.number ?? ''} onChange={(e) => set('number', e.target.value || undefined)} />
+            <Input
+              id="number"
+              value={values.number ?? ''}
+              onChange={(e) => set('number', e.target.value || undefined)}
+            />
           </Field>
         )}
         <Field label="Reference" htmlFor="reference">
-          <Input id="reference" value={values.reference ?? ''} onChange={(e) => set('reference', e.target.value || undefined)} />
+          <Input
+            id="reference"
+            value={values.reference ?? ''}
+            onChange={(e) => set('reference', e.target.value || undefined)}
+          />
         </Field>
         <Field label="Amounts are" htmlFor="lat">
-          <Select id="lat" value={values.lineAmountType} onChange={(e) => set('lineAmountType', e.target.value as LineAmountType)}>
+          <Select
+            id="lat"
+            value={values.lineAmountType}
+            onChange={(e) => set('lineAmountType', e.target.value as LineAmountType)}
+          >
             <option value="exclusive">Tax exclusive</option>
             <option value="inclusive">Tax inclusive</option>
             <option value="none">No tax</option>
@@ -229,12 +264,20 @@ export function DocumentEditor({
         </Field>
         {extraFields.includes('title') && (
           <Field label="Title" htmlFor="title" className="sm:col-span-2">
-            <Input id="title" value={values.title ?? ''} onChange={(e) => set('title', e.target.value || undefined)} />
+            <Input
+              id="title"
+              value={values.title ?? ''}
+              onChange={(e) => set('title', e.target.value || undefined)}
+            />
           </Field>
         )}
         {extraFields.includes('summary') && (
           <Field label="Summary" htmlFor="summary" className="sm:col-span-2 lg:col-span-3">
-            <Input id="summary" value={values.summary ?? ''} onChange={(e) => set('summary', e.target.value || undefined)} />
+            <Input
+              id="summary"
+              value={values.summary ?? ''}
+              onChange={(e) => set('summary', e.target.value || undefined)}
+            />
           </Field>
         )}
       </div>
@@ -249,7 +292,9 @@ export function DocumentEditor({
               <th className="w-32 px-3 py-3 text-right">Price</th>
               <th className="w-20 px-3 py-3 text-right">Disc %</th>
               <th className="w-44 px-3 py-3 text-left">Account</th>
-              {values.lineAmountType !== 'none' && <th className="w-40 px-3 py-3 text-left">Tax rate</th>}
+              {values.lineAmountType !== 'none' && (
+                <th className="w-40 px-3 py-3 text-left">Tax rate</th>
+              )}
               <th className="w-32 px-3 py-3 text-right">Amount</th>
               <th className="w-10" />
             </tr>
@@ -259,7 +304,12 @@ export function DocumentEditor({
               <tr key={i} className="border-line/70 border-b align-top last:border-0">
                 {items.length > 0 && (
                   <td className="px-2 py-2">
-                    <select aria-label="Item" className={cn(inputClass, 'h-9 px-2')} value={line.itemCode ?? ''} onChange={(e) => chooseItem(i, e.target.value)}>
+                    <select
+                      aria-label="Item"
+                      className={cn(inputClass, 'h-9 px-2')}
+                      value={line.itemCode ?? ''}
+                      onChange={(e) => chooseItem(i, e.target.value)}
+                    >
                       <option value="" />
                       {items.map((item) => (
                         <option key={item.code} value={item.code}>
@@ -270,20 +320,60 @@ export function DocumentEditor({
                   </td>
                 )}
                 <td className="px-2 py-2">
-                  <Textarea aria-label="Description" rows={1} className="min-h-9 resize-y py-1.5" value={line.description} onChange={(e) => setLine(i, { description: e.target.value })} data-testid={`line-${i}-description`} />
+                  <Textarea
+                    aria-label="Description"
+                    rows={1}
+                    className="min-h-9 resize-y py-1.5"
+                    value={line.description}
+                    onChange={(e) => setLine(i, { description: e.target.value })}
+                    data-testid={`line-${i}-description`}
+                  />
                 </td>
                 <td className="px-2 py-2">
-                  <input aria-label="Quantity" type="number" step="any" className={cn(inputClass, 'num h-9 px-2 text-right')} value={line.quantity} onChange={(e) => setLine(i, { quantity: Number(e.target.value) })} />
+                  <input
+                    aria-label="Quantity"
+                    type="number"
+                    step="any"
+                    className={cn(inputClass, 'num h-9 px-2 text-right')}
+                    value={line.quantity}
+                    onChange={(e) => setLine(i, { quantity: Number(e.target.value) })}
+                  />
                 </td>
                 <td className="px-2 py-2">
-                  <input aria-label="Unit price" type="number" step="any" className={cn(inputClass, 'num h-9 px-2 text-right')} value={line.unitAmount} onChange={(e) => setLine(i, { unitAmount: Number(e.target.value) })} data-testid={`line-${i}-price`} />
+                  <input
+                    aria-label="Unit price"
+                    type="number"
+                    step="any"
+                    className={cn(inputClass, 'num h-9 px-2 text-right')}
+                    value={line.unitAmount}
+                    onChange={(e) => setLine(i, { unitAmount: Number(e.target.value) })}
+                    data-testid={`line-${i}-price`}
+                  />
                 </td>
                 <td className="px-2 py-2">
-                  <input aria-label="Discount percent" type="number" step="any" min={0} max={100} className={cn(inputClass, 'num h-9 px-2 text-right')} value={line.discountRate ?? ''} onChange={(e) => setLine(i, { discountRate: e.target.value ? Number(e.target.value) : undefined })} />
+                  <input
+                    aria-label="Discount percent"
+                    type="number"
+                    step="any"
+                    min={0}
+                    max={100}
+                    className={cn(inputClass, 'num h-9 px-2 text-right')}
+                    value={line.discountRate ?? ''}
+                    onChange={(e) =>
+                      setLine(i, {
+                        discountRate: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                  />
                 </td>
                 <td className="px-2 py-2">
                   {accountOptions ? (
-                    <select aria-label="Account" className={cn(inputClass, 'h-9 px-2')} value={line.accountCode ?? ''} onChange={(e) => setLine(i, { accountCode: e.target.value || undefined })}>
+                    <select
+                      aria-label="Account"
+                      className={cn(inputClass, 'h-9 px-2')}
+                      value={line.accountCode ?? ''}
+                      onChange={(e) => setLine(i, { accountCode: e.target.value || undefined })}
+                    >
                       <option value="" />
                       {accounts.map((a) => (
                         <option key={a.value} value={a.value}>
@@ -292,13 +382,23 @@ export function DocumentEditor({
                       ))}
                     </select>
                   ) : (
-                    <input aria-label="Account code" className={cn(inputClass, 'h-9 px-2')} value={line.accountCode ?? ''} onChange={(e) => setLine(i, { accountCode: e.target.value || undefined })} />
+                    <input
+                      aria-label="Account code"
+                      className={cn(inputClass, 'h-9 px-2')}
+                      value={line.accountCode ?? ''}
+                      onChange={(e) => setLine(i, { accountCode: e.target.value || undefined })}
+                    />
                   )}
                 </td>
                 {values.lineAmountType !== 'none' && (
                   <td className="px-2 py-2">
                     {taxOptions ? (
-                      <select aria-label="Tax rate" className={cn(inputClass, 'h-9 px-2')} value={line.taxType ?? ''} onChange={(e) => setLine(i, { taxType: e.target.value || undefined })}>
+                      <select
+                        aria-label="Tax rate"
+                        className={cn(inputClass, 'h-9 px-2')}
+                        value={line.taxType ?? ''}
+                        onChange={(e) => setLine(i, { taxType: e.target.value || undefined })}
+                      >
                         <option value="">Default</option>
                         {taxRates.map((t) => (
                           <option key={t.taxType} value={t.taxType}>
@@ -307,18 +407,27 @@ export function DocumentEditor({
                         ))}
                       </select>
                     ) : (
-                      <input aria-label="Tax code" className={cn(inputClass, 'h-9 px-2')} value={line.taxType ?? ''} onChange={(e) => setLine(i, { taxType: e.target.value || undefined })} />
+                      <input
+                        aria-label="Tax code"
+                        className={cn(inputClass, 'h-9 px-2')}
+                        value={line.taxType ?? ''}
+                        onChange={(e) => setLine(i, { taxType: e.target.value || undefined })}
+                      />
                     )}
                   </td>
                 )}
-                <td className="num text-ink px-3 py-3.5 text-right">{formatMoney(lineAmount(line))}</td>
+                <td className="num text-ink px-3 py-3.5 text-right">
+                  {formatMoney(lineAmount(line))}
+                </td>
                 <td className="px-1 py-2">
                   <button
                     type="button"
                     aria-label="Remove line"
                     className="text-faint hover:text-danger flex h-9 w-8 items-center justify-center disabled:opacity-30"
                     disabled={values.lineItems.length === 1}
-                    onClick={() => setValues((v) => ({ ...v, lineItems: v.lineItems.filter((_, n) => n !== i) }))}
+                    onClick={() =>
+                      setValues((v) => ({ ...v, lineItems: v.lineItems.filter((_, n) => n !== i) }))
+                    }
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -328,7 +437,11 @@ export function DocumentEditor({
           </tbody>
         </table>
         <div className="border-line border-t px-3 py-2">
-          <Button variant="ghost" size="sm" onClick={() => setValues((v) => ({ ...v, lineItems: [...v.lineItems, blankLine()] }))}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setValues((v) => ({ ...v, lineItems: [...v.lineItems, blankLine()] }))}
+          >
             <Plus className="h-4 w-4" /> Add a new line
           </Button>
         </div>
@@ -338,7 +451,12 @@ export function DocumentEditor({
         <div className="flex-1">
           {extraFields.includes('terms') && (
             <Field label="Terms" htmlFor="terms">
-              <Textarea id="terms" rows={4} value={values.terms ?? ''} onChange={(e) => set('terms', e.target.value || undefined)} />
+              <Textarea
+                id="terms"
+                rows={4}
+                value={values.terms ?? ''}
+                onChange={(e) => set('terms', e.target.value || undefined)}
+              />
             </Field>
           )}
         </div>
@@ -349,7 +467,9 @@ export function DocumentEditor({
           </div>
           {values.lineAmountType !== 'none' && (
             <div className="flex justify-between">
-              <dt className="text-muted">{values.lineAmountType === 'inclusive' ? 'Includes tax' : 'Total tax'}</dt>
+              <dt className="text-muted">
+                {values.lineAmountType === 'inclusive' ? 'Includes tax' : 'Total tax'}
+              </dt>
               <dd className="num">{formatMoney(totals.tax)}</dd>
             </div>
           )}
@@ -360,13 +480,18 @@ export function DocumentEditor({
             </dd>
           </div>
           {!taxOptions && values.lineAmountType !== 'none' && (
-            <p className="text-faint text-xs">Tax shown here is an estimate; your accounting system calculates the final figure.</p>
+            <p className="text-faint text-xs">
+              Tax shown here is an estimate; your accounting system calculates the final figure.
+            </p>
           )}
         </dl>
       </div>
 
       {error && (
-        <p role="alert" className="bg-danger/10 text-danger border-danger/30 rounded-lg border px-4 py-3 text-sm">
+        <p
+          role="alert"
+          className="bg-danger/10 text-danger border-danger/30 rounded-lg border px-4 py-3 text-sm"
+        >
           {error}
         </p>
       )}
@@ -379,7 +504,12 @@ export function DocumentEditor({
           {pending ? 'Saving…' : 'Save as draft'}
         </Button>
         {canApprove && (
-          <Button variant="primary" disabled={pending} onClick={() => setConfirmApprove(true)} data-testid="save-approve">
+          <Button
+            variant="primary"
+            disabled={pending}
+            onClick={() => setConfirmApprove(true)}
+            data-testid="save-approve"
+          >
             Approve
           </Button>
         )}

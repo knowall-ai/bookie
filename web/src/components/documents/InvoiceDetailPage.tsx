@@ -11,7 +11,15 @@ import { Money } from '@/components/ui/Money';
 import { DocumentFacts, DocumentLines, DocumentTotals } from './DocumentParts';
 import { InvoiceActions } from './InvoiceActions';
 
-export async function InvoiceDetailPage({ orgParam, id, type }: { orgParam: string; id: string; type: InvoiceType }) {
+export async function InvoiceDetailPage({
+  orgParam,
+  id,
+  type,
+}: {
+  orgParam: string;
+  id: string;
+  type: InvoiceType;
+}) {
   const { connector, base, org } = await orgContext(orgParam);
   if (!connector.invoices) notFound();
   const invoice = await connector.invoices.get(decodeURIComponent(id)).catch((error) => {
@@ -30,7 +38,10 @@ export async function InvoiceDetailPage({ orgParam, id, type }: { orgParam: stri
     <>
       <PageHeader
         crumbs={[
-          { label: isSales ? 'Sales' : 'Purchases', href: `${base}${isSales ? '/sales' : '/purchases'}` },
+          {
+            label: isSales ? 'Sales' : 'Purchases',
+            href: `${base}${isSales ? '/sales' : '/purchases'}`,
+          },
           { label: isSales ? 'Invoices' : 'Bills', href: listPath },
         ]}
         title={
@@ -48,10 +59,12 @@ export async function InvoiceDetailPage({ orgParam, id, type }: { orgParam: stri
               listPath={listPath}
               editHref={editable ? `${listPath}/${encodeURIComponent(invoice.id)}/edit` : undefined}
               can={{
-                approve: (invoice.status === 'draft' || invoice.status === 'submitted') && !!m.approve,
+                approve:
+                  (invoice.status === 'draft' || invoice.status === 'submitted') && !!m.approve,
                 email: isSales && invoice.status === 'authorised' && !!m.email,
                 void: invoice.status === 'authorised' && invoice.amountPaid === 0 && !!m.void,
-                delete: (invoice.status === 'draft' || invoice.status === 'submitted') && !!m.delete,
+                delete:
+                  (invoice.status === 'draft' || invoice.status === 'submitted') && !!m.delete,
                 pdf: !!m.pdf,
               }}
               pdfHref={`/api/orgs/${encodeURIComponent(org.key)}/invoices/${encodeURIComponent(invoice.id)}/pdf`}
@@ -72,10 +85,20 @@ export async function InvoiceDetailPage({ orgParam, id, type }: { orgParam: stri
             { label: 'Date', value: formatDate(invoice.date) },
             {
               label: 'Due date',
-              value: <span className={invoice.isOverdue ? 'text-danger font-semibold' : undefined}>{formatDate(invoice.dueDate)}</span>,
+              value: (
+                <span className={invoice.isOverdue ? 'text-danger font-semibold' : undefined}>
+                  {formatDate(invoice.dueDate)}
+                </span>
+              ),
             },
-            { label: isSales ? 'Invoice number' : 'Reference', value: (isSales ? invoice.number : invoice.reference) || '—' },
-            { label: isSales ? 'Reference' : 'Number', value: (isSales ? invoice.reference : invoice.number) || '—' },
+            {
+              label: isSales ? 'Invoice number' : 'Reference',
+              value: (isSales ? invoice.number : invoice.reference) || '—',
+            },
+            {
+              label: isSales ? 'Reference' : 'Number',
+              value: (isSales ? invoice.reference : invoice.number) || '—',
+            },
           ]}
         />
 
@@ -104,10 +127,18 @@ export async function InvoiceDetailPage({ orgParam, id, type }: { orgParam: stri
             currency={invoice.currency}
             rows={[
               { label: 'Subtotal', amount: invoice.subTotal },
-              { label: invoice.lineAmountType === 'inclusive' ? 'Includes tax' : 'Total tax', amount: invoice.totalTax, muted: true },
+              {
+                label: invoice.lineAmountType === 'inclusive' ? 'Includes tax' : 'Total tax',
+                amount: invoice.totalTax,
+                muted: true,
+              },
               { label: 'Total', amount: invoice.total, strong: true },
-              ...(invoice.amountPaid ? [{ label: 'Less payments', amount: -invoice.amountPaid, muted: true }] : []),
-              ...(invoice.amountCredited ? [{ label: 'Less credit', amount: -invoice.amountCredited, muted: true }] : []),
+              ...(invoice.amountPaid
+                ? [{ label: 'Less payments', amount: -invoice.amountPaid, muted: true }]
+                : []),
+              ...(invoice.amountCredited
+                ? [{ label: 'Less credit', amount: -invoice.amountCredited, muted: true }]
+                : []),
               { label: 'Amount due', amount: invoice.amountDue, strong: true },
             ]}
           />

@@ -11,9 +11,23 @@ const tones: Record<Tone, string> = {
   violet: 'bg-violet/10 text-violet border-violet/30',
 };
 
-export function Badge({ tone = 'neutral', className, children }: { tone?: Tone; className?: string; children: React.ReactNode }) {
+export function Badge({
+  tone = 'neutral',
+  className,
+  children,
+}: {
+  tone?: Tone;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap', tones[tone], className)}>
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap',
+        tones[tone],
+        className
+      )}
+    >
       {children}
     </span>
   );
@@ -44,6 +58,8 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
 
 /** Status pill. Pass `overdue` to override an authorised document's label. */
 export function StatusBadge({ status, overdue }: { status: string; overdue?: boolean }) {
-  const s = overdue ? STATUS.overdue : (STATUS[status] ?? { label: status, tone: 'neutral' as Tone });
+  const s = overdue
+    ? STATUS.overdue
+    : (STATUS[status] ?? { label: status, tone: 'neutral' as Tone });
   return <Badge tone={s.tone}>{s.label}</Badge>;
 }

@@ -15,7 +15,9 @@ export function Pagination({
   if (page <= 1 && !hasMore) return null;
   const href = (p: number) => {
     const query = new URLSearchParams(
-      Object.entries({ ...params, page: p > 1 ? String(p) : undefined }).filter((e): e is [string, string] => !!e[1])
+      Object.entries({ ...params, page: p > 1 ? String(p) : undefined }).filter(
+        (e): e is [string, string] => !!e[1]
+      )
     );
     return `${basePath}${query.size ? `?${query}` : ''}`;
   };

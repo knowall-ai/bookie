@@ -31,7 +31,13 @@ export function LogoTile({ className }: { className?: string }) {
   );
 }
 
-export function Logo({ className, size = 'md' }: { className?: string; size?: 'sm' | 'md' | 'lg' }) {
+export function Logo({
+  className,
+  size = 'md',
+}: {
+  className?: string;
+  size?: 'sm' | 'md' | 'lg';
+}) {
   const tile = { sm: 'h-7 w-7', md: 'h-8 w-8', lg: 'h-11 w-11' }[size];
   const text = { sm: 'text-lg', md: 'text-xl', lg: 'text-3xl' }[size];
   return (

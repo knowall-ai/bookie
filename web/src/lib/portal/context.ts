@@ -28,7 +28,13 @@ export const orgContext = cache(async (orgParam: string): Promise<OrgContext> =>
   if (!org) notFound();
   try {
     const connector = await getConnector(auth, orgKey);
-    return { org, orgs, connector, base: `/portal/${encodeURIComponent(orgKey)}`, modules: moduleAvailability(connector) };
+    return {
+      org,
+      orgs,
+      connector,
+      base: `/portal/${encodeURIComponent(orgKey)}`,
+      modules: moduleAvailability(connector),
+    };
   } catch (error) {
     if (isConnectorError(error) && error.status === 404) notFound();
     throw error;
@@ -37,5 +43,9 @@ export const orgContext = cache(async (orgParam: string): Promise<OrgContext> =>
 
 /** Human name of the source system, for messages such as "Open in Xero". */
 export function sourceName(org: OrgRef): string {
-  return org.kind === 'xero' ? 'Xero' : org.kind === 'business-central' ? 'Business Central' : 'the demo';
+  return org.kind === 'xero'
+    ? 'Xero'
+    : org.kind === 'business-central'
+      ? 'Business Central'
+      : 'the demo';
 }

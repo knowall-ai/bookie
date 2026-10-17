@@ -20,8 +20,21 @@ export type ModuleName =
 export type ModuleAvailability = Record<ModuleName, boolean>;
 
 const MODULES: ModuleName[] = [
-  'invoices', 'quotes', 'creditNotes', 'purchaseOrders', 'contacts', 'items', 'payments',
-  'bank', 'accounts', 'journals', 'taxRates', 'assets', 'reports', 'payroll', 'projects',
+  'invoices',
+  'quotes',
+  'creditNotes',
+  'purchaseOrders',
+  'contacts',
+  'items',
+  'payments',
+  'bank',
+  'accounts',
+  'journals',
+  'taxRates',
+  'assets',
+  'reports',
+  'payroll',
+  'projects',
 ];
 
 export function moduleAvailability(connector: AccountingConnector): ModuleAvailability {

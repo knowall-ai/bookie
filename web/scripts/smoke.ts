@@ -19,7 +19,16 @@ import type { AccountingConnector } from '../src/lib/connectors/types';
 import type { XeroConnection } from '../src/lib/config/types';
 
 const cli = (resource: string) =>
-  execFileSync('az', ['account', 'get-access-token', '--resource', resource, '--query', 'accessToken', '-o', 'tsv'])
+  execFileSync('az', [
+    'account',
+    'get-access-token',
+    '--resource',
+    resource,
+    '--query',
+    'accessToken',
+    '-o',
+    'tsv',
+  ])
     .toString()
     .trim();
 
@@ -32,8 +41,12 @@ async function exercise(label: string, connector: AccountingConnector) {
   const contacts = await connector.contacts!.list({ pageSize: 10 });
   console.log(`\n== ${label}`);
   console.log(`org: ${org.name} (${org.baseCurrency}, ${org.country ?? '?'})`);
-  console.log(`dashboard: ${dash.bankAccounts.length} bank accts, trend ${dash.trend.length} months, AR awaiting ${dash.receivables.awaitingPayment.count}, overdue ${dash.receivables.overdue.count}, AP awaiting ${dash.payables.awaitingPayment.count}`);
-  console.log(`sales invoices page: ${sales.items.length} (hasMore ${sales.hasMore}); first has ${first?.lineItems?.length ?? 0} lines, status ${first?.status}, link ${first?.sourceUrl ? 'yes' : 'no'}`);
+  console.log(
+    `dashboard: ${dash.bankAccounts.length} bank accts, trend ${dash.trend.length} months, AR awaiting ${dash.receivables.awaitingPayment.count}, overdue ${dash.receivables.overdue.count}, AP awaiting ${dash.payables.awaitingPayment.count}`
+  );
+  console.log(
+    `sales invoices page: ${sales.items.length} (hasMore ${sales.hasMore}); first has ${first?.lineItems?.length ?? 0} lines, status ${first?.status}, link ${first?.sourceUrl ? 'yes' : 'no'}`
+  );
   console.log(`contacts page: ${contacts.items.length}`);
   console.log(`took ${Date.now() - started}ms`);
 }
@@ -46,7 +59,14 @@ for (const entry of (process.env.SMOKE_BC_COMPANIES ?? '').split(',').filter(Boo
   const [environment, companyId] = entry.split(':');
   const client = new BcClient({ tenantId, environment, companyId, token: async () => bcToken });
   const name = `${environment}/${companyId.slice(0, 8)}`;
-  await exercise(`BC ${name}`, createBcConnector({ org: { key: 'x', kind: 'business-central', name, sourceLabel: 'BC' }, client, companyName: name }));
+  await exercise(
+    `BC ${name}`,
+    createBcConnector({
+      org: { key: 'x', kind: 'business-central', name, sourceLabel: 'BC' },
+      client,
+      companyName: name,
+    })
+  );
 }
 
 const creds = Object.fromEntries(
@@ -59,12 +79,26 @@ const connection: XeroConnection = {
   id: 'smoke',
   kind: 'xero',
   label: 'smoke',
-  auth: { type: 'custom-connection', clientId: creds.XERO_CLIENT_ID, clientSecret: creds.XERO_CLIENT_SECRET },
+  auth: {
+    type: 'custom-connection',
+    clientId: creds.XERO_CLIENT_ID,
+    clientSecret: creds.XERO_CLIENT_SECRET,
+  },
   orgs: [],
   createdBy: 'smoke',
   createdAt: '',
   updatedAt: '',
 };
 const [tenant] = await discoverXeroTenants(connection, tenantId);
-const client = new XeroClient({ ownerTenantId: tenantId, connection, xeroTenantId: tenant.tenantId });
-await exercise(`Xero ${tenant.tenantName}`, createXeroConnector({ org: { key: 'x', kind: 'xero', name: tenant.tenantName, sourceLabel: 'Xero' }, client }));
+const client = new XeroClient({
+  ownerTenantId: tenantId,
+  connection,
+  xeroTenantId: tenant.tenantId,
+});
+await exercise(
+  `Xero ${tenant.tenantName}`,
+  createXeroConnector({
+    org: { key: 'x', kind: 'xero', name: tenant.tenantName, sourceLabel: 'Xero' },
+    client,
+  })
+);

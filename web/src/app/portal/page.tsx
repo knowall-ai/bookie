@@ -20,13 +20,21 @@ export default async function MyOrganisations() {
 
   return (
     <>
-      <TopBar orgs={orgs} user={auth.user} devMode={auth.mode === 'entra' ? undefined : auth.mode} />
+      <TopBar
+        orgs={orgs}
+        user={auth.user}
+        devMode={auth.mode === 'entra' ? undefined : auth.mode}
+      />
       <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-brand-bright text-sm font-semibold">Welcome back, {auth.user.name.split(' ')[0]}</p>
+            <p className="text-brand-bright text-sm font-semibold">
+              Welcome back, {auth.user.name.split(' ')[0]}
+            </p>
             <h1 className="text-ink mt-1 text-3xl font-bold tracking-tight">My organisations</h1>
-            <p className="text-muted mt-1">Pick an organisation to open its books. Switch any time from the top-left.</p>
+            <p className="text-muted mt-1">
+              Pick an organisation to open its books. Switch any time from the top-left.
+            </p>
           </div>
           <ButtonLink href="/portal/settings" variant="secondary">
             <Plus className="h-4 w-4" /> Add a connection
@@ -57,7 +65,9 @@ export default async function MyOrganisations() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="text-ink block truncate font-semibold">{org.name}</span>
-                    <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${SOURCE_STYLE[org.kind]}`}>
+                    <span
+                      className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${SOURCE_STYLE[org.kind]}`}
+                    >
                       {org.sourceLabel}
                     </span>
                   </span>

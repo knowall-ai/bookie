@@ -23,9 +23,11 @@ export function StatusTabs({
     <div role="tablist" className="border-line mb-4 flex gap-1 overflow-x-auto border-b">
       {tabs.map((tab) => {
         const query = new URLSearchParams(
-          Object.entries({ ...params, status: tab.value === 'all' ? undefined : tab.value, page: undefined }).filter(
-            (e): e is [string, string] => !!e[1]
-          )
+          Object.entries({
+            ...params,
+            status: tab.value === 'all' ? undefined : tab.value,
+            page: undefined,
+          }).filter((e): e is [string, string] => !!e[1])
         );
         const active = current === tab.value;
         return (
@@ -36,7 +38,9 @@ export function StatusTabs({
             href={`${basePath}${query.size ? `?${query}` : ''}`}
             className={cn(
               '-mb-px border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors',
-              active ? 'border-brand text-ink font-semibold' : 'text-muted hover:text-ink border-transparent'
+              active
+                ? 'border-brand text-ink font-semibold'
+                : 'text-muted hover:text-ink border-transparent'
             )}
           >
             {tab.label}

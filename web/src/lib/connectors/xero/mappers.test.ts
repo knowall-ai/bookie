@@ -27,7 +27,13 @@ describe('xero mappers', () => {
       AmountPaid: 0,
       CurrencyCode: 'GBP',
     });
-    expect(invoice).toMatchObject({ type: 'sales', status: 'authorised', isOverdue: true, lineAmountType: 'exclusive', dueDate: '2020-01-31' });
+    expect(invoice).toMatchObject({
+      type: 'sales',
+      status: 'authorised',
+      isOverdue: true,
+      lineAmountType: 'exclusive',
+      dueDate: '2020-01-31',
+    });
   });
 
   it('flattens a report and finds totals', () => {
@@ -36,8 +42,25 @@ describe('xero mappers', () => {
       ReportTitles: ['Profit & Loss', 'Contoso', 'Jan 2026'],
       Rows: [
         { RowType: 'Header', Cells: [{ Value: '' }, { Value: 'Jan 26' }] },
-        { RowType: 'Section', Title: 'Income', Rows: [{ RowType: 'Row', Cells: [{ Value: 'Sales', Attributes: [{ Id: 'account', Value: 'a1' }] }, { Value: '100.00' }] }, { RowType: 'SummaryRow', Cells: [{ Value: 'Total Income' }, { Value: '100.00' }] }] },
-        { RowType: 'Section', Title: '', Rows: [{ RowType: 'Row', Cells: [{ Value: 'Net Profit' }, { Value: '40.00' }] }] },
+        {
+          RowType: 'Section',
+          Title: 'Income',
+          Rows: [
+            {
+              RowType: 'Row',
+              Cells: [
+                { Value: 'Sales', Attributes: [{ Id: 'account', Value: 'a1' }] },
+                { Value: '100.00' },
+              ],
+            },
+            { RowType: 'SummaryRow', Cells: [{ Value: 'Total Income' }, { Value: '100.00' }] },
+          ],
+        },
+        {
+          RowType: 'Section',
+          Title: '',
+          Rows: [{ RowType: 'Row', Cells: [{ Value: 'Net Profit' }, { Value: '40.00' }] }],
+        },
       ],
     });
     expect(report.columns).toEqual(['', 'Jan 26']);

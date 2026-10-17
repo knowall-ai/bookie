@@ -16,9 +16,23 @@ const CONFIRM: Record<Action, { title: string; body: string; cta: string; danger
     body: 'It will be posted to your accounts and become awaiting payment. This writes to your live books.',
     cta: 'Approve',
   },
-  email: { title: 'Email this invoice?', body: 'Your accounting system will email it to the contact using its template.', cta: 'Send email' },
-  void: { title: 'Void this document?', body: 'Voiding cannot be undone. The document stays on record as voided.', cta: 'Void', danger: true },
-  delete: { title: 'Delete this draft?', body: 'The draft will be removed from your accounting system.', cta: 'Delete', danger: true },
+  email: {
+    title: 'Email this invoice?',
+    body: 'Your accounting system will email it to the contact using its template.',
+    cta: 'Send email',
+  },
+  void: {
+    title: 'Void this document?',
+    body: 'Voiding cannot be undone. The document stays on record as voided.',
+    cta: 'Void',
+    danger: true,
+  },
+  delete: {
+    title: 'Delete this draft?',
+    body: 'The draft will be removed from your accounting system.',
+    cta: 'Delete',
+    danger: true,
+  },
 };
 
 export function InvoiceActions({
@@ -52,7 +66,12 @@ export function InvoiceActions({
         return;
       }
       toast.success(
-        { approve: `${noun} approved`, void: `${noun} voided`, delete: `${noun} deleted`, email: `${noun} emailed` }[action]
+        {
+          approve: `${noun} approved`,
+          void: `${noun} voided`,
+          delete: `${noun} deleted`,
+          email: `${noun} emailed`,
+        }[action]
       );
       if (action === 'delete') router.push(listPath);
       else router.refresh();
@@ -61,7 +80,12 @@ export function InvoiceActions({
   return (
     <div className="flex items-center gap-2">
       {can.approve && (
-        <Button variant="primary" size="sm" onClick={() => setConfirm('approve')} disabled={pending}>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => setConfirm('approve')}
+          disabled={pending}
+        >
           <Check className="h-4 w-4" /> Approve
         </Button>
       )}
@@ -84,18 +108,37 @@ export function InvoiceActions({
       )}
       {(can.void || can.delete) && (
         <div className="relative">
-          <Button size="sm" variant="ghost" aria-label="More actions" onClick={() => setMore(!more)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label="More actions"
+            onClick={() => setMore(!more)}
+          >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
           {more && (
             <div className="bg-surface-2 border-line-strong absolute right-0 z-30 mt-1 w-44 rounded-xl border p-1.5 shadow-xl">
               {can.void && (
-                <button type="button" onClick={() => { setMore(false); setConfirm('void'); }} className="text-danger hover:bg-danger/10 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMore(false);
+                    setConfirm('void');
+                  }}
+                  className="text-danger hover:bg-danger/10 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm"
+                >
                   <Ban className="h-4 w-4" /> Void
                 </button>
               )}
               {can.delete && (
-                <button type="button" onClick={() => { setMore(false); setConfirm('delete'); }} className="text-danger hover:bg-danger/10 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMore(false);
+                    setConfirm('delete');
+                  }}
+                  className="text-danger hover:bg-danger/10 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm"
+                >
                   <Trash2 className="h-4 w-4" /> Delete
                 </button>
               )}

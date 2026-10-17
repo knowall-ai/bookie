@@ -21,7 +21,10 @@ export function PageHeader({
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
         {crumbs && crumbs.length > 0 && (
-          <nav aria-label="Breadcrumb" className="text-muted mb-1.5 flex items-center gap-1 text-sm">
+          <nav
+            aria-label="Breadcrumb"
+            className="text-muted mb-1.5 flex items-center gap-1 text-sm"
+          >
             {crumbs.map((crumb, i) => (
               <span key={i} className="flex items-center gap-1">
                 {crumb.href ? (

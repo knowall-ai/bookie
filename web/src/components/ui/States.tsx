@@ -23,7 +23,15 @@ export function EmptyState({
   );
 }
 
-export function ErrorPanel({ title = 'Something went wrong', message, action }: { title?: string; message: string; action?: React.ReactNode }) {
+export function ErrorPanel({
+  title = 'Something went wrong',
+  message,
+  action,
+}: {
+  title?: string;
+  message: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div role="alert" className="card border-danger/30 flex items-start gap-3 px-5 py-4">
       <AlertTriangle className="text-danger mt-0.5 h-5 w-5 shrink-0" />

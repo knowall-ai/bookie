@@ -112,7 +112,8 @@ function xeroInvoices(client: XeroClient, shortCode?: string): InvoicesModule {
     async list(type: InvoiceType, query?: ListQuery) {
       const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
       const where = [`Type=="${type === 'sales' ? 'ACCREC' : 'ACCPAY'}"`];
-      if (query?.status === 'overdue') where.push(`DueDate<DateTime(${today().replaceAll('-', ',')})`);
+      if (query?.status === 'overdue')
+        where.push(`DueDate<DateTime(${today().replaceAll('-', ',')})`);
       if (query?.from) where.push(`Date>=DateTime(${query.from.replaceAll('-', ',')})`);
       if (query?.to) where.push(`Date<=DateTime(${query.to.replaceAll('-', ',')})`);
       const result = await client.request<{ Invoices: XeroInvoice[] }>('Invoices', {
@@ -246,7 +247,11 @@ export interface XeroConnectorOptions {
   shortCode?: string;
 }
 
-export function createXeroConnector({ org, client, shortCode }: XeroConnectorOptions): AccountingConnector {
+export function createXeroConnector({
+  org,
+  client,
+  shortCode,
+}: XeroConnectorOptions): AccountingConnector {
   let organisation: Promise<OrgDetails> | undefined;
   const getOrganisation = () =>
     (organisation ??= client
@@ -294,7 +299,10 @@ export function createXeroConnector({ org, client, shortCode }: XeroConnectorOpt
       const [receivables, payables, bankSummary, trendReport, ytdReport] = await Promise.all([
         summariseInvoices(client, 'ACCREC'),
         summariseInvoices(client, 'ACCPAY'),
-        runReport('BankSummary', { fromDate: thisMonthStart.toISOString().slice(0, 10), toDate: today() }),
+        runReport('BankSummary', {
+          fromDate: thisMonthStart.toISOString().slice(0, 10),
+          toDate: today(),
+        }),
         runReport('ProfitAndLoss', {
           fromDate: thisMonthStart.toISOString().slice(0, 10),
           toDate: monthEnd(now.getUTCFullYear(), now.getUTCMonth()),
@@ -302,7 +310,11 @@ export function createXeroConnector({ org, client, shortCode }: XeroConnectorOpt
           timeframe: 'MONTH',
         }),
         runReport('ProfitAndLoss', {
-          fromDate: financialYearStart(details.financialYearEndDay, details.financialYearEndMonth, now),
+          fromDate: financialYearStart(
+            details.financialYearEndDay,
+            details.financialYearEndMonth,
+            now
+          ),
           toDate: today(),
         }),
       ]);

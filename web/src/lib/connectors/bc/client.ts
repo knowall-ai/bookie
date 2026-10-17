@@ -67,8 +67,7 @@ export class BcClient {
       }
       if (!response.ok) {
         const body = (await response.json().catch(() => undefined)) as
-          | { error?: { code?: string; message?: string } }
-          | undefined;
+          { error?: { code?: string; message?: string } } | undefined;
         const message =
           body?.error?.message?.replace(/\s*CorrelationId:[\s\S]*$/, '') ??
           (response.status === 401
@@ -91,7 +90,10 @@ export class BcClient {
     let next = first['@odata.nextLink'];
     for (let pages = 1; next && pages < maxPages; pages++) {
       const response = await fetch(next, {
-        headers: { Authorization: `Bearer ${await this.options.token()}`, Accept: 'application/json' },
+        headers: {
+          Authorization: `Bearer ${await this.options.token()}`,
+          Accept: 'application/json',
+        },
         cache: 'no-store',
       });
       if (!response.ok) break;
@@ -123,20 +125,32 @@ export async function listBcEnvironments(token: string): Promise<BcEnvironment[]
   });
   if (response.status === 401 || response.status === 403 || response.status === 404) return [];
   if (!response.ok) {
-    throw new ConnectorError(`Could not list BC environments (${response.status}).`, response.status, 'business-central');
+    throw new ConnectorError(
+      `Could not list BC environments (${response.status}).`,
+      response.status,
+      'business-central'
+    );
   }
   const body = (await response.json()) as { value: BcEnvironment[] };
   return body.value;
 }
 
-export async function listBcCompanies(tenantId: string, environment: string, token: string): Promise<BcCompany[]> {
+export async function listBcCompanies(
+  tenantId: string,
+  environment: string,
+  token: string
+): Promise<BcCompany[]> {
   const response = await fetch(
     `${BC_API}/v2.0/${tenantId}/${encodeURIComponent(environment)}/api/v2.0/companies?$select=id,name,displayName`,
     { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, cache: 'no-store' }
   );
   if (response.status === 401 || response.status === 403 || response.status === 404) return [];
   if (!response.ok) {
-    throw new ConnectorError(`Could not list BC companies (${response.status}).`, response.status, 'business-central');
+    throw new ConnectorError(
+      `Could not list BC companies (${response.status}).`,
+      response.status,
+      'business-central'
+    );
   }
   return ((await response.json()) as { value: BcCompany[] }).value;
 }

@@ -13,6 +13,17 @@ export function Money({
   /** Tint negatives red and positives green. */
   colour?: boolean;
 }) {
-  const tint = colour && typeof amount === 'number' ? (amount < 0 ? 'text-danger' : amount > 0 ? 'text-brand-bright' : '') : '';
-  return <span className={cn('num whitespace-nowrap', tint, className)}>{formatMoney(amount, currency)}</span>;
+  const tint =
+    colour && typeof amount === 'number'
+      ? amount < 0
+        ? 'text-danger'
+        : amount > 0
+          ? 'text-brand-bright'
+          : ''
+      : '';
+  return (
+    <span className={cn('num whitespace-nowrap', tint, className)}>
+      {formatMoney(amount, currency)}
+    </span>
+  );
 }

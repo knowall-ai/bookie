@@ -50,7 +50,12 @@ export interface XeroContact {
   IsSupplier?: boolean;
   DefaultCurrency?: string;
   Addresses?: XeroAddress[];
-  Phones?: { PhoneType?: string; PhoneNumber?: string; PhoneAreaCode?: string; PhoneCountryCode?: string }[];
+  Phones?: {
+    PhoneType?: string;
+    PhoneNumber?: string;
+    PhoneAreaCode?: string;
+    PhoneCountryCode?: string;
+  }[];
   Balances?: {
     AccountsReceivable?: { Outstanding?: number; Overdue?: number };
     AccountsPayable?: { Outstanding?: number; Overdue?: number };
@@ -169,7 +174,8 @@ export function fromXeroInvoice(invoice: XeroInvoice): Invoice {
     amountDue: invoice.AmountDue ?? 0,
     amountPaid: invoice.AmountPaid ?? 0,
     amountCredited: invoice.AmountCredited || undefined,
-    isOverdue: status === 'authorised' && !!dueDate && dueDate < today() && (invoice.AmountDue ?? 0) > 0,
+    isOverdue:
+      status === 'authorised' && !!dueDate && dueDate < today() && (invoice.AmountDue ?? 0) > 0,
     lineItems: invoice.LineItems?.map(fromXeroLineItem),
     payments: invoice.Payments?.map((p) => ({
       id: p.PaymentID,
@@ -182,7 +188,10 @@ export function fromXeroInvoice(invoice: XeroInvoice): Invoice {
   };
 }
 
-export function toXeroInvoice(input: InvoiceInput, id?: string): Partial<XeroInvoice> & Record<string, unknown> {
+export function toXeroInvoice(
+  input: InvoiceInput,
+  id?: string
+): Partial<XeroInvoice> & Record<string, unknown> {
   return {
     ...(id ? { InvoiceID: id } : {}),
     Type: input.type === 'sales' ? 'ACCREC' : 'ACCPAY',
@@ -199,7 +208,8 @@ export function toXeroInvoice(input: InvoiceInput, id?: string): Partial<XeroInv
 }
 
 function fromXeroAddress(addresses?: XeroAddress[]): Address | undefined {
-  const a = addresses?.find((x) => x.AddressType === 'POBOX' && x.AddressLine1) ??
+  const a =
+    addresses?.find((x) => x.AddressType === 'POBOX' && x.AddressLine1) ??
     addresses?.find((x) => x.AddressLine1 || x.City);
   if (!a) return undefined;
   return {

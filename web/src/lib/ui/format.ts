@@ -2,7 +2,11 @@
 
 const moneyFormatters = new Map<string, Intl.NumberFormat>();
 
-export function formatMoney(amount: number | null | undefined, currency?: string, options: { sign?: boolean } = {}): string {
+export function formatMoney(
+  amount: number | null | undefined,
+  currency?: string,
+  options: { sign?: boolean } = {}
+): string {
   if (amount === null || amount === undefined || Number.isNaN(amount)) return '—';
   const key = `${currency ?? ''}:${options.sign ? 's' : ''}`;
   let formatter = moneyFormatters.get(key);
@@ -41,7 +45,12 @@ export function formatDate(iso: string | undefined | null): string {
   if (!iso) return '—';
   const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 export function formatMonth(yyyyMm: string): string {

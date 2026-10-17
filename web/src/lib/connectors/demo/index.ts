@@ -1,5 +1,18 @@
-import type { DashboardSummary, DocumentBucket, Invoice, InvoiceStatus, ListQuery, OrgRef, Page } from '@/lib/domain/types';
-import { ConnectorError, type AccountingConnector, type ContactsModule, type InvoicesModule } from '../types';
+import type {
+  DashboardSummary,
+  DocumentBucket,
+  Invoice,
+  InvoiceStatus,
+  ListQuery,
+  OrgRef,
+  Page,
+} from '@/lib/domain/types';
+import {
+  ConnectorError,
+  type AccountingConnector,
+  type ContactsModule,
+  type InvoicesModule,
+} from '../types';
 import { addDays, demoData, DEMO_TODAY, type DemoData } from './data';
 import { demoQuotes } from './modules/quotes';
 import { demoCreditNotes } from './modules/credit-notes';
@@ -16,8 +29,22 @@ import { demoPayroll } from './modules/payroll';
 import { demoProjects } from './modules/projects';
 
 export const DEMO_ORGS: OrgRef[] = [
-  { key: 'demo.contoso', kind: 'demo', name: 'Contoso Coffee Roasters Ltd', sourceLabel: 'Demo', country: 'GB', baseCurrency: 'GBP' },
-  { key: 'demo.contoso-wholesale', kind: 'demo', name: 'Contoso Wholesale Ltd', sourceLabel: 'Demo', country: 'GB', baseCurrency: 'GBP' },
+  {
+    key: 'demo.contoso',
+    kind: 'demo',
+    name: 'Contoso Coffee Roasters Ltd',
+    sourceLabel: 'Demo',
+    country: 'GB',
+    baseCurrency: 'GBP',
+  },
+  {
+    key: 'demo.contoso-wholesale',
+    kind: 'demo',
+    name: 'Contoso Wholesale Ltd',
+    sourceLabel: 'Demo',
+    country: 'GB',
+    baseCurrency: 'GBP',
+  },
 ];
 
 /** Shared paging/filtering for demo lists. */
@@ -52,13 +79,19 @@ function demoInvoices(data: DemoData): InvoicesModule {
     const invoice = find(id);
     invoice.status = status;
     if (status === 'voided') invoice.amountDue = 0;
-    invoice.isOverdue = status === 'authorised' && !!invoice.dueDate && invoice.dueDate < DEMO_TODAY();
+    invoice.isOverdue =
+      status === 'authorised' && !!invoice.dueDate && invoice.dueDate < DEMO_TODAY();
     return structuredClone(invoice);
   };
-  const build = (input: Parameters<NonNullable<InvoicesModule['create']>>[0], id: string, number: string): Invoice => {
+  const build = (
+    input: Parameters<NonNullable<InvoicesModule['create']>>[0],
+    id: string,
+    number: string
+  ): Invoice => {
     const contact = data.contacts.find((c) => c.id === input.contactId) ?? notFound('Contact');
     const lineItems = input.lineItems.map((l) => {
-      const lineAmount = Math.round(l.quantity * l.unitAmount * (1 - (l.discountRate ?? 0) / 100) * 100) / 100;
+      const lineAmount =
+        Math.round(l.quantity * l.unitAmount * (1 - (l.discountRate ?? 0) / 100) * 100) / 100;
       return { ...l, lineAmount, taxAmount: Math.round(lineAmount * 0.2 * 100) / 100 };
     });
     const subTotal = lineItems.reduce((s, l) => s + l.lineAmount, 0);
@@ -102,12 +135,19 @@ function demoInvoices(data: DemoData): InvoicesModule {
           (!query?.to || i.date <= query.to) &&
           matches([i.number, i.reference, i.contact.name], query?.search)
       );
-      return paginate(structuredClone(all).map(({ lineItems: _l, ...rest }) => rest), query);
+      return paginate(
+        structuredClone(all).map(({ lineItems: _l, ...rest }) => rest),
+        query
+      );
     },
     get: async (id) => structuredClone(find(id)),
     async create(input) {
       const count = data.invoices.filter((i) => i.type === input.type).length;
-      const number = input.number || (input.type === 'sales' ? `INV-${String(1100 + count).padStart(4, '0')}` : `BILL-${600 + count}`);
+      const number =
+        input.number ||
+        (input.type === 'sales'
+          ? `INV-${String(1100 + count).padStart(4, '0')}`
+          : `BILL-${600 + count}`);
       const invoice = build(input, demoId(input.type === 'sales' ? 'inv' : 'bill'), number);
       data.invoices.unshift(invoice);
       return structuredClone(invoice);
@@ -148,7 +188,13 @@ function demoContacts(data: DemoData): ContactsModule {
     },
     get: async (id) => structuredClone(find(id)),
     async create(input) {
-      const contact = { ...input, id: demoId('contact'), isCustomer: input.isCustomer ?? true, isSupplier: input.isSupplier ?? false, status: 'active' as const };
+      const contact = {
+        ...input,
+        id: demoId('contact'),
+        isCustomer: input.isCustomer ?? true,
+        isSupplier: input.isSupplier ?? false,
+        status: 'active' as const,
+      };
       data.contacts.push(contact);
       return structuredClone(contact);
     },
@@ -169,7 +215,14 @@ function summarise(invoices: Invoice[]) {
   const b = (): DocumentBucket => ({ count: 0, total: 0 });
   const s = { draft: b(), awaitingApproval: b(), awaitingPayment: b(), overdue: b() };
   for (const i of invoices) {
-    const target = i.status === 'draft' ? s.draft : i.status === 'submitted' ? s.awaitingApproval : i.status === 'authorised' ? s.awaitingPayment : undefined;
+    const target =
+      i.status === 'draft'
+        ? s.draft
+        : i.status === 'submitted'
+          ? s.awaitingApproval
+          : i.status === 'authorised'
+            ? s.awaitingPayment
+            : undefined;
     if (!target) continue;
     target.count++;
     target.total += i.amountDue;
@@ -197,7 +250,12 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
         financialYearEndDay: 31,
         financialYearEndMonth: 3,
         timezone: 'Europe/London',
-        address: { line1: '1 Roastery Yard', city: 'Manchester', postalCode: 'M1 1AA', country: 'United Kingdom' },
+        address: {
+          line1: '1 Roastery Yard',
+          city: 'Manchester',
+          postalCode: 'M1 1AA',
+          country: 'United Kingdom',
+        },
       };
     },
     async dashboard(): Promise<DashboardSummary> {
@@ -205,8 +263,25 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
       const trend = Array.from({ length: 12 }, (_, i) => {
         const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11 + i, 1));
         const month = d.toISOString().slice(0, 7);
-        const income = data.invoices.filter((x) => x.type === 'sales' && x.date.startsWith(month) && x.status !== 'voided' && x.status !== 'deleted').reduce((s, x) => s + x.subTotal, 0);
-        const expenses = data.invoices.filter((x) => x.type === 'purchase' && x.date.startsWith(month) && x.status !== 'voided' && x.status !== 'deleted').reduce((s, x) => s + x.subTotal, 0) + 4200;
+        const income = data.invoices
+          .filter(
+            (x) =>
+              x.type === 'sales' &&
+              x.date.startsWith(month) &&
+              x.status !== 'voided' &&
+              x.status !== 'deleted'
+          )
+          .reduce((s, x) => s + x.subTotal, 0);
+        const expenses =
+          data.invoices
+            .filter(
+              (x) =>
+                x.type === 'purchase' &&
+                x.date.startsWith(month) &&
+                x.status !== 'voided' &&
+                x.status !== 'deleted'
+            )
+            .reduce((s, x) => s + x.subTotal, 0) + 4200;
         return { month, income, expenses };
       });
       const fyStart = `${now.getUTCMonth() >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1}-04-01`;
@@ -219,7 +294,13 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
         receivables: summarise(data.invoices.filter((i) => i.type === 'sales')),
         payables: summarise(data.invoices.filter((i) => i.type === 'purchase')),
         trend,
-        profitAndLoss: { from: fyStart, to: DEMO_TODAY(), income, expenses, net: income - expenses },
+        profitAndLoss: {
+          from: fyStart,
+          to: DEMO_TODAY(),
+          income,
+          expenses,
+          net: income - expenses,
+        },
       };
     },
     invoices: demoInvoices(data),

@@ -28,7 +28,12 @@ export function seal(tenantId: string, recordName: string, value: unknown): stri
   const cipher = createCipheriv('aes-256-gcm', tenantKey(tenantId), iv);
   cipher.setAAD(Buffer.from(`${tenantId}:${recordName}`));
   const body = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
-  return [VERSION, iv.toString('base64'), cipher.getAuthTag().toString('base64'), body.toString('base64')].join('.');
+  return [
+    VERSION,
+    iv.toString('base64'),
+    cipher.getAuthTag().toString('base64'),
+    body.toString('base64'),
+  ].join('.');
 }
 
 export function open<T>(tenantId: string, recordName: string, sealed: string): T {

@@ -25,31 +25,36 @@ export function Field({
         {label}
       </label>
       {children}
-      {error ? <p className="text-danger text-xs">{error}</p> : hint ? <p className="text-faint text-xs">{hint}</p> : null}
+      {error ? (
+        <p className="text-danger text-xs">{error}</p>
+      ) : hint ? (
+        <p className="text-faint text-xs">{hint}</p>
+      ) : null}
     </div>
   );
 }
 
-export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(function Input(
-  { className, ...props },
-  ref
-) {
-  return <input ref={ref} className={cn(inputClass, className)} {...props} />;
-});
-
-export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(function Select(
-  { className, children, ...props },
-  ref
-) {
-  return (
-    <select ref={ref} className={cn(inputClass, 'pr-8', className)} {...props}>
-      {children}
-    </select>
-  );
-});
-
-export const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  function Textarea({ className, ...props }, ref) {
-    return <textarea ref={ref} className={cn(inputClass, 'h-auto min-h-20 py-2', className)} {...props} />;
+export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className, ...props }, ref) {
+    return <input ref={ref} className={cn(inputClass, className)} {...props} />;
   }
 );
+
+export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
+  function Select({ className, children, ...props }, ref) {
+    return (
+      <select ref={ref} className={cn(inputClass, 'pr-8', className)} {...props}>
+        {children}
+      </select>
+    );
+  }
+);
+
+export const Textarea = forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>
+>(function Textarea({ className, ...props }, ref) {
+  return (
+    <textarea ref={ref} className={cn(inputClass, 'h-auto min-h-20 py-2', className)} {...props} />
+  );
+});

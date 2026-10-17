@@ -99,7 +99,8 @@ export class SharePointConfigStore extends SealedRecordStore {
     if (response.status === 204) return undefined as T;
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const message = (body as { error?: { message?: string } }).error?.message ?? response.statusText;
+      const message =
+        (body as { error?: { message?: string } }).error?.message ?? response.statusText;
       throw new Error(`SharePoint config store: ${message}`);
     }
     return body as T;
@@ -119,7 +120,8 @@ export class SharePointConfigStore extends SealedRecordStore {
         method: 'POST',
         body: JSON.stringify({
           displayName: LIST_NAME,
-          description: 'Bookie (getbook.ie) connection settings. Values are encrypted. Do not edit.',
+          description:
+            'Bookie (getbook.ie) connection settings. Values are encrypted. Do not edit.',
           columns: [{ name: DATA_COLUMN, text: { allowMultipleLines: true } }],
           list: { template: 'genericList', hidden: true },
         }),

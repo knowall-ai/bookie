@@ -147,9 +147,29 @@ const BC_STATUS_FILTER: Record<string, string | undefined> = {
 };
 
 const COUNTRY_CURRENCY: Record<string, string> = {
-  GB: 'GBP', IE: 'EUR', US: 'USD', SV: 'USD', CA: 'CAD', AU: 'AUD', NZ: 'NZD', ZA: 'ZAR',
-  DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR', BE: 'EUR', AT: 'EUR', PT: 'EUR', FI: 'EUR',
-  MX: 'MXN', DK: 'DKK', SE: 'SEK', NO: 'NOK', CH: 'CHF', IN: 'INR',
+  GB: 'GBP',
+  IE: 'EUR',
+  US: 'USD',
+  SV: 'USD',
+  CA: 'CAD',
+  AU: 'AUD',
+  NZ: 'NZD',
+  ZA: 'ZAR',
+  DE: 'EUR',
+  FR: 'EUR',
+  ES: 'EUR',
+  IT: 'EUR',
+  NL: 'EUR',
+  BE: 'EUR',
+  AT: 'EUR',
+  PT: 'EUR',
+  FI: 'EUR',
+  MX: 'MXN',
+  DK: 'DKK',
+  SE: 'SEK',
+  NO: 'NOK',
+  CH: 'CHF',
+  IN: 'INR',
 };
 
 export function currencyForCountry(country?: string): string | undefined {
@@ -201,7 +221,8 @@ function toLine(line: InvoiceInput['lineItems'][number], type: InvoiceType) {
 export function fromSalesInvoice(raw: BcSalesInvoice, lcy: string): Invoice {
   const status = STATUS[raw.status] ?? 'draft';
   const total = raw.totalAmountIncludingTax ?? 0;
-  const amountDue = status === 'draft' || status === 'submitted' ? total : (raw.remainingAmount ?? 0);
+  const amountDue =
+    status === 'draft' || status === 'submitted' ? total : (raw.remainingAmount ?? 0);
   const dueDate = bcDate(raw.dueDate);
   return {
     id: raw.id,
@@ -311,9 +332,14 @@ function toParty(input: ContactInput) {
 /* Modules                                                             */
 /* ------------------------------------------------------------------ */
 
-function bcInvoices(client: BcClient, lcy: () => Promise<string>, link: (i: Invoice) => Invoice): InvoicesModule {
+function bcInvoices(
+  client: BcClient,
+  lcy: () => Promise<string>,
+  link: (i: Invoice) => Invoice
+): InvoicesModule {
   const entity = (type: InvoiceType) => (type === 'sales' ? 'salesInvoices' : 'purchaseInvoices');
-  const linesOf = (type: InvoiceType) => (type === 'sales' ? 'salesInvoiceLines' : 'purchaseInvoiceLines');
+  const linesOf = (type: InvoiceType) =>
+    type === 'sales' ? 'salesInvoiceLines' : 'purchaseInvoiceLines';
   const map = async (type: InvoiceType, raw: BcSalesInvoice | BcPurchaseInvoice) =>
     link(
       type === 'sales'
@@ -366,10 +392,10 @@ function bcInvoices(client: BcClient, lcy: () => Promise<string>, link: (i: Invo
   const action = async (id: string, name: string) => {
     const { type } = await locate(id);
     await client.request(`${entity(type)}(${id})/Microsoft.NAV.${name}`, { method: 'POST' });
-    return module.get(id);
+    return mod.get(id);
   };
 
-  const module: InvoicesModule = {
+  const mod: InvoicesModule = {
     async list(type, query?: ListQuery) {
       const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
       const page = query?.page ?? 1;
@@ -393,14 +419,17 @@ function bcInvoices(client: BcClient, lcy: () => Promise<string>, link: (i: Invo
             : `(contains(number,${s}) or contains(vendorName,${s}) or contains(vendorInvoiceNumber,${s}))`
         );
       }
-      const result = await client.request<ODataList<BcSalesInvoice | BcPurchaseInvoice>>(entity(type), {
-        query: {
-          $filter: filters.join(' and ') || undefined,
-          $orderby: 'invoiceDate desc,number desc',
-          $top: pageSize + 1,
-          $skip: (page - 1) * pageSize,
-        },
-      });
+      const result = await client.request<ODataList<BcSalesInvoice | BcPurchaseInvoice>>(
+        entity(type),
+        {
+          query: {
+            $filter: filters.join(' and ') || undefined,
+            $orderby: 'invoiceDate desc,number desc',
+            $top: pageSize + 1,
+            $skip: (page - 1) * pageSize,
+          },
+        }
+      );
       const items = await Promise.all(result.value.slice(0, pageSize).map((raw) => map(type, raw)));
       return { items, page, pageSize, hasMore: result.value.length > pageSize };
     },
@@ -415,17 +444,26 @@ function bcInvoices(client: BcClient, lcy: () => Promise<string>, link: (i: Invo
       });
       await writeLines(input.type, created.id, input);
       if (input.status === 'authorised') return action(created.id, 'post');
-      return module.get(created.id);
+      return mod.get(created.id);
     },
     async update(id, input) {
       const { type, raw } = await locate(id);
       if (raw.status !== 'Draft') {
-        throw new ConnectorError('Only draft invoices can be edited in Business Central.', 409, 'business-central');
+        throw new ConnectorError(
+          'Only draft invoices can be edited in Business Central.',
+          409,
+          'business-central'
+        );
       }
-      await client.request(`${entity(type)}(${id})`, { method: 'PATCH', etag: '*', body: header(input) });
-      const lines = (type === 'sales'
-        ? (raw as BcSalesInvoice).salesInvoiceLines
-        : (raw as BcPurchaseInvoice).purchaseInvoiceLines) ?? [];
+      await client.request(`${entity(type)}(${id})`, {
+        method: 'PATCH',
+        etag: '*',
+        body: header(input),
+      });
+      const lines =
+        (type === 'sales'
+          ? (raw as BcSalesInvoice).salesInvoiceLines
+          : (raw as BcPurchaseInvoice).purchaseInvoiceLines) ?? [];
       for (const line of lines) {
         await client.request(`${entity(type)}(${id})/${linesOf(type)}(${line.id})`, {
           method: 'DELETE',
@@ -433,7 +471,7 @@ function bcInvoices(client: BcClient, lcy: () => Promise<string>, link: (i: Invo
         });
       }
       await writeLines(type, id, input);
-      return module.get(id);
+      return mod.get(id);
     },
     approve: (id) => action(id, 'post'),
     void: (id) => action(id, 'cancel'),
@@ -446,15 +484,20 @@ function bcInvoices(client: BcClient, lcy: () => Promise<string>, link: (i: Invo
     },
     async pdf(id) {
       const { type } = await locate(id);
-      const docs = await client.request<ODataList<{ id: string }>>(`${entity(type)}(${id})/pdfDocument`);
+      const docs = await client.request<ODataList<{ id: string }>>(
+        `${entity(type)}(${id})/pdfDocument`
+      );
       const doc = docs.value[0];
       if (!doc) throw new ConnectorError('No PDF available.', 404, 'business-central');
-      return client.request<ArrayBuffer>(`${entity(type)}(${id})/pdfDocument(${doc.id})/pdfDocumentContent`, {
-        raw: true,
-      });
+      return client.request<ArrayBuffer>(
+        `${entity(type)}(${id})/pdfDocument(${doc.id})/pdfDocumentContent`,
+        {
+          raw: true,
+        }
+      );
     },
   };
-  return module;
+  return mod;
 }
 
 function bcContacts(client: BcClient): ContactsModule {
@@ -462,13 +505,19 @@ function bcContacts(client: BcClient): ContactsModule {
     async list(query) {
       const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
       const page = query?.page ?? 1;
-      const filter = query?.search ? `contains(displayName,${odataString(query.search)})` : undefined;
+      const filter = query?.search
+        ? `contains(displayName,${odataString(query.search)})`
+        : undefined;
       const entities: ('customers' | 'vendors')[] =
-        query?.role === 'customer' ? ['customers'] : query?.role === 'supplier' ? ['vendors'] : ['customers', 'vendors'];
+        query?.role === 'customer'
+          ? ['customers']
+          : query?.role === 'supplier'
+            ? ['vendors']
+            : ['customers', 'vendors'];
       const results = await Promise.all(
         entities.map(async (entity) =>
-          (await client.all<BcParty>(entity, { $filter: filter, $orderby: 'displayName' })).map((raw) =>
-            fromParty(raw, entity)
+          (await client.all<BcParty>(entity, { $filter: filter, $orderby: 'displayName' })).map(
+            (raw) => fromParty(raw, entity)
           )
         )
       );
@@ -485,19 +534,30 @@ function bcContacts(client: BcClient): ContactsModule {
     },
     async create(input) {
       const entity = input.isSupplier && !input.isCustomer ? 'vendors' : 'customers';
-      return fromParty(await client.request<BcParty>(entity, { method: 'POST', body: toParty(input) }), entity);
+      return fromParty(
+        await client.request<BcParty>(entity, { method: 'POST', body: toParty(input) }),
+        entity
+      );
     },
     async update(id, input) {
       const { entity, id: raw } = parseContactId(id);
       return fromParty(
-        await client.request<BcParty>(`${entity}(${raw})`, { method: 'PATCH', etag: '*', body: toParty(input) }),
+        await client.request<BcParty>(`${entity}(${raw})`, {
+          method: 'PATCH',
+          etag: '*',
+          body: toParty(input),
+        }),
         entity
       );
     },
     async archive(id) {
       const { entity, id: raw } = parseContactId(id);
       return fromParty(
-        await client.request<BcParty>(`${entity}(${raw})`, { method: 'PATCH', etag: '*', body: { blocked: 'All' } }),
+        await client.request<BcParty>(`${entity}(${raw})`, {
+          method: 'PATCH',
+          etag: '*',
+          body: { blocked: 'All' },
+        }),
         entity
       );
     },
@@ -558,7 +618,11 @@ export interface BcConnectorOptions {
   companyName: string;
 }
 
-export function createBcConnector({ org, client, companyName }: BcConnectorOptions): AccountingConnector {
+export function createBcConnector({
+  org,
+  client,
+  companyName,
+}: BcConnectorOptions): AccountingConnector {
   let info: Promise<BcCompanyInformation> | undefined;
   const companyInformation = () =>
     (info ??= client
@@ -575,7 +639,13 @@ export function createBcConnector({ org, client, companyName }: BcConnectorOptio
     const page = invoice.type === 'sales' ? (posted ? 132 : 43) : posted ? 138 : 51;
     return {
       ...invoice,
-      sourceUrl: bcWebClientLink(client.tenantId, client.environment, companyName, page, `'No.' IS '${invoice.number}'`),
+      sourceUrl: bcWebClientLink(
+        client.tenantId,
+        client.environment,
+        companyName,
+        page,
+        `'No.' IS '${invoice.number}'`
+      ),
     };
   };
 
@@ -608,18 +678,31 @@ export function createBcConnector({ org, client, companyName }: BcConnectorOptio
       const [currency, info, sales, purchases] = await Promise.all([
         lcy(),
         companyInformation(),
-        client.all<BcSalesInvoice>('salesInvoices', { $filter: "status ne 'Paid' and status ne 'Canceled' and status ne 'Corrective'" }),
-        client.all<BcPurchaseInvoice>('purchaseInvoices', { $filter: "status ne 'Paid' and status ne 'Canceled' and status ne 'Corrective'" }),
+        client.all<BcSalesInvoice>('salesInvoices', {
+          $filter: "status ne 'Paid' and status ne 'Canceled' and status ne 'Corrective'",
+        }),
+        client.all<BcPurchaseInvoice>('purchaseInvoices', {
+          $filter: "status ne 'Paid' and status ne 'Canceled' and status ne 'Corrective'",
+        }),
       ]);
       const now = new Date();
       const months = Array.from({ length: 12 }, (_, i) => {
         const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11 + i, 1));
         const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0));
-        return { month: start.toISOString().slice(0, 7), from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
+        return {
+          month: start.toISOString().slice(0, 7),
+          from: start.toISOString().slice(0, 10),
+          to: end.toISOString().slice(0, 10),
+        };
       });
       const fyStart = bcDate(info.currentFiscalYearStartDate) ?? `${now.getUTCFullYear()}-01-01`;
       const [trend, ytd, bankAccounts] = await Promise.all([
-        Promise.all(months.map(async (m) => ({ month: m.month, ...(await incomeStatement(client, m.from, m.to)) }))),
+        Promise.all(
+          months.map(async (m) => ({
+            month: m.month,
+            ...(await incomeStatement(client, m.from, m.to)),
+          }))
+        ),
         incomeStatement(client, fyStart, today()),
         bank?.accounts().catch(() => []) ?? Promise.resolve([]),
       ]);

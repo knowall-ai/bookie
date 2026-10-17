@@ -190,7 +190,11 @@ export async function discoverXeroTenants(
     cache: 'no-store',
   });
   if (!response.ok) throw await toConnectorError(response);
-  const connections = (await response.json()) as { tenantId: string; tenantName: string; tenantType: string }[];
+  const connections = (await response.json()) as {
+    tenantId: string;
+    tenantName: string;
+    tenantType: string;
+  }[];
   return connections.filter((c) => c.tenantType === 'ORGANISATION');
 }
 

@@ -133,7 +133,9 @@ export interface TaxRatesModule {
 }
 
 export interface AssetsModule {
-  list(query?: ListQuery & { status?: 'draft' | 'registered' | 'disposed' }): Promise<Page<FixedAsset>>;
+  list(
+    query?: ListQuery & { status?: 'draft' | 'registered' | 'disposed' }
+  ): Promise<Page<FixedAsset>>;
 }
 
 export interface ReportsModule {
