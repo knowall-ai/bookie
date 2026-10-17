@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BookieAvatar } from './BookieAvatar';
 
 const BookiePanel = dynamic(() => import('./BookiePanel').then((m) => m.BookiePanel), {
@@ -24,7 +25,12 @@ export function BookieLauncher({ orgKey, orgName }: { orgKey?: string; orgName?:
         <BookieAvatar className="h-7 w-7" />
         <span className="hidden whitespace-nowrap 2xl:inline">Ask Bookie</span>
       </button>
-      {open && <BookiePanel orgKey={orgKey} orgName={orgName} onClose={() => setOpen(false)} />}
+      {/* Portal: the sticky header's backdrop-filter would otherwise trap a fixed panel inside it. */}
+      {open &&
+        createPortal(
+          <BookiePanel orgKey={orgKey} orgName={orgName} onClose={() => setOpen(false)} />,
+          document.body
+        )}
     </>
   );
 }

@@ -105,3 +105,48 @@
     display: none !important;
   }
 }
+
+/* Bookie's markdown replies */
+.bookie-md > * + * {
+  margin-top: 0.6em;
+}
+.bookie-md strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.bookie-md ul,
+.bookie-md ol {
+  padding-left: 1.2em;
+}
+.bookie-md ul {
+  list-style: disc;
+}
+.bookie-md ol {
+  list-style: decimal;
+}
+.bookie-md li + li {
+  margin-top: 0.25em;
+}
+.bookie-md li::marker {
+  color: var(--color-brand);
+}
+.bookie-md table {
+  width: 100%;
+  font-size: 0.8125rem;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.bookie-md th,
+.bookie-md td {
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.3em 0.4em;
+  text-align: left;
+}
+.bookie-md a {
+  color: var(--color-brand-bright);
+  text-decoration: underline;
+}
+.bookie-md code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
