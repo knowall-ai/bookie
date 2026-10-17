@@ -33,7 +33,7 @@ agent/
 │   ├── presence/call-bot.env.example   # Presence call-bot: GPT-Live-1 on Azure, avatar, brain seam
 │   ├── systemd/                    # hermes-gateway, skills-sync, renew-subscriptions timer, accounts-subscription
 │   └── caddy/Caddyfile.template    # only /webhooks/* is public
-├── assets/avatar/bookie-avatar.json    # identity data for the Presence renderer
+├── assets/bookie-avatar.json           # identity data for the Presence renderer (eyes, visor; plates beside it)
 └── deploy/                         # numbered, idempotent provisioning scripts + deploy-all.sh
 ```
 
