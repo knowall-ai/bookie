@@ -37,7 +37,8 @@ export async function editorData(connector: AccountingConnector, side: 'sales' |
       .filter((t) => t.status === 'active')
       .map<EditorTaxRate>((t) => ({
         taxType: t.taxType,
-        name: `${t.name} (${t.rate}%)`,
+        // Some sources (BC tax groups) name a rate without exposing its percentage.
+        name: t.rateAvailable === false ? t.name : `${t.name} (${t.rate}%)`,
         rate: t.rate,
       })),
     items: items

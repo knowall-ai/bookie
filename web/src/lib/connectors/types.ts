@@ -116,7 +116,8 @@ export interface BankModule {
 }
 
 export interface AccountsModule {
-  list(): Promise<Account[]>;
+  /** `withBalances` adds each account's year-to-date balance (one extra report call). */
+  list(options?: { withBalances?: boolean }): Promise<Account[]>;
   create?(input: AccountInput): Promise<Account>;
   /** Posted ledger lines, optionally for one account code. */
   ledger?(query?: ListQuery & { accountCode?: string }): Promise<Page<LedgerEntry>>;

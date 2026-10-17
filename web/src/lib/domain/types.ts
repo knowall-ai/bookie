@@ -77,6 +77,8 @@ export interface Page<T> {
   pageSize: number;
   hasMore: boolean;
   total?: number;
+  /** Shown above the list when the source can only partly answer (e.g. no API for posted items). */
+  note?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -460,6 +462,8 @@ export interface TaxRate {
   name: string;
   taxType: string;
   rate: number;
+  /** `false` when the source names the rate but doesn't expose its percentage (`rate` is then 0). */
+  rateAvailable?: boolean;
   status: 'active' | 'archived';
 }
 
