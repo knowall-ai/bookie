@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { assertCanManageSettings } from '@/lib/auth/access';
 import { requireAuth } from '@/lib/auth/context';
 import { configStoreFor } from '@/lib/config';
 import { forgetBcDiscovery } from '@/lib/connectors/registry';
@@ -22,6 +23,7 @@ export async function setBcLiveUpdatesAction(
 ): Promise<ActionResult<{ companies: number }>> {
   try {
     const auth = await requireAuth('/portal/settings');
+    assertCanManageSettings(auth.user);
     const on = z.boolean().parse(enabled);
     if (on && !bcWebhooksConfigured()) {
       return {

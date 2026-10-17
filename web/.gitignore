@@ -41,4 +41,5 @@ yarn-error.log*
 next-env.d.ts
 .bookie-config/
 .next-e2e/
+.next-e2e-guest/
 !.env.example

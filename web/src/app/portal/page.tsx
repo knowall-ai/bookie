@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { ArrowRight, Building2, Plus } from 'lucide-react';
+import { canManageSettings } from '@/lib/auth/access';
 import { requireAuth } from '@/lib/auth/context';
+import { tenantDisplayName } from '@/lib/auth/tenant-name';
 import { listOrgs } from '@/lib/connectors/registry';
 import { TopBar } from '@/components/portal/TopBar';
 import { ButtonLink } from '@/components/ui/Button';
@@ -17,6 +19,8 @@ const SOURCE_STYLE = {
 export default async function MyOrganisations() {
   const auth = await requireAuth('/portal');
   const { orgs } = await listOrgs(auth);
+  const member = canManageSettings(auth.user);
+  const host = member ? undefined : await tenantDisplayName(auth);
 
   return (
     <>
@@ -36,12 +40,20 @@ export default async function MyOrganisations() {
               Pick an organisation to open its books. Switch any time from the top-left.
             </p>
           </div>
-          <ButtonLink href="/portal/settings" variant="secondary">
-            <Plus className="h-4 w-4" /> Add a connection
-          </ButtonLink>
+          {member && (
+            <ButtonLink href="/portal/settings" variant="secondary">
+              <Plus className="h-4 w-4" /> Add a connection
+            </ButtonLink>
+          )}
         </div>
 
-        {orgs.length === 0 ? (
+        {orgs.length === 0 && !member ? (
+          <EmptyState
+            icon={<Building2 className="h-6 w-6" />}
+            title="No organisations shared with you yet"
+            body={`You're signed in as a guest. Ask an administrator at ${host ?? 'the organisation that invited you'} to give you access in Bookie's Settings.`}
+          />
+        ) : orgs.length === 0 ? (
           <EmptyState
             icon={<Building2 className="h-6 w-6" />}
             title="No organisations yet"

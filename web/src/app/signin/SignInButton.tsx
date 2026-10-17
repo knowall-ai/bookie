@@ -32,3 +32,33 @@ export function SignInButton({ callbackUrl }: { callbackUrl: string }) {
     </button>
   );
 }
+
+/** "Accountant or guest of KnowAll AI? Sign in to KnowAll AI": signs in to that host tenant. */
+export function GuestSignIn({
+  callbackUrl,
+  providerId,
+  name,
+}: {
+  callbackUrl: string;
+  providerId: string;
+  name: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <p className="text-muted mt-3 text-sm">
+      Accountant or guest of {name}?{' '}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          void signIn(providerId, { callbackUrl });
+        }}
+        className="text-brand-bright font-medium hover:underline disabled:opacity-70"
+        data-testid={`signin-${providerId}`}
+      >
+        {busy ? 'Redirecting to Microsoft…' : `Sign in to ${name}`}
+      </button>
+    </p>
+  );
+}

@@ -6,9 +6,31 @@ import type { AuthContext } from './context';
 
 const run = promisify(execFile);
 
-export type DevAuthMode = 'azure-cli' | 'demo';
+export type DevAuthMode = 'azure-cli' | 'demo' | 'demo-guest';
+
+const DEV_MODES: DevAuthMode[] = ['azure-cli', 'demo', 'demo-guest'];
 
 export const DEMO_TENANT_ID = '00000000-0000-0000-0000-00000000d3e0';
+
+/** The fictional demo users: a Contoso member, and an external accountant who is a guest. */
+export const DEMO_MEMBER: AuthContext['user'] = {
+  id: 'demo-user',
+  tenantId: DEMO_TENANT_ID,
+  name: 'Alex Morgan',
+  email: 'alex.morgan@contoso.example',
+  userType: 'Member',
+};
+
+export const DEMO_GUEST: AuthContext['user'] = {
+  id: 'demo-guest',
+  tenantId: DEMO_TENANT_ID,
+  name: 'Jordan Lee',
+  email: 'jordan.lee@fabrikam.example',
+  userType: 'Guest',
+};
+
+/** The demo tenant's display name, used in "Ask an administrator at …". */
+export const DEMO_TENANT_NAME = 'Contoso';
 
 /**
  * Development-only sign-in shortcuts, selected with BOOKIE_DEV_AUTH.
@@ -17,8 +39,10 @@ export const DEMO_TENANT_ID = '00000000-0000-0000-0000-00000000d3e0';
  *   so a developer can check real data locally without an interactive login.
  * - `demo`: a fictional Contoso user that only sees the built-in demo org.
  *   Used by Playwright and for public screenshots.
+ * - `demo-guest`: a fictional external accountant, a guest in the demo tenant,
+ *   with an access entry for Contoso Coffee Roasters only.
  *
- * Both are refused outright in a production build.
+ * All are refused outright in a production build.
  */
 export function devAuthMode(): DevAuthMode | null {
   const mode = process.env.BOOKIE_DEV_AUTH;
@@ -26,10 +50,10 @@ export function devAuthMode(): DevAuthMode | null {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('BOOKIE_DEV_AUTH must not be set in production.');
   }
-  if (mode !== 'azure-cli' && mode !== 'demo') {
+  if (!DEV_MODES.includes(mode as DevAuthMode)) {
     throw new Error(`Unknown BOOKIE_DEV_AUTH mode "${mode}".`);
   }
-  return mode;
+  return mode as DevAuthMode;
 }
 
 const cliTokens = new Map<ResourceName, { token: string; expiresAt: number }>();
@@ -64,20 +88,17 @@ async function azureCliUser(): Promise<AuthContext['user']> {
     tenantId: claims.tid,
     name: claims.name ?? claims.upn ?? 'Azure CLI user',
     email: claims.upn ?? claims.unique_name ?? '',
+    // The Azure CLI user is a developer in their own tenant.
+    userType: 'Member',
   };
   return cliUser;
 }
 
 export async function devAuthContext(mode: DevAuthMode): Promise<AuthContext> {
-  if (mode === 'demo') {
+  if (mode === 'demo' || mode === 'demo-guest') {
     return {
-      mode,
-      user: {
-        id: 'demo-user',
-        tenantId: DEMO_TENANT_ID,
-        name: 'Alex Morgan',
-        email: 'alex.morgan@contoso.example',
-      },
+      mode: 'demo',
+      user: mode === 'demo' ? DEMO_MEMBER : DEMO_GUEST,
       getToken: async () => {
         throw new Error('The demo user has no Microsoft tokens.');
       },

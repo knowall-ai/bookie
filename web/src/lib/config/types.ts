@@ -38,6 +38,24 @@ export interface XeroConnection {
 
 export type Connection = XeroConnection;
 
+/** One person's organisation access, matched by email (case-insensitive). */
+export interface AccessPerson {
+  email: string;
+  name?: string;
+  /** Org keys this person may open, or `'all'` for every organisation (including ones added later). */
+  orgKeys: string[] | 'all';
+}
+
+/**
+ * Who can see which organisations. Guests (Entra B2B, such as an external
+ * accountant) see nothing unless they have an entry. Members see everything
+ * while `membersSeeAll` is on; otherwise only what their entry grants.
+ */
+export interface AccessSettings {
+  people: AccessPerson[];
+  membersSeeAll: boolean;
+}
+
 export interface TenantSettings {
   xero: { enabled: boolean };
   businessCentral: {
@@ -47,11 +65,13 @@ export interface TenantSettings {
     /** "Live updates": Bookie keeps BC webhook subscriptions for the visible companies. */
     liveUpdates?: boolean;
   };
+  access: AccessSettings;
 }
 
 export const DEFAULT_SETTINGS: TenantSettings = {
   xero: { enabled: true },
   businessCentral: { enabled: true, hiddenCompanies: [] },
+  access: { people: [], membersSeeAll: true },
 };
 
 export interface ConfigStore {

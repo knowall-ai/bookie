@@ -1,6 +1,7 @@
 import 'server-only';
 import { unstable_rethrow } from 'next/navigation';
 import { z } from 'zod';
+import { SettingsAccessError } from '@/lib/auth/access';
 import { isConnectorError } from '@/lib/connectors/types';
 
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
@@ -28,7 +29,7 @@ export const lineItemSchema = z.object({
 export function describeError(error: unknown): string {
   // Let Next.js redirects and not-founds (e.g. an expired sign-in) through.
   unstable_rethrow(error);
-  if (isConnectorError(error)) return error.message;
+  if (isConnectorError(error) || error instanceof SettingsAccessError) return error.message;
   if (error instanceof z.ZodError) return error.issues.map((i) => i.message).join(' ');
   console.error('[bookie] action failed', error);
   return 'Something went wrong. Please try again.';
