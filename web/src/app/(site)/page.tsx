@@ -10,6 +10,7 @@ import { Hero } from '@/components/site/Hero';
 import { IntroVideo } from '@/components/site/IntroVideo';
 import { OrgSwitcherMock } from '@/components/site/OrgSwitcherMock';
 import { PortalScreenshots } from '@/components/site/PortalScreenshots';
+import { SecuritySection } from '@/components/site/SecuritySection';
 import {
   Container,
   DoubleRule,
@@ -21,7 +22,6 @@ import {
 import { cn } from '@/lib/ui/cn';
 import { parseVtt } from '@/lib/ui/vtt';
 import teams from '../../../public/bookie/teams.webp';
-import ledger from '../../../public/bookie/ledger.webp';
 
 export const metadata: Metadata = {
   title: { absolute: 'Bookie: clear books, and an AI bookkeeper who never clocks off' },
@@ -248,48 +248,8 @@ export default function Landing() {
         </Container>
       </section>
 
-      {/* Data. */}
-      <section
-        aria-labelledby="security"
-        className={cn(HAIRLINE, 'bg-canvas/40 scroll-mt-20 py-24 sm:py-32')}
-      >
-        <Container className="grid items-center gap-14 lg:grid-cols-[1fr_1.1fr]">
-          <div className="order-2 lg:order-1">
-            <SectionHeading id="security" title="Your data stays yours" />
-            <dl className="mt-10 space-y-7">
-              <Fact term="Bookie never stores your accounts">
-                Every figure is read live from Xero or Business Central when you ask for it, and is
-                gone when you close the page.
-              </Fact>
-              <Fact term="Settings sealed, and kept in your own Microsoft 365">
-                Connection settings are encrypted per organisation and stored in a hidden SharePoint
-                list in your tenant. Delete the list and Bookie forgets you.
-              </Fact>
-              <Fact term="Each organisation is walled off">
-                Every request is tied to the Microsoft 365 organisation you signed in with, and
-                checked again on every page.
-              </Fact>
-              <Fact term="Xero data is never used to train AI">
-                Bookie answers from your books live, for the question asked. No model is trained or
-                tuned on them.
-              </Fact>
-            </dl>
-            <Link href="/security" className={buttonClass('secondary', 'md', 'mt-10')}>
-              Read how Bookie handles data
-            </Link>
-          </div>
-          <Image
-            src={ledger}
-            alt="Bookie at his desk in his sunlit study, reading a large leather-bound ledger"
-            placeholder="blur"
-            sizes="(min-width: 1024px) 600px, 100vw"
-            className={cn(
-              PICTURE_FRAME,
-              'order-1 aspect-[5/4] w-full object-cover object-[50%_35%] lg:order-2'
-            )}
-          />
-        </Container>
-      </section>
+      {/* Data: Bookie by the vault, full bleed. */}
+      <SecuritySection />
 
       {/* Screenshots: real portal pages on Microsoft's CRONUS sample company. */}
       <section aria-labelledby="screenshots-title" className={cn(HAIRLINE, 'py-24 sm:py-32')}>
@@ -376,14 +336,5 @@ function Point({ title, children }: { title: string; children: React.ReactNode }
       <h3 className="text-ink font-semibold">{title}</h3>
       <p className="text-body mt-1.5 leading-relaxed">{children}</p>
     </li>
-  );
-}
-
-function Fact({ term, children }: { term: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-ink font-semibold">{term}</dt>
-      <dd className="text-body mt-1.5 leading-relaxed">{children}</dd>
-    </div>
   );
 }

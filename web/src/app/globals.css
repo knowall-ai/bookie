@@ -102,6 +102,38 @@
   }
 }
 
+/* "Your data stays yours": the promise cards rise in one after another and
+   Bookie's picture settles as the band scrolls into view. Only where the
+   browser has scroll-driven animation and motion is welcome; elsewhere
+   everything is simply in place. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .security-rise {
+      animation: security-rise linear both;
+      animation-timeline: view();
+      animation-range: entry calc(5% + var(--i, 0) * 7%) entry calc(55% + var(--i, 0) * 7%);
+    }
+    .security-settle {
+      animation: security-settle linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 55%;
+    }
+  }
+}
+
+@keyframes security-rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+}
+
+@keyframes security-settle {
+  from {
+    transform: scale(1.07);
+  }
+}
+
 /* Recharts tooltips inherit our palette. */
 .recharts-default-tooltip {
   background: var(--color-surface-2) !important;
