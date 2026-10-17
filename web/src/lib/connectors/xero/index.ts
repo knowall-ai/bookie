@@ -37,6 +37,8 @@ import { xeroAssets } from './modules/assets';
 import { xeroReports } from './modules/reports';
 import { xeroPayroll } from './modules/payroll';
 import { xeroProjects } from './modules/projects';
+import { xeroCurrencies } from './modules/currencies';
+import { excludedNote, sumInBase } from '@/lib/domain/currency';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -202,11 +204,41 @@ function xeroContacts(client: XeroClient): ContactsModule {
   };
 }
 
-function bucket(): DocumentBucket {
-  return { count: 0, total: 0 };
+/**
+ * Draft / awaiting approval / awaiting payment / overdue buckets in the base
+ * currency. Foreign-currency invoices convert at their own Xero CurrencyRate
+ * (returned on summaryOnly lists); one without a rate is left out and noted.
+ * Exported for tests.
+ */
+export function summariseXeroInvoices(raw: XeroInvoice[], baseCurrency: string) {
+  const invoices = raw.map(fromXeroInvoice);
+  const open = (i: Invoice) => (i.status === 'authorised' ? i.amountDue : i.total);
+  const pick = (status: Invoice['status']) => invoices.filter((i) => i.status === status);
+  const draft = sumInBase(pick('draft'), open, baseCurrency);
+  const awaitingApproval = sumInBase(pick('submitted'), open, baseCurrency);
+  const awaitingPayment = sumInBase(pick('authorised'), open, baseCurrency);
+  const overdue = sumInBase(
+    invoices.filter((i) => i.isOverdue),
+    (i) => i.amountDue,
+    baseCurrency
+  );
+  const all = [draft, awaitingApproval, awaitingPayment];
+  const excluded = all.reduce((n, b) => n + b.excluded, 0);
+  const currencies = [...new Set(all.flatMap((b) => b.excludedCurrencies))].sort();
+  const strip = ({ count, total }: DocumentBucket) => ({ count, total });
+  return {
+    buckets: {
+      draft: strip(draft),
+      awaitingApproval: strip(awaitingApproval),
+      awaitingPayment: strip(awaitingPayment),
+      overdue: strip(overdue),
+    },
+    excluded,
+    currencies,
+  };
 }
 
-async function summariseInvoices(client: XeroClient, type: 'ACCREC' | 'ACCPAY') {
+async function summariseInvoices(client: XeroClient, type: 'ACCREC' | 'ACCPAY', base: string) {
   const result = await client.request<{ Invoices: XeroInvoice[] }>('Invoices', {
     query: {
       where: `Type=="${type}"`,
@@ -215,28 +247,16 @@ async function summariseInvoices(client: XeroClient, type: 'ACCREC' | 'ACCPAY') 
       pageSize: 1000,
     },
   });
-  const summary = {
-    draft: bucket(),
-    awaitingApproval: bucket(),
-    awaitingPayment: bucket(),
-    overdue: bucket(),
+  const summary = summariseXeroInvoices(result.Invoices, base);
+  return {
+    buckets: summary.buckets,
+    note: excludedNote(
+      summary.excluded,
+      summary.currencies,
+      type === 'ACCREC' ? 'invoice' : 'bill',
+      'Xero'
+    ),
   };
-  for (const raw of result.Invoices) {
-    const invoice = fromXeroInvoice(raw);
-    const target =
-      invoice.status === 'draft'
-        ? summary.draft
-        : invoice.status === 'submitted'
-          ? summary.awaitingApproval
-          : summary.awaitingPayment;
-    target.count += 1;
-    target.total += invoice.status === 'authorised' ? invoice.amountDue : invoice.total;
-    if (invoice.isOverdue) {
-      summary.overdue.count += 1;
-      summary.overdue.total += invoice.amountDue;
-    }
-  }
-  return summary;
 }
 
 function financialYearStart(endDay = 31, endMonth = 12, on = new Date()): string {
@@ -316,8 +336,8 @@ export function createXeroConnector({
       const now = new Date();
       const thisMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
       const [receivables, payables, bankSummary, trendReport, ytdReport] = await Promise.all([
-        summariseInvoices(client, 'ACCREC'),
-        summariseInvoices(client, 'ACCPAY'),
+        summariseInvoices(client, 'ACCREC', details.baseCurrency),
+        summariseInvoices(client, 'ACCPAY', details.baseCurrency),
         runReport('BankSummary', {
           fromDate: thisMonthStart.toISOString().slice(0, 10),
           toDate: today(),
@@ -361,8 +381,10 @@ export function createXeroConnector({
       return {
         currency: details.baseCurrency,
         bankAccounts,
-        receivables,
-        payables,
+        receivables: receivables.buckets,
+        payables: payables.buckets,
+        receivablesNote: receivables.note,
+        payablesNote: payables.note,
         trend: months.reverse().map(({ month, income, expenses }) => ({ month, income, expenses })),
         profitAndLoss: {
           from: financialYearStart(details.financialYearEndDay, details.financialYearEndMonth, now),
@@ -383,6 +405,7 @@ export function createXeroConnector({
     accounts: xeroAccounts(client),
     journals: xeroJournals(client),
     taxRates: xeroTaxRates(client),
+    currencies: xeroCurrencies(client),
     assets: xeroAssets(client),
     reports: xeroReports(client),
     payroll: xeroPayroll(client),

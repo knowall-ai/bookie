@@ -33,6 +33,8 @@ import {
 } from './modules/reports';
 import { bcPayroll } from './modules/payroll';
 import { bcProjects } from './modules/projects';
+import { bcCurrencies } from './modules/currencies';
+import { excludedNote, isForeign } from '@/lib/domain/currency';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -670,8 +672,15 @@ function emptyBuckets() {
   return { draft: b(), awaitingApproval: b(), awaitingPayment: b(), overdue: b() };
 }
 
-function summarise(invoices: Invoice[]) {
+/**
+ * Dashboard buckets in LCY. BC's invoice API gives amounts in the document
+ * currency and no exchange rate, so foreign-currency documents can't be
+ * converted: they are left out and counted for the note. Exported for tests.
+ */
+export function summarise(invoices: Invoice[], lcy: string) {
   const summary = emptyBuckets();
+  let excluded = 0;
+  const currencies = new Set<string>();
   for (const invoice of invoices) {
     const target =
       invoice.status === 'draft'
@@ -682,6 +691,11 @@ function summarise(invoices: Invoice[]) {
             ? summary.awaitingPayment
             : undefined;
     if (!target) continue;
+    if (isForeign(invoice.currency, lcy)) {
+      excluded += 1;
+      currencies.add(invoice.currency);
+      continue;
+    }
     target.count += 1;
     target.total += invoice.status === 'authorised' ? invoice.amountDue : invoice.total;
     if (invoice.isOverdue) {
@@ -689,7 +703,7 @@ function summarise(invoices: Invoice[]) {
       summary.overdue.total += invoice.amountDue;
     }
   }
-  return summary;
+  return { buckets: summary, excluded, currencies: [...currencies].sort() };
 }
 
 interface BcStatementLine {
@@ -794,6 +808,14 @@ export function createBcConnector({
           to: end.toISOString().slice(0, 10),
         };
       });
+      const receivables = summarise(
+        sales.map((s) => fromSalesInvoice(s, currency)),
+        currency
+      );
+      const payables = summarise(
+        purchases.map((p) => fromPurchaseInvoice(p, currency)),
+        currency
+      );
       const fyStart = bcDate(info.currentFiscalYearStartDate) ?? `${now.getUTCFullYear()}-01-01`;
       const [trend, ytd, bankAccounts] = await Promise.all([
         Promise.all(
@@ -808,8 +830,20 @@ export function createBcConnector({
       return {
         currency,
         bankAccounts,
-        receivables: summarise(sales.map((s) => fromSalesInvoice(s, currency))),
-        payables: summarise(purchases.map((p) => fromPurchaseInvoice(p, currency))),
+        receivables: receivables.buckets,
+        payables: payables.buckets,
+        receivablesNote: excludedNote(
+          receivables.excluded,
+          receivables.currencies,
+          'invoice',
+          'Business Central'
+        ),
+        payablesNote: excludedNote(
+          payables.excluded,
+          payables.currencies,
+          'bill',
+          'Business Central'
+        ),
         trend: trend.map(({ month, income, expenses }) => ({ month, income, expenses })),
         profitAndLoss: { from: fyStart, to: today(), ...ytd },
       };
@@ -826,6 +860,7 @@ export function createBcConnector({
     accounts: bcAccounts(client),
     journals: bcJournals(client),
     taxRates: bcTaxRates(client),
+    currencies: bcCurrencies(client, lcy),
     assets: bcAssets(client),
     reports: bcReports(client, lcy),
     payroll: bcPayroll(client),

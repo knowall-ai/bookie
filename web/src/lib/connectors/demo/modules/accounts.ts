@@ -1,5 +1,6 @@
 import type { Account, LedgerEntry } from '@/lib/domain/types';
 import { addDays, DEMO_TODAY, type DemoData } from '../data';
+import { demoInBase } from './currencies';
 import { demoSlot } from './state';
 import { ConnectorError, type AccountsModule } from '../../types';
 import { paginate } from '../index';
@@ -94,8 +95,11 @@ export function demoLedger(data: DemoData): LedgerEntry[] {
     post(opening, code, amount, 'Opening balance', 'OPENING', 'MANJOURNAL');
     post(opening, '970', -amount, 'Opening balance', 'OPENING', 'MANJOURNAL');
   }
-  for (const i of data.invoices) {
-    if (!['authorised', 'paid'].includes(i.status)) continue;
+  for (const raw of data.invoices) {
+    if (!['authorised', 'paid'].includes(raw.status)) continue;
+    // The ledger is in GBP: foreign invoices post at their own rate.
+    const i = demoInBase(raw);
+    if (!i) continue;
     const sales = i.type === 'sales';
     const sign = sales ? -1 : 1;
     post(

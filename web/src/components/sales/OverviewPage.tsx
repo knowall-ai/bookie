@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, FileText, Plus } from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
 import { invoiceOverview } from '@/lib/portal/overview';
+import { excludedNote } from '@/lib/domain/currency';
 import type { DocumentBucket, Invoice, InvoiceType } from '@/lib/domain/types';
 import type { ModuleName } from '@/lib/portal/nav';
 import { formatDate } from '@/lib/ui/format';
@@ -153,11 +154,9 @@ export async function OverviewPage({ orgParam, type }: { orgParam: string; type:
   if (!connector.invoices)
     return <NotAvailable feature={copy.documents} source={sourceName(org)} />;
 
-  const [overview, details] = await Promise.all([
-    invoiceOverview(connector, type),
-    connector.organisation(),
-  ]);
+  const details = await connector.organisation();
   const currency = details.baseCurrency;
+  const overview = await invoiceOverview(connector, type, currency);
   const listPath = `${base}${copy.list}`;
 
   const columns: Column<Invoice>[] = [
@@ -249,6 +248,16 @@ export async function OverviewPage({ orgParam, type }: { orgParam: string; type:
               tone="danger"
             />
           </div>
+          {overview.excluded > 0 && (
+            <p className="text-faint mt-2 text-xs" data-testid="overview-excluded">
+              {excludedNote(
+                overview.excluded,
+                overview.excludedCurrencies,
+                type === 'sales' ? 'invoice' : 'bill',
+                sourceName(org)
+              )}
+            </p>
+          )}
           {overview.truncated && (
             <p className="text-faint mt-2 text-xs">
               Totals cover the first 500 documents in each status. Open the list for the full set.

@@ -3,7 +3,7 @@ import type { CreditNotesModule } from '../../types';
 import { ConnectorError } from '../../types';
 import { xeroDate, xeroString, type XeroClient } from '../client';
 import { matchesSearch } from '../../search';
-import { fromXeroLineItem, XERO_INVOICE_STATUS, type XeroLineItem } from '../mappers';
+import { fromXeroLineItem, xeroRate, XERO_INVOICE_STATUS, type XeroLineItem } from '../mappers';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -17,6 +17,7 @@ export interface XeroCreditNote {
   DateString?: string;
   Status: 'DRAFT' | 'SUBMITTED' | 'AUTHORISED' | 'PAID' | 'VOIDED' | 'DELETED';
   CurrencyCode?: string;
+  CurrencyRate?: number;
   SubTotal?: number;
   TotalTax?: number;
   Total?: number;
@@ -44,6 +45,7 @@ export function fromXeroCreditNote(raw: XeroCreditNote): CreditNote {
     date: xeroDate(raw.DateString ?? raw.Date) ?? '',
     status,
     currency: raw.CurrencyCode ?? '',
+    currencyRate: xeroRate(raw.CurrencyRate),
     subTotal: raw.SubTotal ?? 0,
     totalTax: raw.TotalTax ?? 0,
     total: raw.Total ?? 0,

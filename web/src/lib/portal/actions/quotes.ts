@@ -4,7 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { orgContext } from '@/lib/portal/context';
 import type { QuoteInput } from '@/lib/domain/types';
-import { describeError, isoDate, lineItemSchema, type ActionResult } from './util';
+import {
+  describeError,
+  isoDate,
+  lineItemSchema,
+  currencyRateSchema,
+  type ActionResult,
+} from './util';
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 
@@ -18,6 +24,7 @@ const quoteSchema = z.object({
   summary: optionalText(3000),
   terms: optionalText(4000),
   currency: z.string().length(3).optional(),
+  currencyRate: currencyRateSchema,
   lineAmountType: z.enum(['exclusive', 'inclusive', 'none']).optional(),
   lineItems: z.array(lineItemSchema).min(1, 'Add at least one line.'),
 });

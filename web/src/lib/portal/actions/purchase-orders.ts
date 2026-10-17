@@ -4,7 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { orgContext } from '@/lib/portal/context';
 import type { PurchaseOrderInput } from '@/lib/domain/types';
-import { describeError, isoDate, lineItemSchema, type ActionResult } from './util';
+import {
+  describeError,
+  isoDate,
+  lineItemSchema,
+  currencyRateSchema,
+  type ActionResult,
+} from './util';
 
 const purchaseOrderSchema = z.object({
   contactId: z.string().min(1, 'Choose a supplier.'),
@@ -12,6 +18,7 @@ const purchaseOrderSchema = z.object({
   deliveryDate: isoDate.optional(),
   reference: z.string().trim().max(255).optional(),
   currency: z.string().length(3).optional(),
+  currencyRate: currencyRateSchema,
   lineAmountType: z.enum(['exclusive', 'inclusive', 'none']).optional(),
   lineItems: z.array(lineItemSchema).min(1, 'Add at least one line.'),
 });

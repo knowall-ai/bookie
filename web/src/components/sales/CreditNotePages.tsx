@@ -12,7 +12,13 @@ import { StatusBadge } from '@/components/ui/Badge';
 import { Pagination } from '@/components/ui/Pagination';
 import { SearchBox } from '@/components/ui/SearchBox';
 import { EmptyState, NotAvailable } from '@/components/ui/States';
-import { DocumentFacts, DocumentLines, DocumentTotals } from '@/components/documents/DocumentParts';
+import {
+  baseTotalRows,
+  currencyFacts,
+  DocumentFacts,
+  DocumentLines,
+  DocumentTotals,
+} from '@/components/documents/DocumentParts';
 import type { ListSearchParams } from '@/components/documents/InvoiceListPage';
 
 const COPY = {
@@ -160,13 +166,14 @@ export async function CreditNoteDetailPage({
   id: string;
   type: CreditNoteType;
 }) {
-  const { connector, base } = await orgContext(orgParam);
+  const { connector, base, org } = await orgContext(orgParam);
   if (!connector.creditNotes) notFound();
   const note = await connector.creditNotes.get(decodeURIComponent(id)).catch((error) => {
     if (isConnectorError(error) && (error.status === 404 || error.status === 400)) notFound();
     throw error;
   });
   if (note.type !== type) notFound();
+  const baseCurrency = (await connector.organisation().catch(() => undefined))?.baseCurrency;
   const copy = COPY[type];
   const allocated = note.status === 'voided' ? 0 : note.total - note.remainingCredit;
 
@@ -191,7 +198,9 @@ export async function CreditNoteDetailPage({
             { label: 'Date', value: formatDate(note.date) },
             { label: 'Credit note number', value: note.number || '—' },
             { label: 'Reference', value: note.reference || '—' },
-            { label: 'Currency', value: note.currency },
+            ...(currencyFacts(note, baseCurrency, sourceName(org)).length
+              ? currencyFacts(note, baseCurrency, sourceName(org))
+              : [{ label: 'Currency', value: note.currency }]),
           ]}
         />
         <DocumentLines lines={note.lineItems ?? []} currency={note.currency} />
@@ -201,6 +210,7 @@ export async function CreditNoteDetailPage({
             { label: 'Subtotal', amount: note.subTotal },
             { label: 'Total tax', amount: note.totalTax, muted: true },
             { label: 'Total', amount: note.total, strong: true },
+            ...baseTotalRows(note, baseCurrency),
             ...(allocated > 0
               ? [{ label: 'Less allocated or refunded', amount: -allocated, muted: true }]
               : []),

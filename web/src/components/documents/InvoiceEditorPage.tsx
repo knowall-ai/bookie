@@ -53,6 +53,8 @@ export async function InvoiceEditorPage({
           dueDate: existing.dueDate,
           number: existing.number,
           reference: existing.reference,
+          currency: existing.currency || undefined,
+          currencyRate: existing.currencyRate,
           lineAmountType: existing.lineAmountType ?? 'exclusive',
           lineItems: existing.lineItems?.map(
             ({

@@ -105,6 +105,7 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                   noun="invoice"
                   buckets={d.receivables}
                   currency={d.currency}
+                  note={d.receivablesNote}
                   listHref={modules.invoices ? `${base}/sales/invoices` : undefined}
                   newHref={connector.invoices?.create ? `${base}/sales/invoices/new` : undefined}
                   newLabel="New invoice"
@@ -114,6 +115,7 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                   noun="bill"
                   buckets={d.payables}
                   currency={d.currency}
+                  note={d.payablesNote}
                   listHref={modules.invoices ? `${base}/purchases/bills` : undefined}
                   newHref={connector.invoices?.create ? `${base}/purchases/bills/new` : undefined}
                   newLabel="New bill"

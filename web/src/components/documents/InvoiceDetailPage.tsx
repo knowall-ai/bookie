@@ -8,7 +8,13 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/Badge';
 import { ButtonLink } from '@/components/ui/Button';
 import { Money } from '@/components/ui/Money';
-import { DocumentFacts, DocumentLines, DocumentTotals } from './DocumentParts';
+import {
+  baseTotalRows,
+  currencyFacts,
+  DocumentFacts,
+  DocumentLines,
+  DocumentTotals,
+} from './DocumentParts';
 import { InvoiceActions } from './InvoiceActions';
 import { PaymentPanel } from '@/components/sales/PaymentPanel';
 
@@ -29,6 +35,7 @@ export async function InvoiceDetailPage({
   });
   if (invoice.type !== type) notFound();
 
+  const baseCurrency = (await connector.organisation().catch(() => undefined))?.baseCurrency;
   const isSales = type === 'sales';
   const listPath = `${base}${isSales ? '/sales/invoices' : '/purchases/bills'}`;
   const noun = isSales ? 'Invoice' : 'Bill';
@@ -105,6 +112,7 @@ export async function InvoiceDetailPage({
               label: isSales ? 'Reference' : 'Number',
               value: (isSales ? invoice.reference : invoice.number) || '—',
             },
+            ...currencyFacts(invoice, baseCurrency, sourceName(org)),
           ]}
         />
 
@@ -119,8 +127,16 @@ export async function InvoiceDetailPage({
                 invoiceId={invoice.id}
                 amountDue={invoice.amountDue}
                 currency={invoice.currency}
+                baseCurrency={baseCurrency}
+                invoiceRate={invoice.currencyRate}
+                acceptsRate={!!connector.currencies?.acceptsRate}
                 isSales={isSales}
-                bankAccounts={bankAccounts.map((b) => ({ id: b.id, name: b.name, code: b.code }))}
+                bankAccounts={bankAccounts.map((b) => ({
+                  id: b.id,
+                  name: b.name,
+                  code: b.code,
+                  currency: b.currency,
+                }))}
               />
             )}
             {invoice.payments && invoice.payments.length > 0 && (
@@ -133,7 +149,7 @@ export async function InvoiceDetailPage({
                         {formatDate(p.date)}
                         {p.reference ? ` · ${p.reference}` : ''}
                       </span>
-                      <Money amount={p.amount} />
+                      <Money amount={p.amount} currency={invoice.currency} />
                     </li>
                   ))}
                 </ul>
@@ -150,6 +166,7 @@ export async function InvoiceDetailPage({
                 muted: true,
               },
               { label: 'Total', amount: invoice.total, strong: true },
+              ...baseTotalRows(invoice, baseCurrency),
               ...(invoice.amountPaid
                 ? [{ label: 'Less payments', amount: -invoice.amountPaid, muted: true }]
                 : []),

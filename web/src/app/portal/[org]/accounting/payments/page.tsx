@@ -78,7 +78,15 @@ export default async function Page({
       key: 'amount',
       header: 'Amount',
       align: 'right',
-      cell: (p) => <Money amount={p.amount} currency={p.currency} className="text-ink" />,
+      cell: (p) => (
+        <span className="flex flex-col items-end">
+          <Money amount={p.amount} currency={p.currency} className="text-ink" />
+          {/* Foreign-currency payments: what reached the bank, as the source reports it. */}
+          {p.bankAmount !== undefined && p.bankCurrency && p.bankCurrency !== p.currency && (
+            <Money amount={p.bankAmount} currency={p.bankCurrency} className="text-faint text-xs" />
+          )}
+        </span>
+      ),
     },
   ];
 

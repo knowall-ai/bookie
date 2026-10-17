@@ -2,7 +2,13 @@ import type { LineAmountType, ListQuery, Quote, QuoteInput, QuoteStatus } from '
 import type { QuotesModule, QuoteStatusChange } from '../../types';
 import { ConnectorError } from '../../types';
 import { xeroDate, xeroTimestamp, type XeroClient } from '../client';
-import { fromXeroLineItem, toXeroLineItem, type XeroInvoice, type XeroLineItem } from '../mappers';
+import {
+  fromXeroLineItem,
+  toXeroLineItem,
+  xeroRate,
+  type XeroInvoice,
+  type XeroLineItem,
+} from '../mappers';
 import { xeroDeepLink } from '../index';
 import { matchesSearch } from '../../search';
 
@@ -25,6 +31,7 @@ export interface XeroQuote {
   /** Quotes use upper case here, unlike invoices. */
   LineAmountTypes?: 'EXCLUSIVE' | 'INCLUSIVE' | 'NOTAX';
   CurrencyCode?: string;
+  CurrencyRate?: number;
   SubTotal?: number;
   TotalTax?: number;
   Total?: number;
@@ -80,6 +87,7 @@ export function fromXeroQuote(raw: XeroQuote): Quote {
     expiryDate: xeroDate(raw.ExpiryDateString ?? raw.ExpiryDate),
     status: STATUS[raw.Status] ?? 'draft',
     currency: raw.CurrencyCode ?? '',
+    currencyRate: xeroRate(raw.CurrencyRate),
     lineAmountType: fromQuoteLineAmountTypes(raw.LineAmountTypes),
     subTotal: raw.SubTotal ?? 0,
     totalTax: raw.TotalTax ?? 0,
@@ -101,6 +109,7 @@ export function toXeroQuote(input: QuoteInput, id?: string): Record<string, unkn
     Summary: input.summary || undefined,
     Terms: input.terms || undefined,
     CurrencyCode: input.currency || undefined,
+    CurrencyRate: input.currency ? xeroRate(input.currencyRate) : undefined,
     LineAmountTypes: toQuoteLineAmountTypes(input.lineAmountType),
     LineItems: input.lineItems.map(toXeroLineItem),
   };

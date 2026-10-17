@@ -204,6 +204,12 @@ export interface Invoice {
   dueDate?: IsoDate;
   status: InvoiceStatus;
   currency: string;
+  /**
+   * The source's exchange rate for a foreign-currency document: units of `currency`
+   * per one unit of the base currency (Xero `CurrencyRate`). Undefined when the
+   * source doesn't provide one (Business Central's API has none).
+   */
+  currencyRate?: number;
   lineAmountType?: LineAmountType;
   subTotal: number;
   totalTax: number;
@@ -228,6 +234,8 @@ export interface InvoiceInput {
   number?: string;
   reference?: string;
   currency?: string;
+  /** Units of `currency` per one base-currency unit; omit to let the source apply its own rate. */
+  currencyRate?: number;
   lineAmountType?: LineAmountType;
   lineItems: LineItemInput[];
   /** Create as draft (default) or submit straight to awaiting approval / payment. */
@@ -247,6 +255,12 @@ export interface Quote {
   expiryDate?: IsoDate;
   status: QuoteStatus;
   currency: string;
+  /**
+   * The source's exchange rate for a foreign-currency document: units of `currency`
+   * per one unit of the base currency (Xero `CurrencyRate`). Undefined when the
+   * source doesn't provide one (Business Central's API has none).
+   */
+  currencyRate?: number;
   lineAmountType?: LineAmountType;
   subTotal: number;
   totalTax: number;
@@ -267,6 +281,8 @@ export interface QuoteInput {
   summary?: string;
   terms?: string;
   currency?: string;
+  /** Units of `currency` per one base-currency unit; omit to let the source apply its own rate. */
+  currencyRate?: number;
   lineAmountType?: LineAmountType;
   lineItems: LineItemInput[];
 }
@@ -282,6 +298,12 @@ export interface CreditNote {
   date: IsoDate;
   status: InvoiceStatus;
   currency: string;
+  /**
+   * The source's exchange rate for a foreign-currency document: units of `currency`
+   * per one unit of the base currency (Xero `CurrencyRate`). Undefined when the
+   * source doesn't provide one (Business Central's API has none).
+   */
+  currencyRate?: number;
   subTotal: number;
   totalTax: number;
   total: number;
@@ -301,6 +323,12 @@ export interface PurchaseOrder {
   deliveryDate?: IsoDate;
   status: PurchaseOrderStatus;
   currency: string;
+  /**
+   * The source's exchange rate for a foreign-currency document: units of `currency`
+   * per one unit of the base currency (Xero `CurrencyRate`). Undefined when the
+   * source doesn't provide one (Business Central's API has none).
+   */
+  currencyRate?: number;
   subTotal: number;
   totalTax: number;
   total: number;
@@ -314,8 +342,16 @@ export interface PurchaseOrderInput {
   deliveryDate?: IsoDate;
   reference?: string;
   currency?: string;
+  /** Units of `currency` per one base-currency unit; omit to let the source apply its own rate. */
+  currencyRate?: number;
   lineAmountType?: LineAmountType;
   lineItems: LineItemInput[];
+}
+
+/** A currency the organisation can trade in (Xero Currencies / BC currencies). */
+export interface Currency {
+  code: string;
+  name?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -332,8 +368,14 @@ export interface PaymentRef {
 export interface Payment {
   id: string;
   date: IsoDate;
+  /** In the document's currency (`currency`). */
   amount: number;
   currency?: string;
+  /** What reached the bank account, in its currency, when the source reports it (Xero `BankAmount`). */
+  bankAmount?: number;
+  bankCurrency?: string;
+  /** The source's rate for this payment (units of `currency` per base unit). */
+  currencyRate?: number;
   reference?: string;
   invoiceId?: string;
   invoiceNumber?: string;
@@ -348,8 +390,11 @@ export interface PaymentInput {
   invoiceId: string;
   bankAccountId: string;
   date: IsoDate;
+  /** In the document's currency. */
   amount: number;
   reference?: string;
+  /** Foreign-currency documents only: units of document currency per base unit; omit for the source's own rate. */
+  currencyRate?: number;
 }
 
 export interface BankAccount {
@@ -598,4 +643,10 @@ export interface DashboardSummary {
   trend: { month: string; income: number; expenses: number }[];
   /** Profit and loss for the current financial year to date. */
   profitAndLoss?: { from: IsoDate; to: IsoDate; income: number; expenses: number; net: number };
+  /**
+   * Set when some documents could not be counted in base-currency totals, because
+   * the source gives no exchange rate for them (shown under the card).
+   */
+  receivablesNote?: string;
+  payablesNote?: string;
 }

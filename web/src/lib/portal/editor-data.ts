@@ -9,9 +9,11 @@ import type {
 /**
  * Reference data for the document editor. Every source is optional: if a
  * connector lacks a module the editor falls back to free-text fields.
+ * Currencies come from the source (the org's enabled currencies); each
+ * contact carries its own default currency when the source has one.
  */
 export async function editorData(connector: AccountingConnector, side: 'sales' | 'purchase') {
-  const [contacts, accounts, taxRates, items] = await Promise.all([
+  const [contacts, accounts, taxRates, items, currencies, details] = await Promise.all([
     connector.contacts
       ?.list({ role: side === 'sales' ? 'customer' : 'supplier', pageSize: 500 })
       .then((p) => p.items)
@@ -22,6 +24,8 @@ export async function editorData(connector: AccountingConnector, side: 'sales' |
       ?.list({ pageSize: 500 })
       .then((p) => p.items)
       .catch(() => []) ?? [],
+    connector.currencies?.list().catch(() => []) ?? [],
+    connector.organisation().catch(() => undefined),
   ]);
   // Some sources don't flag customers/suppliers reliably; fall back to everyone.
   let parties = contacts;
@@ -29,7 +33,17 @@ export async function editorData(connector: AccountingConnector, side: 'sales' |
     parties = (await connector.contacts.list({ pageSize: 500 }).catch(() => ({ items: [] }))).items;
   }
   return {
-    contacts: parties.map<EditorOption>((c) => ({ value: c.id, label: c.name })),
+    contacts: parties.map<EditorOption>((c) => ({
+      value: c.id,
+      label: c.name,
+      currency: c.currency,
+    })),
+    currencies: currencies.map<EditorOption>((c) => ({
+      value: c.code,
+      label: c.name ? `${c.code} ${c.name}` : c.code,
+    })),
+    baseCurrency: details?.baseCurrency,
+    acceptsCurrencyRate: !!connector.currencies?.acceptsRate,
     accounts: accounts
       .filter((a) => a.status === 'active' && !a.isBank)
       .map<EditorOption>((a) => ({ value: a.code, label: `${a.code} · ${a.name}` })),

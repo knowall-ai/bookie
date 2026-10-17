@@ -47,6 +47,8 @@ export async function QuoteEditorPage({ orgParam, id }: { orgParam: string; id?:
           title: existing.title,
           summary: existing.summary,
           terms: existing.terms,
+          currency: existing.currency || undefined,
+          currencyRate: existing.currencyRate,
           lineAmountType: existing.lineAmountType ?? 'exclusive',
           lineItems: toEditorLines(existing.lineItems),
         }

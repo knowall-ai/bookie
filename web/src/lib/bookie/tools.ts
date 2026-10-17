@@ -173,6 +173,17 @@ const TOOLS: Tool[] = [
     available: (c) => !!c.accounts,
     run: (c) => c.accounts!.list(),
   },
+  {
+    definition: fn(
+      'list_currencies',
+      'The currencies this organisation trades in, base currency included. Document amounts are in their own currency; currencyRate on a document is the source rate (units of that currency per 1 base unit). Never convert with any other rate.'
+    ),
+    available: (c) => !!c.currencies,
+    run: async (c) => ({
+      baseCurrency: (await c.organisation()).baseCurrency,
+      currencies: await c.currencies!.list(),
+    }),
+  },
 ];
 
 export function toolsFor(connector: AccountingConnector | undefined): ToolDefinition[] {
@@ -234,6 +245,8 @@ export function toolStatus(name: string, rawArgs: string): string {
       return 'Checking the bank…';
     case 'list_quotes':
       return 'Checking your quotes…';
+    case 'list_currencies':
+      return 'Checking your currencies…';
     default:
       return 'Looking that up…';
   }

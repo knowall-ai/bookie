@@ -3,6 +3,7 @@ import { DEMO_TODAY, type DemoData } from '../data';
 import type { PaymentsModule } from '../../types';
 import { ConnectorError } from '../../types';
 import { demoId, notFound, paginate } from '../index';
+import { isForeign, toBaseAmount } from '@/lib/domain/currency';
 
 /**
  * Demo payments are the payments recorded on the demo invoices and bills, so
@@ -16,12 +17,25 @@ export function demoPayments(data: DemoData): PaymentsModule | undefined {
       .filter((i) => i.status !== 'deleted' && i.status !== 'voided')
       .flatMap((invoice) =>
         (invoice.payments ?? []).map((p) => {
-          const bankAccountId = (p as { bankAccountId?: string }).bankAccountId ?? 'acc-090';
+          const extra = p as { bankAccountId?: string; bankAmount?: number; currencyRate?: number };
+          const bankAccountId = extra.bankAccountId ?? 'acc-090';
+          const bank = data.bankAccounts.find((b) => b.id === bankAccountId);
+          const foreign = isForeign(invoice.currency, bank?.currency ?? 'GBP');
+          const rate = extra.currencyRate ?? invoice.currencyRate;
           return {
             id: p.id,
             date: p.date,
             amount: p.amount,
             currency: invoice.currency,
+            ...(foreign && bank
+              ? {
+                  bankAmount:
+                    extra.bankAmount ??
+                    toBaseAmount(p.amount, invoice.currency, bank.currency, rate),
+                  bankCurrency: bank.currency,
+                  currencyRate: rate,
+                }
+              : {}),
             reference: p.reference,
             invoiceId: invoice.id,
             invoiceNumber: invoice.number,
@@ -67,6 +81,19 @@ export function demoPayments(data: DemoData): PaymentsModule | undefined {
       }
       const bank = data.bankAccounts.find((b) => b.id === input.bankAccountId);
       if (!bank) notFound('Bank account');
+      // Demo bank accounts are in GBP. A euro invoice paid into one converts at the
+      // rate entered, else the invoice's own rate: the demo has no daily-rate feed.
+      const rate = isForeign(invoice.currency, bank.currency)
+        ? (input.currencyRate ?? invoice.currencyRate)
+        : undefined;
+      const bankAmount = toBaseAmount(amount, invoice.currency, bank.currency, rate);
+      if (bankAmount === undefined) {
+        throw new ConnectorError(
+          `Enter the exchange rate (${invoice.currency} per 1 ${bank.currency}) for this payment.`,
+          400,
+          'demo'
+        );
+      }
       const id = demoId('pay');
       invoice.payments = [
         ...(invoice.payments ?? []),
@@ -77,6 +104,8 @@ export function demoPayments(data: DemoData): PaymentsModule | undefined {
           amount,
           reference: input.reference,
           bankAccountId: bank.id,
+          bankAmount,
+          currencyRate: rate,
         } as never,
       ];
       invoice.amountPaid = Math.round((invoice.amountPaid + amount) * 100) / 100;
@@ -97,17 +126,20 @@ export function demoPayments(data: DemoData): PaymentsModule | undefined {
         contact: { ...invoice.contact },
         reference: input.reference || invoice.number,
         description: `Payment ${invoice.number}`,
-        amount,
-        currency: invoice.currency,
+        amount: bankAmount,
+        currency: bank.currency,
         isReconciled: false,
         status: 'authorised',
       });
-      if (bank.balance !== undefined) bank.balance += receive ? amount : -amount;
+      if (bank.balance !== undefined) bank.balance += receive ? bankAmount : -bankAmount;
       return {
         id,
         date: input.date,
         amount,
         currency: invoice.currency,
+        ...(rate !== undefined
+          ? { bankAmount, bankCurrency: bank.currency, currencyRate: rate }
+          : {}),
         reference: input.reference,
         invoiceId: invoice.id,
         invoiceNumber: invoice.number,

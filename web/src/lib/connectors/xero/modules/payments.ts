@@ -1,6 +1,7 @@
 import type { InvoiceType, Payment, PaymentInput } from '@/lib/domain/types';
 import type { PaymentsModule } from '../../types';
 import { xeroDate, type XeroClient } from '../client';
+import { xeroRate } from '../mappers';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -8,6 +9,8 @@ export interface XeroPayment {
   PaymentID: string;
   Date?: string;
   Amount?: number;
+  /** The amount in the bank account's currency. */
+  BankAmount?: number;
   Reference?: string;
   CurrencyRate?: number;
   PaymentType?: string;
@@ -40,6 +43,9 @@ export function fromXeroPayment(raw: XeroPayment): Payment {
     date: xeroDate(raw.Date) ?? '',
     amount: raw.Amount ?? 0,
     currency: raw.Invoice?.CurrencyCode ?? raw.Account?.CurrencyCode,
+    bankAmount: raw.BankAmount,
+    bankCurrency: raw.Account?.CurrencyCode || undefined,
+    currencyRate: xeroRate(raw.CurrencyRate),
     reference: raw.Reference || undefined,
     invoiceId: raw.Invoice?.InvoiceID,
     invoiceNumber: raw.Invoice?.InvoiceNumber || undefined,
@@ -59,6 +65,7 @@ export function toXeroPayment(input: PaymentInput): Record<string, unknown> {
     Account: { AccountID: input.bankAccountId },
     Date: input.date,
     Amount: input.amount,
+    CurrencyRate: xeroRate(input.currencyRate),
     Reference: input.reference || undefined,
   };
 }
