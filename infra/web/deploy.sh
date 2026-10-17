@@ -20,16 +20,17 @@ bun install --frozen-lockfile >/dev/null
 NEXT_PUBLIC_BOOKIE_AGENT_UPN="$AGENT_UPN" NEXTAUTH_URL="$PUBLIC_URL" bun run build >/dev/null
 S=.next/standalone
 cp -r public "$S/" && mkdir -p "$S/.next" && cp -r .next/static "$S/.next/"
-(cd "$S" && zip -qr "$ZIP" . -x "*.map")
+# Zip timestamps in UTC: App Service reads them as UTC, and local time put files in the future.
+(cd "$S" && TZ=UTC zip -qr "$ZIP" . -x "*.map")
+BUILD_ID="$(cat .next/BUILD_ID)"
 echo "==> Deploying $(du -h "$ZIP" | cut -f1) to $APP"
-BEFORE="$(az webapp log deployment list -n "$APP" -g "$RG" --query '[0].id' -o tsv 2>/dev/null || true)"
-az webapp deploy -n "$APP" -g "$RG" --src-path "$ZIP" --type zip --restart true --async true -o none
-for _ in $(seq 1 90); do
-  LATEST="$(az webapp log deployment list -n "$APP" -g "$RG" --query '[0].[id,status]' -o tsv 2>/dev/null || true)"
-  if [ -n "$LATEST" ] && [ "${LATEST%%$'\t'*}" != "$BEFORE" ]; then
-    case "${LATEST##*$'\t'}" in 4) echo "==> Deployed $SHA"; break ;; 3) echo "Deployment failed" >&2; exit 1 ;; esac
-  fi
+# --clean removes files the zip doesn't have, notably Next's runtime page cache
+# (.next/server/route-cache), which otherwise keeps serving the previous build's pages.
+az webapp deploy -n "$APP" -g "$RG" --src-path "$ZIP" --type zip --clean true --restart true -o none
+# Done when the live site serves this build, not merely when Azure says the deploy finished.
+for _ in $(seq 1 60); do
+  curl -fs -m 20 "$PUBLIC_URL/" | grep -q "$BUILD_ID" && { echo "==> $PUBLIC_URL is up ($SHA)"; exit 0; }
   sleep 10
 done
-until curl -fs -o /dev/null -m 20 "$PUBLIC_URL/"; do sleep 10; done
-echo "==> $PUBLIC_URL is up ($SHA)"
+echo "$PUBLIC_URL is not serving build $BUILD_ID ($SHA) after 10 minutes" >&2
+exit 1
