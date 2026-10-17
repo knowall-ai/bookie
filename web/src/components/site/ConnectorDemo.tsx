@@ -70,11 +70,15 @@ export function ConnectorDemo() {
       <div className="card mt-5 overflow-hidden p-0">
         <div className="border-line flex items-center justify-between gap-3 border-b px-4 py-3">
           <span className="text-ink text-sm font-semibold">Sales invoices</span>
-          <span className="text-faint text-xs">Contoso Coffee Roasters Ltd</span>
+          <span className="text-faint text-xs">
+            Illustration: fictional Contoso Coffee Roasters Ltd
+          </span>
         </div>
         <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Example invoices">
           <table className="w-full min-w-[460px] text-sm whitespace-nowrap">
-            <caption className="sr-only">Example invoices, read from {active.label}</caption>
+            <caption className="sr-only">
+              Illustration with fictional invoices, as they would be read from {active.label}
+            </caption>
             <thead>
               <tr className="text-faint border-line border-b text-left text-xs">
                 <th scope="col" className="px-3.5 py-2 font-medium">

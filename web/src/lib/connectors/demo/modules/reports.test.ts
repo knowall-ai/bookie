@@ -37,9 +37,9 @@ describe('demo reports', () => {
   it('aged receivables total equals what customers owe on the dashboard', async () => {
     const dashboard = await connector.dashboard();
     const aged = await connector.reports!.run('aged-receivables');
-    expect(total(aged, /^Total$/, 7)).toBeCloseTo(dashboard.receivables.awaitingPayment.total, 2);
+    expect(total(aged, /^Total$/, 7)).toBeCloseTo(dashboard.receivables.awaitingPayment.total!, 2);
     const payables = await connector.reports!.run('aged-payables');
-    expect(total(payables, /^Total$/, 7)).toBeCloseTo(dashboard.payables.awaitingPayment.total, 2);
+    expect(total(payables, /^Total$/, 7)).toBeCloseTo(dashboard.payables.awaitingPayment.total!, 2);
   });
 
   it('bank summary closes on the dashboard bank balances', async () => {

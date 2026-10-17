@@ -15,7 +15,8 @@ export function fromXeroTaxRate(raw: XeroTaxRate): TaxRate {
     id: raw.TaxType,
     name: raw.Name,
     taxType: raw.TaxType,
-    rate: raw.EffectiveRate ?? raw.DisplayTaxRate ?? 0,
+    // Missing percentage stays unknown, never 0%.
+    rate: raw.EffectiveRate ?? raw.DisplayTaxRate,
     status: raw.Status === 'ACTIVE' ? 'active' : 'archived',
   };
 }

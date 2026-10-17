@@ -8,6 +8,7 @@ import { Money } from '@/components/ui/Money';
 import { SearchBox } from '@/components/ui/SearchBox';
 import { ButtonLink } from '@/components/ui/Button';
 import { EmptyState, NotAvailable } from '@/components/ui/States';
+import { SourceNote } from '@/components/accounting/SourceNote';
 
 export const metadata = { title: 'Chart of accounts' };
 
@@ -67,6 +68,17 @@ export default async function Page({
     ).length;
   const showBalance = accounts.some((a) => a.balance !== undefined);
   const currency = details?.baseCurrency;
+  // P&L accounts without a YTD balance on BC means BC has no financial year set up.
+  const plMissing = accounts.some(
+    (a) => a.balance === undefined && (a.class === 'revenue' || a.class === 'expense')
+  );
+  const balanceNote = !showBalance
+    ? undefined
+    : plMissing && org.kind === 'business-central'
+      ? "Financial year isn't set up in Business Central, so income and expense accounts have no year-to-date balance (shown as —)."
+      : accounts.some((a) => a.status === 'active' && a.balance === undefined)
+        ? `${sourceName(org)} didn't provide a year-to-date balance for some accounts (shown as —).`
+        : undefined;
 
   const columns: Column<Account>[] = [
     {
@@ -104,7 +116,13 @@ export default async function Page({
             key: 'ytd',
             header: 'YTD',
             align: 'right' as const,
-            cell: (a: Account) => <Money amount={a.balance ?? 0} currency={currency} />,
+            cell: (a: Account) => (
+              <Money
+                amount={a.balance}
+                currency={currency}
+                missing={`${sourceName(org)} didn't provide a year-to-date balance for this account.`}
+              />
+            ),
           },
         ]
       : []),
@@ -134,6 +152,7 @@ export default async function Page({
         params={{ search: query.search }}
         tabs={TABS.map((t) => ({ value: t.value, label: t.label, count: counts(t) }))}
       />
+      <SourceNote>{balanceNote}</SourceNote>
       <div className="mb-4">
         <SearchBox placeholder="Search by code, name or type" className="w-full max-w-md" />
       </div>

@@ -241,9 +241,12 @@ export const ACCOUNTS: Account[] = [
   },
 ];
 
+/** Demo invoices always know what's paid and due (they're fictional fixtures). */
+export type DemoInvoice = Invoice & { amountDue: number; amountPaid: number };
+
 export interface DemoData {
   contacts: Contact[];
-  invoices: Invoice[];
+  invoices: DemoInvoice[];
   bankAccounts: BankAccount[];
   bankTransactions: BankTransaction[];
   items: Item[];
@@ -255,7 +258,7 @@ function makeInvoices(
   type: 'sales' | 'purchase',
   count: number,
   seed: number
-): Invoice[] {
+): DemoInvoice[] {
   const random = rng(seed);
   const today = DEMO_TODAY();
   const parties = contacts.filter((c) => (type === 'sales' ? c.isCustomer : c.isSupplier));

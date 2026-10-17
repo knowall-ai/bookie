@@ -96,7 +96,14 @@ export class BcClient {
         },
         cache: 'no-store',
       });
-      if (!response.ok) break;
+      // A failed next page must not pass for a complete (but short) list.
+      if (!response.ok) {
+        throw new ConnectorError(
+          `Business Central returned ${response.status} part-way through a list.`,
+          response.status,
+          'business-central'
+        );
+      }
       const page = (await response.json()) as ODataList<T>;
       items.push(...page.value);
       next = page['@odata.nextLink'];

@@ -56,16 +56,18 @@ export function keepColumns(report: Report, count: number): Report {
 
 type RawInvoice = XeroInvoice & { CurrencyRate?: number };
 
-/** Outstanding invoice → base-currency amount due (Xero rates are base → foreign). */
-export function toAgedItem(invoice: RawInvoice, baseCurrency: string): AgedItem {
-  const due = invoice.AmountDue ?? 0;
-  const foreign = invoice.CurrencyCode && invoice.CurrencyCode !== baseCurrency;
-  const amount = foreign && invoice.CurrencyRate ? due / invoice.CurrencyRate : due;
+/**
+ * Outstanding invoice → amount due in the invoice's own currency. Not converted:
+ * Xero's Aged Receivables Summary converts at the report date's rate, which the
+ * API doesn't publish, and converting at the invoice's rate would not match it.
+ */
+export function toAgedItem(invoice: RawInvoice): AgedItem {
   return {
     contactId: invoice.Contact.ContactID,
     contactName: invoice.Contact.Name,
     dueDate: xeroDate(invoice.DueDateString ?? invoice.DueDate),
-    amount,
+    amount: invoice.AmountDue,
+    currency: invoice.CurrencyCode || undefined,
   };
 }
 
@@ -115,7 +117,9 @@ export function xeroReports(client: XeroClient): ReportsModule {
       title: id === 'aged-receivables' ? 'Aged Receivables Summary' : 'Aged Payables Summary',
       subtitles: [details.Name, `${asAtLabel(asAt)} · Ageing by due date`],
       asAt,
-      items: invoices.map((i) => toAgedItem(i, details.BaseCurrency)),
+      items: invoices.map(toAgedItem),
+      baseCurrency: details.BaseCurrency,
+      source: 'Xero',
     });
   };
 

@@ -1,5 +1,5 @@
-import type { Invoice, Quote, QuoteInput, QuoteStatus } from '@/lib/domain/types';
-import { addDays, DEMO_TODAY, type DemoData } from '../data';
+import type { Quote, QuoteInput, QuoteStatus } from '@/lib/domain/types';
+import { addDays, DEMO_TODAY, type DemoData, type DemoInvoice } from '../data';
 import type { QuotesModule, QuoteStatusChange } from '../../types';
 import { ConnectorError } from '../../types';
 import { demoId, matches, notFound, paginate } from '../index';
@@ -220,7 +220,7 @@ export function demoQuotes(data: DemoData): QuotesModule | undefined {
       }
       const count = data.invoices.filter((i) => i.type === 'sales').length;
       const date = DEMO_TODAY();
-      const invoice: Invoice = {
+      const invoice: DemoInvoice = {
         id: demoId('inv'),
         type: 'sales',
         number: `INV-${String(1100 + count).padStart(4, '0')}`,

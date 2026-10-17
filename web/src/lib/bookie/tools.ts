@@ -45,7 +45,7 @@ const TOOLS: Tool[] = [
   {
     definition: fn(
       'get_overview',
-      'Organisation details plus the dashboard: bank balances, money owed in and out, 12-month income and expenses, profit and loss this financial year.'
+      'Organisation details plus the dashboard: bank balances, money owed in and out, 12-month income and expenses, profit and loss this financial year. `notes` explain any figure the source does not provide; buckets in several currencies list `byCurrency` totals (never converted).'
     ),
     available: () => true,
     run: async (c) => ({ organisation: await c.organisation(), dashboard: await c.dashboard() }),
@@ -182,6 +182,52 @@ export function toolsFor(connector: AccountingConnector | undefined): ToolDefini
 
 const MAX_RESULT_CHARS = 14_000;
 
+/** What the model sees in place of a figure, status or currency the source didn't provide. */
+export const NOT_AVAILABLE = 'not available from the source';
+
+/**
+ * Figures, statuses, currencies and dates a connector sets to `undefined` when
+ * the source doesn't provide them. JSON drops undefined values, which would
+ * invite the model to fill the gap, so these keys are written out as an
+ * explicit "not available" marker instead.
+ */
+const FIGURE_KEYS = new Set([
+  'amountDue',
+  'amountPaid',
+  'remainingCredit',
+  'total',
+  'balance',
+  'statementBalance',
+  'unreconciledCount',
+  'rate',
+  'receivable',
+  'payable',
+  'overdueReceivable',
+  'overduePayable',
+  'purchasePrice',
+  'purchaseDate',
+  'bookValue',
+  'estimate',
+  'totalInvoiced',
+  'totalToInvoice',
+  'totalExpenses',
+  'minutesLogged',
+  'currency',
+  'baseCurrency',
+  'profitAndLoss',
+  'quantityOnHand',
+]);
+
+/** JSON for the model, with "not available" markers instead of silently missing figures. */
+export function toolJson(value: unknown): string {
+  return JSON.stringify(value, (key, v) => {
+    if (v === undefined && FIGURE_KEYS.has(key)) return NOT_AVAILABLE;
+    if (key === 'currency' && v === '') return NOT_AVAILABLE;
+    if (key === 'status' && v === 'unknown') return NOT_AVAILABLE;
+    return v;
+  });
+}
+
 /** Run one tool call; always returns a JSON string the model can read. */
 export async function runTool(
   connector: AccountingConnector | undefined,
@@ -198,7 +244,7 @@ export async function runTool(
     return JSON.stringify({ error: 'Arguments were not valid JSON.' });
   }
   try {
-    const result = JSON.stringify(await tool.run(connector, args));
+    const result = toolJson(await tool.run(connector, args));
     return result.length > MAX_RESULT_CHARS
       ? `${result.slice(0, MAX_RESULT_CHARS)}… [truncated: ask for a narrower search, a filter or the next page]`
       : result;

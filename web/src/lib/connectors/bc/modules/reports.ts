@@ -1,18 +1,10 @@
 import type { BcClient, ODataList } from '../client';
 import { ConnectorError, type ReportsModule } from '../../types';
-import type {
-  IsoDate,
-  Report,
-  ReportId,
-  ReportParams,
-  ReportRow,
-  ReportSection,
-} from '@/lib/domain/types';
+import type { Report, ReportId, ReportParams, ReportRow, ReportSection } from '@/lib/domain/types';
+import { bcFiscalYear } from '../fiscal-year';
 import {
-  addDays,
   asAtLabel,
   columnLabel,
-  financialYear,
   monthEnd,
   monthStart,
   rangeLabel,
@@ -114,12 +106,15 @@ export function fromBcStatement(options: {
 }): Report {
   const [first = []] = options.periods;
   const byLine = options.periods.map(
-    (lines) => new Map(lines.map((l) => [l.lineNumber, l[options.value] ?? 0]))
+    (lines) => new Map(lines.map((l) => [l.lineNumber, l[options.value]]))
   );
   const sign = options.flip ? -1 : 1;
+  // A line or amount BC didn't return for a column is blank (null), not zero.
   const values = (lineNumber: number) =>
     byLine.map((m) => {
-      const v = round(sign * (m.get(lineNumber) ?? 0));
+      const raw = m.get(lineNumber);
+      if (typeof raw !== 'number') return null;
+      const v = round(sign * raw);
       return v === 0 ? 0 : v; // no -0
     });
 
@@ -189,23 +184,27 @@ export function incomeIsCreditNegative(periods: BcStatementLine[][]): boolean {
  * BC trial balance → Xero's layout: Debit/Credit are balances as at the date,
  * YTD Debit/Credit the movement since the start of the financial year. Top-level
  * totalling groups (Income, Assets...) become sections; zero accounts are hidden.
+ * Pass `ytd: false` when BC has no financial year set up: the YTD columns are
+ * then left out rather than computed from a guessed year start.
  */
 export function fromBcTrialBalance(options: {
   title: string;
   subtitles: string[];
   lines: BcTrialBalanceLine[];
+  ytd?: boolean;
+  note?: string;
 }): Report {
+  const ytd = options.ytd ?? true;
   const sections: ReportSection[] = [];
   let current: ReportSection | undefined;
   let depth = 0;
-  const totals = [0, 0, 0, 0];
+  const totals = ytd ? [0, 0, 0, 0] : [0, 0];
   for (const line of options.lines) {
     const type = line.accountType.replace(/_x002D_/g, '-');
     const amounts = [
       parseBcAmount(line.balanceAtDateDebit),
       parseBcAmount(line.balanceAtDateCredit),
-      parseBcAmount(line.totalDebit),
-      parseBcAmount(line.totalCredit),
+      ...(ytd ? [parseBcAmount(line.totalDebit), parseBcAmount(line.totalCredit)] : []),
     ];
     if (type === 'Begin-Total') {
       if (depth === 0) {
@@ -238,9 +237,10 @@ export function fromBcTrialBalance(options: {
     id: 'trial-balance',
     title: options.title,
     subtitles: options.subtitles,
-    columns: ['Account', 'Debit', 'Credit', 'YTD Debit', 'YTD Credit'],
+    columns: ['Account', 'Debit', 'Credit', ...(ytd ? ['YTD Debit', 'YTD Credit'] : [])],
     sections: kept,
     generatedAt: new Date().toISOString(),
+    ...(options.note ? { note: options.note } : {}),
   };
 }
 
@@ -307,7 +307,6 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 interface BcCompanyInformation {
   displayName?: string;
-  currentFiscalYearStartDate?: string;
 }
 
 export function bcReports(client: BcClient, lcy: () => Promise<string>): ReportsModule {
@@ -323,13 +322,8 @@ export function bcReports(client: BcClient, lcy: () => Promise<string>): Reports
     client.all<BcStatementLine>(page, { $filter: filter });
   const rangeFilter = (r: DateRange) => `dateFilter ge ${r.from} and dateFilter le ${r.to}`;
 
-  /** Start of the financial year containing `date`, from BC's current fiscal year start. */
-  const fyStart = async (date: IsoDate) => {
-    const start = (await company()).currentFiscalYearStartDate?.slice(0, 10);
-    if (!start || start.startsWith('0001')) return `${date.slice(0, 4)}-01-01`;
-    const [, m, d] = start.split('-').map(Number);
-    return financialYear(date, ...previousDay(m, d)).from;
-  };
+  /** Start of the financial year containing a date, from BC's accounting periods. */
+  const fiscalYear = bcFiscalYear(client);
 
   const ranges = (params: ReportParams): DateRange[] => {
     const base = {
@@ -380,13 +374,17 @@ export function bcReports(client: BcClient, lcy: () => Promise<string>): Reports
         }
         case 'trial-balance': {
           const date = params.date ?? today();
+          const fy = await fiscalYear(date);
+          // Balances at the date don't depend on the range start; YTD columns need the real FY.
           const lines = await client.all<BcTrialBalanceLine>('trialBalances', {
-            $filter: rangeFilter({ from: await fyStart(date), to: date }),
+            $filter: rangeFilter({ from: fy.start ?? date, to: date }),
           });
           return fromBcTrialBalance({
             title: 'Trial Balance',
             subtitles: [name, asAtLabel(date)],
             lines,
+            ytd: !!fy.start,
+            note: fy.note && `${fy.note} Year-to-date columns aren't shown.`,
           });
         }
         case 'aged-receivables':
@@ -412,11 +410,4 @@ export function bcReports(client: BcClient, lcy: () => Promise<string>): Reports
       }
     },
   };
-}
-
-/** The financial year end (day, month) implied by a year-start month and day. */
-function previousDay(month: number, day: number): [number, number] {
-  const end = addDays(`2001-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`, -1);
-  const [, m, d] = end.split('-').map(Number);
-  return [d, m];
 }

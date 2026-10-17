@@ -81,7 +81,8 @@ export function fromXeroAccount(raw: XeroAccount): Account {
     name: raw.Name,
     type: raw.Type,
     typeLabel: known?.label ?? raw.Type,
-    class: (raw.Class && CLASS[raw.Class]) ?? known?.class ?? 'asset',
+    // Unknown class stays unknown (never assumed to be an asset).
+    class: (raw.Class && CLASS[raw.Class]) ?? known?.class,
     taxType: raw.TaxType || undefined,
     description: raw.Description || undefined,
     status: raw.Status === 'ACTIVE' ? 'active' : 'archived',
@@ -151,7 +152,9 @@ export function xeroAccounts(client: XeroClient): AccountsModule {
       const balances = report ? trialBalanceByAccount(report) : undefined;
       return result.Accounts.filter((a) => a.Status !== 'DELETED').map((raw) => {
         const account = fromXeroAccount(raw);
-        if (balances) {
+        // Xero's trial balance leaves out accounts with a zero balance, so a missing
+        // account is at zero. Without a class the sign is unknown, so no balance.
+        if (balances && account.class) {
           const debit = balances.get(raw.AccountID) ?? 0;
           account.balance = CREDIT_NORMAL.includes(account.class) ? -debit : debit;
         }

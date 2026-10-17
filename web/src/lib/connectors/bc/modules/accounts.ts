@@ -1,6 +1,7 @@
 import type { Account, AccountClass, LedgerEntry } from '@/lib/domain/types';
 import { odataString, type BcClient, type ODataList } from '../client';
 import type { AccountsModule } from '../../types';
+import { bcFiscalYear } from '../fiscal-year';
 
 /* Raw shapes (BC API v2.0). Enum values arrive XML-encoded, e.g. `Cost_x0020_of_x0020_Goods_x0020_Sold`. */
 
@@ -65,8 +66,8 @@ export function fromBcAccount(raw: BcAccount): Account {
     name: raw.displayName,
     type: category || 'Posting',
     typeLabel: raw.subCategory || category || 'Uncategorised',
-    // BC leaves a few system accounts uncategorised; treat them as balance-sheet assets.
-    class: CATEGORY_CLASS[category] ?? 'asset',
+    // BC can leave an account uncategorised: its class is then unknown, not "asset".
+    class: CATEGORY_CLASS[category],
     status: raw.blocked ? 'archived' : 'active',
     // Bank accounts are their own entity in BC; G/L accounts are never "bank" accounts.
     isBank: false,
@@ -81,8 +82,12 @@ export function bcAmount(value: string | number | undefined): number {
 }
 
 /** YTD balance in the account's natural sign (credits positive for liabilities, equity, revenue). */
-export function ytdBalance(account: Account, line: BcTrialBalanceLine | undefined): number {
-  if (!line) return 0;
+export function ytdBalance(
+  account: Account,
+  line: BcTrialBalanceLine | undefined
+): number | undefined {
+  // No trial balance line, or no category to know the sign by: not available, not zero.
+  if (!line || !account.class) return undefined;
   const debit = PL_CLASSES.includes(account.class)
     ? bcAmount(line.totalDebit) - bcAmount(line.totalCredit)
     : bcAmount(line.balanceAtDateDebit) - bcAmount(line.balanceAtDateCredit);
@@ -106,15 +111,7 @@ export function fromBcGlEntry(raw: BcGlEntry): LedgerEntry {
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function bcAccounts(client: BcClient): AccountsModule {
-  const fiscalYearStart = async () => {
-    const info = await client
-      .request<ODataList<{ currentFiscalYearStartDate?: string }>>('companyInformation', {
-        query: { $select: 'currentFiscalYearStartDate' },
-      })
-      .catch(() => undefined);
-    const start = info?.value[0]?.currentFiscalYearStartDate;
-    return start && !start.startsWith('0001') ? start.slice(0, 10) : `${today().slice(0, 4)}-01-01`;
-  };
+  const fiscalYear = bcFiscalYear(client);
 
   return {
     async list(options) {
@@ -126,15 +123,24 @@ export function bcAccounts(client: BcClient): AccountsModule {
         })
       ).map(fromBcAccount);
       if (!options?.withBalances) return accounts;
-      const from = await fiscalYearStart();
+      // P&L accounts show the movement since the financial year began, so they need
+      // BC's real year start. Without one, only balance-sheet balances (as at today,
+      // whatever the range start) are shown.
+      const fy = await fiscalYear(today());
       const lines = await client
         .all<BcTrialBalanceLine>('trialBalances', {
-          $filter: `dateFilter ge ${from} and dateFilter le ${today()}`,
+          $filter: `dateFilter ge ${fy.start ?? today()} and dateFilter le ${today()}`,
         })
         .catch(() => undefined);
       if (!lines) return accounts;
       const byId = new Map(lines.map((l) => [l.accountId, l]));
-      return accounts.map((a) => ({ ...a, balance: ytdBalance(a, byId.get(a.id)) }));
+      return accounts.map((a) => ({
+        ...a,
+        balance:
+          !fy.start && a.class && PL_CLASSES.includes(a.class)
+            ? undefined
+            : ytdBalance(a, byId.get(a.id)),
+      }));
     },
     // BC API v2.0 exposes `accounts` read-only: there is no API to create a G/L account.
     async ledger(query) {

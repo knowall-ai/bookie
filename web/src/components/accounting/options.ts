@@ -1,13 +1,16 @@
 import type { Account, TaxRate } from '@/lib/domain/types';
 import type { EditorOption, EditorTaxRate } from '@/components/documents/DocumentEditor';
 
-/** Active tax rates as select options; rates the source doesn't quantify show their name only. */
+/**
+ * Active tax rates as select options. Rates the source doesn't quantify show
+ * their name only and keep `rate` undefined, so no editor ever treats them as 0%.
+ */
 export function taxRateOptions(rates: TaxRate[]): EditorTaxRate[] {
   return rates
     .filter((t) => t.status === 'active')
     .map((t) => ({
       taxType: t.taxType,
-      name: t.rateAvailable === false ? t.name : `${t.name} (${t.rate}%)`,
+      name: t.rate === undefined ? t.name : `${t.name} (${t.rate}%)`,
       rate: t.rate,
     }));
 }

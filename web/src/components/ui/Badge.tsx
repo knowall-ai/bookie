@@ -55,6 +55,8 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   terminated: { label: 'Left', tone: 'neutral' },
   'in-progress': { label: 'In progress', tone: 'blue' },
   closed: { label: 'Closed', tone: 'neutral' },
+  // The source doesn't report a status: say so, never pick one.
+  unknown: { label: 'Status not available', tone: 'neutral' },
 };
 
 /** Status pill. Pass `overdue` to override an authorised document's label. */

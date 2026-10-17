@@ -12,6 +12,7 @@ import {
   ProfitAndLossTile,
 } from '@/components/dashboard/DashboardCards';
 import { IncomeExpensesChart } from '@/components/dashboard/IncomeExpensesChart';
+import { SourceNote } from '@/components/accounting/SourceNote';
 
 export const metadata = { title: 'Home' };
 
@@ -72,6 +73,12 @@ export default async function Home({ params }: { params: Promise<{ org: string }
           const d = dashboard.value;
           return (
             <>
+              {!d.currency && (
+                <SourceNote>
+                  {sourceName(org)} doesn&apos;t say what this organisation&apos;s base currency is,
+                  so amounts are shown without a currency symbol.
+                </SourceNote>
+              )}
               <section aria-labelledby="bank-heading">
                 <h2 id="bank-heading" className="text-ink mb-3 text-[15px] font-semibold">
                   Bank accounts
@@ -81,7 +88,7 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                     {d.bankAccounts.map((account) => (
                       <BankAccountCard
                         key={account.id}
-                        account={{ ...account, currency: account.currency || d.currency }}
+                        account={account}
                         href={
                           modules.bank
                             ? `${base}/accounting/bank/${encodeURIComponent(account.id)}`
@@ -93,8 +100,13 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                 ) : (
                   <EmptyState
                     icon={<Landmark className="h-6 w-6" />}
-                    title="No bank accounts to show"
-                    body={`${sourceName(org)} didn't return any bank accounts for this organisation.`}
+                    title={
+                      d.notes?.bank ? "Bank accounts aren't available" : 'No bank accounts to show'
+                    }
+                    body={
+                      d.notes?.bank ??
+                      `${sourceName(org)} didn't return any bank accounts for this organisation.`
+                    }
                   />
                 )}
               </section>
@@ -105,6 +117,7 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                   noun="invoice"
                   buckets={d.receivables}
                   currency={d.currency}
+                  note={d.notes?.receivables}
                   listHref={modules.invoices ? `${base}/sales/invoices` : undefined}
                   newHref={connector.invoices?.create ? `${base}/sales/invoices/new` : undefined}
                   newLabel="New invoice"
@@ -114,6 +127,7 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                   noun="bill"
                   buckets={d.payables}
                   currency={d.currency}
+                  note={d.notes?.payables}
                   listHref={modules.invoices ? `${base}/purchases/bills` : undefined}
                   newHref={connector.invoices?.create ? `${base}/purchases/bills/new` : undefined}
                   newLabel="New bill"
@@ -124,7 +138,13 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                 <Card className="lg:col-span-2">
                   <CardHeader title="Income and expenses" subtitle="Last 12 months" />
                   <div className="px-5 py-4">
-                    <IncomeExpensesChart trend={d.trend} currency={d.currency} />
+                    {d.notes?.trend ? (
+                      <p className="text-muted py-10 text-center text-sm" role="note">
+                        {d.notes.trend}
+                      </p>
+                    ) : (
+                      <IncomeExpensesChart trend={d.trend} currency={d.currency} />
+                    )}
                   </div>
                 </Card>
                 {d.profitAndLoss ? (
@@ -140,7 +160,10 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                 ) : (
                   <EmptyState
                     title="Profit and loss isn't available"
-                    body={`${sourceName(org)} didn't return a profit and loss for this financial year.`}
+                    body={
+                      d.notes?.profitAndLoss ??
+                      `${sourceName(org)} didn't return a profit and loss for this financial year.`
+                    }
                   />
                 )}
               </div>

@@ -7,7 +7,6 @@ export interface BcProject {
   id: string;
   number?: string;
   displayName?: string;
-  status?: string;
   billToCustomerNumber?: string;
   billToName?: string;
   endingDate?: string;
@@ -17,21 +16,27 @@ function bcDay(value?: string): string | undefined {
   return value && !value.startsWith('0001') ? value.slice(0, 10) : undefined;
 }
 
+export const BC_PROJECT_STATUS_NOTE =
+  "Business Central's projects API doesn't include a project's status or financials, so they show as not available. Open the project in Business Central for those.";
+
 /**
- * BC's project entity carries no totals, so financials stay undefined and the
- * UI shows dashes. Completed projects count as closed.
+ * BC API v2.0 `projects` carries no status and no totals (checked against live
+ * companies), so status is `unknown` and financials stay undefined.
  */
 export function fromBcProject(raw: BcProject, lcy: string): Project {
-  const closed = raw.status === 'Completed' || raw.status === 'Closed';
   return {
     id: raw.id,
-    name: raw.displayName || raw.number || 'Project',
+    name: raw.displayName || raw.number || '',
     contact: raw.billToName
       ? { id: raw.billToCustomerNumber ?? '', name: raw.billToName }
       : undefined,
-    status: closed ? 'closed' : 'in-progress',
+    status: 'unknown',
     deadline: bcDay(raw.endingDate),
-    currency: lcy,
+    currency: lcy || undefined,
+    estimate: undefined,
+    totalInvoiced: undefined,
+    totalToInvoice: undefined,
+    totalExpenses: undefined,
   };
 }
 
@@ -40,14 +45,14 @@ export function bcProjects(
   lcy: () => Promise<string>
 ): ProjectsModule | undefined {
   return {
+    statuses: ['unknown'],
     async list(query) {
       const page = query?.page ?? 1;
       const pageSize = query?.pageSize ?? 50;
       const search = query?.search?.trim().toLowerCase();
-      // Status is mapped client side: BC's status enum is awkward to filter on.
       const all = await client.all<BcProject>('projects', { $orderby: 'number' });
       const currency = await lcy();
-      const wanted = query?.status ?? 'in-progress';
+      const wanted = query?.status ?? 'unknown';
       const filtered = all
         .map((p) => fromBcProject(p, currency))
         .filter((p) => p.status === wanted)
@@ -60,6 +65,7 @@ export function bcProjects(
         pageSize,
         hasMore: filtered.length > page * pageSize,
         total: filtered.length,
+        note: BC_PROJECT_STATUS_NOTE,
       };
     },
     async get(id) {

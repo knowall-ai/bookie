@@ -168,7 +168,10 @@ function byDateDesc(a: BankTransaction, b: BankTransaction) {
 /** Xero's largest page; also the deepest we merge two sources to. */
 const MAX_MERGE = 1000;
 
-export function xeroBank(client: XeroClient): BankModule {
+export function xeroBank(
+  client: XeroClient,
+  baseCurrency: () => Promise<string | undefined> = async () => undefined
+): BankModule {
   /** Count unreconciled items per bank account (spend/receive money and payments). */
   const unreconciled = async () => {
     const [transactions, payments] = await Promise.all([
@@ -187,6 +190,13 @@ export function xeroBank(client: XeroClient): BankModule {
         },
       }),
     ]);
+    // A full page means there may be more: the counts would be short, so don't show them.
+    if (
+      transactions.BankTransactions.length >= MAX_MERGE ||
+      payments.Payments.length >= MAX_MERGE
+    ) {
+      return undefined;
+    }
     const counts = new Map<string, number>();
     const add = (id?: string) => id && counts.set(id, (counts.get(id) ?? 0) + 1);
     transactions.BankTransactions.forEach((t) => add(t.BankAccount.AccountID));
@@ -196,7 +206,7 @@ export function xeroBank(client: XeroClient): BankModule {
 
   return {
     async accounts() {
-      const [accounts, summary, counts] = await Promise.all([
+      const [accounts, summary, counts, base] = await Promise.all([
         client.request<{ Accounts: XeroAccount[] }>('Accounts', {
           query: { where: 'Type=="BANK" AND Status=="ACTIVE"', order: 'Name ASC' },
         }),
@@ -207,13 +217,21 @@ export function xeroBank(client: XeroClient): BankModule {
           .then((r) => closingBalances(r.Reports[0]))
           .catch(() => undefined),
         unreconciled().catch(() => undefined),
+        baseCurrency().catch(() => undefined),
       ]);
-      return accounts.Accounts.map((raw) => ({
-        ...fromXeroBankAccount(raw),
-        // Xero's API has no bank-feed statement balance, so statementBalance stays unknown.
-        balance: summary ? (summary.get(raw.AccountID) ?? 0) : undefined,
-        unreconciledCount: counts ? (counts.get(raw.AccountID) ?? 0) : undefined,
-      }));
+      return accounts.Accounts.map((raw) => {
+        const account = fromXeroBankAccount(raw, base);
+        return {
+          ...account,
+          // Xero's API has no bank-feed statement balance, so statementBalance stays unknown.
+          // Bank Summary (like the Balance Sheet) leaves out accounts with a zero balance,
+          // so an active account missing from it is at zero.
+          balance: summary ? (summary.get(raw.AccountID) ?? 0) : undefined,
+          // Bank Summary amounts are in base currency, foreign-currency accounts included.
+          balanceCurrency: base && account.currency !== base ? base : undefined,
+          unreconciledCount: counts ? (counts.get(raw.AccountID) ?? 0) : undefined,
+        };
+      });
     },
 
     /**

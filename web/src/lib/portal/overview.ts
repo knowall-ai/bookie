@@ -1,5 +1,6 @@
 import 'server-only';
 import type { AccountingConnector } from '@/lib/connectors/types';
+import { bucketOf } from '@/lib/connectors/buckets';
 import type { DocumentBucket, Invoice, InvoiceType } from '@/lib/domain/types';
 
 export interface InvoiceOverview {
@@ -10,16 +11,17 @@ export interface InvoiceOverview {
   recent: Invoice[];
   /** True when a bucket hit the fetch cap, so its figures are a floor. */
   truncated: boolean;
+  /** Why an amount is missing (the list's source note), if any is. */
+  note?: string;
 }
 
 const CAP = 500;
 
-const sum = (invoices: Invoice[], pick: (i: Invoice) => number): DocumentBucket => ({
-  count: invoices.length,
-  total: Math.round(invoices.reduce((s, i) => s + pick(i), 0) * 100) / 100,
-});
-
-/** Xero's Sales/Purchases overview cards, from the open invoices or bills. */
+/**
+ * Xero's Sales/Purchases overview cards, from the open invoices or bills.
+ * Amounts the source doesn't report are counted, never summed, and other
+ * currencies are totalled separately, never converted (see `bucketOf`).
+ */
 export async function invoiceOverview(
   connector: AccountingConnector,
   type: InvoiceType
@@ -27,19 +29,27 @@ export async function invoiceOverview(
   const mod = connector.invoices;
   if (!mod) return undefined;
   const list = (status?: string, pageSize = CAP) => mod.list(type, { status, pageSize });
-  const [draft, submitted, authorised, recent] = await Promise.all([
+  const [draft, submitted, authorised, recent, details] = await Promise.all([
     list('draft'),
     list('submitted'),
     list('authorised'),
     list(undefined, 8),
+    connector.organisation(),
   ]);
+  const base = details.baseCurrency ?? '';
+  const of = (items: Invoice[], pick: (i: Invoice) => number | undefined) =>
+    bucketOf(
+      items.map((i) => ({ amount: pick(i), currency: i.currency })),
+      base
+    );
   const overdue = authorised.items.filter((i) => i.isOverdue);
   return {
-    draft: sum(draft.items, (i) => i.total),
-    awaitingApproval: sum(submitted.items, (i) => i.total),
-    awaitingPayment: sum(authorised.items, (i) => i.amountDue),
-    overdue: sum(overdue, (i) => i.amountDue),
+    draft: of(draft.items, (i) => i.total),
+    awaitingApproval: of(submitted.items, (i) => i.total),
+    awaitingPayment: of(authorised.items, (i) => i.amountDue),
+    overdue: of(overdue, (i) => i.amountDue),
     recent: recent.items,
     truncated: draft.hasMore || submitted.hasMore || authorised.hasMore,
+    note: authorised.note,
   };
 }

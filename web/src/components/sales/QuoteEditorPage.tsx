@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { orgContext } from '@/lib/portal/context';
+import { orgContext, sourceName } from '@/lib/portal/context';
 import { editorData } from '@/lib/portal/editor-data';
 import { saveQuote } from '@/lib/portal/actions/quotes';
 import { DocumentEditor, type EditorPayload } from '@/components/documents/DocumentEditor';
@@ -29,6 +29,7 @@ export async function QuoteEditorPage({ orgParam, id }: { orgParam: string; id?:
     <DocumentEditor
       heading={existing ? `Edit quote ${existing.number}` : 'New quote'}
       currency={existing?.currency ?? details.baseCurrency}
+      source={sourceName(org)}
       contactLabel="Customer"
       dateLabel="Date"
       secondDateLabel="Expiry"

@@ -26,7 +26,7 @@ export default async function Page({ params }: { params: Promise<{ org: string }
     (a, b) =>
       (a.status === b.status ? 0 : a.status === 'active' ? -1 : 1) || a.name.localeCompare(b.name)
   );
-  const unquantified = rates.some((r) => r.rateAvailable === false);
+  const unquantified = rates.some((r) => r.rate === undefined);
 
   const columns: Column<TaxRate>[] = [
     {
@@ -45,7 +45,7 @@ export default async function Page({ params }: { params: Promise<{ org: string }
       header: 'Rate',
       align: 'right',
       cell: (r) =>
-        r.rateAvailable === false ? (
+        r.rate === undefined ? (
           <span className="text-faint">Not available</span>
         ) : (
           <span className="num text-ink">{formatNumber(r.rate, 4)}%</span>

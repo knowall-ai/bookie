@@ -26,7 +26,8 @@ export function fromXeroAsset(raw: XeroAsset): FixedAsset {
     id: raw.assetId,
     number: raw.assetNumber ?? '',
     name: raw.assetName,
-    status: (raw.assetStatus && STATUS[raw.assetStatus]) ?? 'draft',
+    // An asset status Xero didn't send (or a new one) is unknown, not draft.
+    status: (raw.assetStatus && STATUS[raw.assetStatus]) ?? 'unknown',
     purchaseDate: raw.purchaseDate?.slice(0, 10) || undefined,
     purchasePrice: raw.purchasePrice,
     bookValue: raw.accountingBookValue,

@@ -59,7 +59,14 @@ test.describe('invoices', () => {
     await page.getByTestId('line-0-description').fill('Espresso blend 1kg, monthly order');
     await page.getByLabel('Quantity').first().fill('10');
     await page.getByTestId('line-0-price').fill('24');
-    await expect(page.getByTestId('editor-total')).toContainText('240.00');
+    // No tax rate picked: the source applies its default, so no tax or total is guessed.
+    await expect(page.getByTestId('editor-subtotal')).toContainText('240.00');
+    await expect(page.getByTestId('editor-total')).toHaveCount(0);
+    await expect(page.getByTestId('editor-tax-note')).toContainText('calculated by');
+    // With a rate the source gave us, the tax is previewed and labelled as a preview.
+    await page.getByLabel('Tax rate').first().selectOption({ index: 1 });
+    await expect(page.getByTestId('editor-total')).toBeVisible();
+    await expect(page.getByText('(preview)').first()).toBeVisible();
     await page.getByTestId('save-draft').click();
     await expect(page.getByRole('heading', { name: /Invoice INV-/ })).toBeVisible();
     await expect(page.getByText('Draft', { exact: true }).first()).toBeVisible();

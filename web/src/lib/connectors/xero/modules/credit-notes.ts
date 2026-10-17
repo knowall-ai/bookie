@@ -47,12 +47,13 @@ export function fromXeroCreditNote(raw: XeroCreditNote): CreditNote {
     subTotal: raw.SubTotal ?? 0,
     totalTax: raw.TotalTax ?? 0,
     total: raw.Total ?? 0,
-    // Xero reports RemainingCredit on drafts too; nothing is allocatable until approved.
+    // Approved: what Xero reports (unknown if it didn't). Unapproved notes can't have been
+    // allocated, so all of it remains; paid (fully allocated) and voided have none left.
     remainingCredit:
       status === 'authorised'
-        ? (raw.RemainingCredit ?? raw.Total ?? 0)
+        ? raw.RemainingCredit
         : status === 'draft' || status === 'submitted'
-          ? (raw.Total ?? 0)
+          ? raw.Total
           : 0,
     lineItems: raw.LineItems?.map(fromXeroLineItem),
   };

@@ -2,8 +2,6 @@ import type {
   Contact,
   ContactInput,
   DashboardSummary,
-  DocumentBucket,
-  Invoice,
   InvoiceStatus,
   ListQuery,
   OrgRef,
@@ -15,7 +13,8 @@ import {
   type ContactsModule,
   type InvoicesModule,
 } from '../types';
-import { addDays, demoData, DEMO_TODAY, type DemoData } from './data';
+import { addDays, demoData, DEMO_TODAY, type DemoData, type DemoInvoice } from './data';
+import { invoiceBuckets } from '../buckets';
 import { demoQuotes } from './modules/quotes';
 import { demoCreditNotes } from './modules/credit-notes';
 import { demoPurchaseOrders } from './modules/purchase-orders';
@@ -89,7 +88,7 @@ function demoInvoices(data: DemoData): InvoicesModule {
     input: Parameters<NonNullable<InvoicesModule['create']>>[0],
     id: string,
     number: string
-  ): Invoice => {
+  ): DemoInvoice => {
     const contact = data.contacts.find((c) => c.id === input.contactId) ?? notFound('Contact');
     const lineItems = input.lineItems.map((l) => {
       const lineAmount =
@@ -289,29 +288,6 @@ function demoContacts(data: DemoData): ContactsModule {
   };
 }
 
-function summarise(invoices: Invoice[]) {
-  const b = (): DocumentBucket => ({ count: 0, total: 0 });
-  const s = { draft: b(), awaitingApproval: b(), awaitingPayment: b(), overdue: b() };
-  for (const i of invoices) {
-    const target =
-      i.status === 'draft'
-        ? s.draft
-        : i.status === 'submitted'
-          ? s.awaitingApproval
-          : i.status === 'authorised'
-            ? s.awaitingPayment
-            : undefined;
-    if (!target) continue;
-    target.count++;
-    target.total += i.amountDue;
-    if (i.isOverdue) {
-      s.overdue.count++;
-      s.overdue.total += i.amountDue;
-    }
-  }
-  return s;
-}
-
 export function createDemoConnector(org: OrgRef): AccountingConnector {
   const data = demoData(org.key.split('.')[1]);
   return {
@@ -367,8 +343,14 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
       return {
         currency: 'GBP',
         bankAccounts: structuredClone(data.bankAccounts),
-        receivables: summarise(data.invoices.filter((i) => i.type === 'sales')),
-        payables: summarise(data.invoices.filter((i) => i.type === 'purchase')),
+        receivables: invoiceBuckets(
+          data.invoices.filter((i) => i.type === 'sales'),
+          'GBP'
+        ),
+        payables: invoiceBuckets(
+          data.invoices.filter((i) => i.type === 'purchase'),
+          'GBP'
+        ),
         trend,
         profitAndLoss: {
           from: fyStart,

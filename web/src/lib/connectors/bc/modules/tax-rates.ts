@@ -13,15 +13,15 @@ export interface BcTaxGroup {
  * BC API v2.0 `taxGroups` are the codes sales and purchase lines carry in
  * `taxCode` (VAT product posting groups in VAT countries, tax groups in US
  * sales-tax ones). The percentages live in VAT Posting Setup / Tax Details,
- * which the API doesn't expose, so `rate` is 0 with `rateAvailable: false`.
+ * which the API doesn't expose, so `rate` is undefined (shown as "not
+ * available", never 0%).
  */
 export function fromBcTaxGroup(raw: BcTaxGroup): TaxRate {
   return {
     id: raw.id,
     name: raw.displayName || raw.code,
     taxType: raw.code,
-    rate: 0,
-    rateAvailable: false,
+    rate: undefined,
     status: 'active',
   };
 }

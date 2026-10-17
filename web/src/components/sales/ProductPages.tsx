@@ -88,11 +88,7 @@ export async function ProductListPage({
             header: 'Quantity',
             align: 'right' as const,
             cell: (i: Item) =>
-              i.isTracked ? (
-                <span className="num">{formatNumber(i.quantityOnHand ?? 0, 4)}</span>
-              ) : (
-                ''
-              ),
+              i.isTracked ? <span className="num">{formatNumber(i.quantityOnHand, 4)}</span> : '',
             hideOnMobile: true,
           },
         ]
@@ -238,7 +234,7 @@ export async function ProductDetailPage({ orgParam, id }: { orgParam: string; id
             <p className="p-5 text-sm">
               <span className="text-muted">Quantity on hand: </span>
               <span className="num text-ink font-semibold">
-                {formatNumber(item.quantityOnHand ?? 0, 4)}
+                {formatNumber(item.quantityOnHand, 4)}
               </span>
             </p>
           </Card>

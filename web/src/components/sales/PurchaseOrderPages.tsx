@@ -246,6 +246,7 @@ export async function PurchaseOrderEditorPage({ orgParam, id }: { orgParam: stri
     <DocumentEditor
       heading={existing ? `Edit purchase order ${existing.number}` : 'New purchase order'}
       currency={existing?.currency ?? details.baseCurrency}
+      source={sourceName(org)}
       contactLabel="Supplier"
       dateLabel="Date"
       secondDateLabel="Delivery date"

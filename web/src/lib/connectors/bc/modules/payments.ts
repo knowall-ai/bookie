@@ -21,18 +21,16 @@ export interface BcJournalPayment {
   description?: string;
 }
 
-export function fromBcJournalPayment(
-  raw: BcJournalPayment,
-  type: InvoiceType,
-  lcy: string
-): Payment {
+export function fromBcJournalPayment(raw: BcJournalPayment, type: InvoiceType): Payment {
   const partyId = type === 'sales' ? raw.customerId : raw.vendorId;
   return {
     id: raw.id,
     date: bcDate(raw.postingDate) ?? '',
     // Payment journals sign receipts negative (a credit to the customer); show the size.
     amount: Math.abs(raw.amount ?? 0),
-    currency: lcy,
+    // The journal line's currency code isn't in API v2.0 (a line can be in a foreign
+    // currency), so the currency is left unset rather than assumed to be LCY.
+    currency: undefined,
     reference: raw.externalDocumentNumber || raw.documentNumber || undefined,
     invoiceId:
       raw.appliesToInvoiceId && !/^0{8}-/.test(raw.appliesToInvoiceId)
@@ -63,16 +61,12 @@ export function fromBcJournalPayment(
  * posting a journal posts every line in its batch, including other people's.
  * Record payments in Business Central itself (Payment Registration).
  */
-export function bcPayments(
-  client: BcClient,
-  lcy: () => Promise<string>
-): PaymentsModule | undefined {
+export function bcPayments(client: BcClient): PaymentsModule | undefined {
   return {
     async list(query) {
       const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
       const page = query?.page ?? 1;
       const types: InvoiceType[] = query?.invoiceType ? [query.invoiceType] : ['sales', 'purchase'];
-      const currency = await lcy();
       const contact = query?.contactId ? parseContactId(query.contactId) : undefined;
       const lists = await Promise.all(
         types.map(async (type) => {
@@ -88,7 +82,7 @@ export function bcPayments(
             { $filter: filters.join(' and ') || undefined },
             2
           );
-          return rows.map((r) => fromBcJournalPayment(r, type, currency));
+          return rows.map((r) => fromBcJournalPayment(r, type));
         })
       );
       const all = lists.flat().sort((a, b) => b.date.localeCompare(a.date));

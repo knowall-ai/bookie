@@ -25,11 +25,10 @@ export function formatMoney(
   return formatter.format(amount);
 }
 
-/** Compact money for chart axes and big tiles: £12.3k. */
-export function formatMoneyCompact(amount: number, currency = 'GBP'): string {
+/** Compact money for chart axes and big tiles: £12.3k. No currency known: 12.3k (never assumed). */
+export function formatMoneyCompact(amount: number, currency?: string): string {
   return new Intl.NumberFormat('en-GB', {
-    style: 'currency',
-    currency,
+    ...(currency ? { style: 'currency', currency } : {}),
     notation: 'compact',
     maximumFractionDigits: 1,
   }).format(amount);

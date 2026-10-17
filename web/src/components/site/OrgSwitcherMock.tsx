@@ -60,7 +60,8 @@ export function OrgSwitcherMock() {
         </div>
       </div>
       <figcaption className="text-faint mt-4 text-center text-xs">
-        Fictional organisations. One sign-in, every set of books you have access to.
+        Illustration with fictional organisations. One sign-in, every set of books you have access
+        to.
       </figcaption>
     </figure>
   );

@@ -51,7 +51,10 @@ export function BankAccountCard({
             {account.balance === undefined ? (
               <span className="text-muted text-sm font-normal">Not available</span>
             ) : (
-              <Money amount={account.balance} currency={account.currency} />
+              <Money
+                amount={account.balance}
+                currency={account.balanceCurrency ?? account.currency}
+              />
             )}
           </dd>
         </div>

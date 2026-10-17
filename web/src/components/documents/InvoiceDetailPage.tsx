@@ -35,8 +35,16 @@ export async function InvoiceDetailPage({
   const m = connector.invoices;
   const editable = (invoice.status === 'draft' || invoice.status === 'submitted') && !!m.update;
   // "Make a payment" needs a payments writer and the bank accounts to pay into or from.
+  const amountDue = invoice.amountDue;
+  const dueUnknown =
+    amountDue === undefined
+      ? `${sourceName(org)} doesn't report what's left to pay on this ${noun.toLowerCase()}.${org.kind === 'business-central' ? ' Install the Bookie BC extension to see it.' : ''}`
+      : undefined;
   const bankAccounts =
-    invoice.status === 'authorised' && invoice.amountDue > 0 && connector.payments?.create
+    invoice.status === 'authorised' &&
+    amountDue !== undefined &&
+    amountDue > 0 &&
+    connector.payments?.create
       ? await (connector.bank?.accounts().catch(() => []) ?? Promise.resolve([]))
       : [];
 
@@ -68,6 +76,7 @@ export async function InvoiceDetailPage({
                 approve:
                   (invoice.status === 'draft' || invoice.status === 'submitted') && !!m.approve,
                 email: isSales && invoice.status === 'authorised' && !!m.email,
+                // Only offer void when the source confirms nothing has been paid.
                 void: invoice.status === 'authorised' && invoice.amountPaid === 0 && !!m.void,
                 delete:
                   (invoice.status === 'draft' || invoice.status === 'submitted') && !!m.delete,
@@ -112,12 +121,12 @@ export async function InvoiceDetailPage({
 
         <div className="flex flex-col gap-6 lg:flex-row">
           <div className="flex-1 space-y-5">
-            {bankAccounts.length > 0 && (
+            {bankAccounts.length > 0 && amountDue !== undefined && (
               <PaymentPanel
-                key={invoice.amountDue}
+                key={amountDue}
                 orgKey={org.key}
                 invoiceId={invoice.id}
-                amountDue={invoice.amountDue}
+                amountDue={amountDue}
                 currency={invoice.currency}
                 isSales={isSales}
                 bankAccounts={bankAccounts.map((b) => ({ id: b.id, name: b.name, code: b.code }))}
@@ -142,6 +151,7 @@ export async function InvoiceDetailPage({
           </div>
           <DocumentTotals
             currency={invoice.currency}
+            note={dueUnknown}
             rows={[
               { label: 'Subtotal', amount: invoice.subTotal },
               {
@@ -153,10 +163,13 @@ export async function InvoiceDetailPage({
               ...(invoice.amountPaid
                 ? [{ label: 'Less payments', amount: -invoice.amountPaid, muted: true }]
                 : []),
+              ...(invoice.amountPaid === undefined
+                ? [{ label: 'Paid', amount: undefined, muted: true, missing: dueUnknown }]
+                : []),
               ...(invoice.amountCredited
                 ? [{ label: 'Less credit', amount: -invoice.amountCredited, muted: true }]
                 : []),
-              { label: 'Amount due', amount: invoice.amountDue, strong: true },
+              { label: 'Amount due', amount: amountDue, strong: true, missing: dueUnknown },
             ]}
           />
         </div>

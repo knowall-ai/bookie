@@ -171,11 +171,16 @@ export function fromXeroInvoice(invoice: XeroInvoice): Invoice {
     subTotal: invoice.SubTotal ?? 0,
     totalTax: invoice.TotalTax ?? 0,
     total: invoice.Total ?? 0,
-    amountDue: invoice.AmountDue ?? 0,
-    amountPaid: invoice.AmountPaid ?? 0,
+    // Xero always returns these; if it ever didn't, they stay unknown rather than 0.
+    amountDue: invoice.AmountDue,
+    amountPaid: invoice.AmountPaid,
     amountCredited: invoice.AmountCredited || undefined,
+    // Xero's own rule: awaiting payment, something still due, due date before today.
     isOverdue:
-      status === 'authorised' && !!dueDate && dueDate < today() && (invoice.AmountDue ?? 0) > 0,
+      status === 'authorised' &&
+      !!dueDate &&
+      dueDate < today() &&
+      (invoice.AmountDue === undefined || invoice.AmountDue > 0),
     lineItems: invoice.LineItems?.map(fromXeroLineItem),
     payments: invoice.Payments?.map((p) => ({
       id: p.PaymentID,
@@ -227,8 +232,11 @@ const PHONE_PREFERENCE = ['DEFAULT', 'MOBILE', 'DDI'];
 
 /**
  * Xero contacts. `Balances` is only returned with `summaryOnly=false` (lists)
- * or on a single GET, and Xero omits it entirely when both balances are zero,
+ * or on a single GET, and Xero omits it entirely when nothing is outstanding,
  * so pass `zeroWhenMissing` when the response is known to be a full one.
+ * (Checked on a live org: of ~900 contacts without `Balances`, none had an
+ * AUTHORISED invoice with an amount due.) Balances are in the organisation's
+ * base currency (Xero converts foreign invoices) and net off unapplied credit.
  */
 export function fromXeroContact(contact: XeroContact, zeroWhenMissing = false): Contact {
   const phone = [...(contact.Phones ?? [])]
