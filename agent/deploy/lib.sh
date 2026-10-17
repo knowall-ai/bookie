@@ -78,7 +78,13 @@ set_env_line() {
     sudo cat "${file}" > "${tmp}" || { rm -f "${tmp}"; die "cannot read ${file}"; }
     sed -i "/^${name}=/d" "${tmp}"
   fi
-  printf "%s='%s'\n" "${name}" "${value}" >> "${tmp}"
+  # Plain values go in bare: not every reader of these files strips quotes (the call-bot bridge once
+  # sent LiveKit a key with its quotes and every call failed). Quote only what needs it.
+  if [[ "${value}" =~ ^[A-Za-z0-9._:/@+,=-]*$ ]]; then
+    printf "%s=%s\n" "${name}" "${value}" >> "${tmp}"
+  else
+    printf "%s='%s'\n" "${name}" "${value}" >> "${tmp}"
+  fi
   sudo install -o "${AGENT_NAME}" -g "${AGENT_NAME}" -m 600 "${tmp}" "${file}"
   rm -f "${tmp}"
 }
