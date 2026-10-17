@@ -1,0 +1,1 @@
+Hello, I'm Bookie, KnowAll's bookkeeper. I keep an eye on your books in Xero and Business Central, every client, one sign-in. Ask me who owes you, what's due, or how cash looks next quarter, and I'll check the real figures, not guesses. I'm open source, I never store your accounts, and I'm happy to join your Teams calls. Shall we have a look?
