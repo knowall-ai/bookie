@@ -27,9 +27,37 @@
 
 Bookie is **free and open source** from [KnowAll AI](https://knowall.ai), a sibling of [Thyme](https://github.com/knowall-ai/thyme) (Harvest-style time tracking on Business Central) and [ZapDesk](https://github.com/knowall-ai/zapdesk) (Zendesk-style support on Azure DevOps and GitHub).
 
+## Screenshots
+
+Real pages, read live through Bookie's own connector code from **Microsoft's CRONUS sample company** in a Business Central sandbox. No client data, and nothing made up. More in [docs/images/screenshots](docs/images/screenshots).
+
+| | |
+|---|---|
+| ![Home dashboard with the activity chart and bank accounts](docs/images/screenshots/home.webp) | ![Sales invoices list with status tabs](docs/images/screenshots/sales-invoices.webp) |
+| **Home:** activity chart, bank accounts, what you're owed and what you owe | **Sales › Invoices:** Xero's status tabs, search, paid and due |
+| ![A paid sales invoice with its lines and totals](docs/images/screenshots/invoice-detail.webp) | ![Purchases bills list with overdue bills](docs/images/screenshots/purchases-bills.webp) |
+| **Invoice:** lines, totals, payments, PDF and attachments | **Purchases › Bills:** overdue, draft and paid at a glance |
+| ![A customer with what they owe and their latest invoices](docs/images/screenshots/contact-detail.webp) | ![Profit and loss for a financial year](docs/images/screenshots/profit-and-loss.webp) |
+| **Contact:** what they owe, what's overdue, latest invoices | **Profit and loss:** any period, comparisons, CSV export and print |
+| ![Aged receivables summary by customer](docs/images/screenshots/aged-receivables.webp) | ![Home on a phone](docs/images/screenshots/home-mobile.webp) |
+| **Aged receivables:** who owes what, by how overdue | **On a phone:** every page is responsive |
+
+**Ask Bookie**, with his real answer to "Who owes us the most, and how late are they?" on CRONUS:
+
+![Ask Bookie panel answering who owes the most and how late they are](docs/images/screenshots/ask-bookie.webp)
+
 ## Features
 
-**A portal that feels like Xero.** Home, Sales, Purchases, Reporting, Accounting, Payroll, Projects and Contacts, with Xero's vocabulary, status tabs and layouts, in the KnowAll dark theme.
+**A portal that feels like Xero.** Home, Sales, Purchases, Reporting, Accounting, Payroll, Projects and Contacts, with Xero's vocabulary, status tabs and layouts, in the KnowAll dark theme. Responsive down to a phone.
+
+- **Home:** a year of organisation activity as a heatmap (sales, purchases and payments), bank accounts, invoices owed to you, bills to pay, and profit and loss.
+- **Sales:** invoices, quotes (draft, mark sent, accepted or declined, convert to an invoice), credit notes, and products and services.
+- **Purchases:** bills, purchase orders, supplier credit notes, and the **Inbox** of documents waiting to become bills. Bills drafted by the Bookie agent show under **Captured by Bookie**.
+- **Attachments:** upload and view files on invoices, bills and contacts.
+- **Accounting:** bank accounts and transactions, chart of accounts, manual journals, payments (recording a payment against an invoice), fixed assets and tax rates.
+- **Reporting:** profit and loss, balance sheet, trial balance, cash flow, aged receivables and payables, with comparison periods, **CSV export** and print. A report the source system can't provide says so instead of guessing.
+- **Contacts and search:** customers and suppliers with balances and history, and a global search across the organisation.
+- **Payroll and Projects:** employees, pay runs and projects where the source system has them.
 
 **Xero or Business Central, same screens.** Each organisation can live in either system. Turn each connector on or off in Settings.
 
@@ -43,9 +71,10 @@ Bookie is **free and open source** from [KnowAll AI](https://knowall.ai), a sibl
 
 **Bookie, the AI bookkeeper.**
 
-- **In the portal:** ask him anything about the open organisation ("who owes us the most?"). He looks it up live and explains it, and gives his take on the Home page.
-- **By voice:** talk to him in the browser, or **call him on Teams**.
-- **As a Hermes agent:** he has his own Microsoft 365 account, joins Teams calls with [Agent Presence](https://github.com/knowall-ai/agent-presence) using **GPT-Live-1**, and remembers people and context with [Reverie](https://github.com/knowall-ai/hermes-reverie).
+- **In the portal:** ask him anything about the open organisation ("who owes us the most?"). He looks it up live with read-only tools and explains it. A short "Bookie's take" on the Home page is planned.
+- **By voice:** talk to him in the browser, or **Call on Teams** from the Ask Bookie panel.
+- **As a Hermes agent:** he has his own Microsoft 365 account, joins Teams calls with [Agent Presence](https://github.com/knowall-ai/agent-presence) using **GPT-Live-1**, and remembers people and context with [Reverie](https://github.com/knowall-ai/hermes-reverie). See [agent/](agent).
+- **Bill capture (in progress):** the agent reads supplier invoices sent to a shared accounts mailbox and turns them into **draft** bills (never approved or paid without a person), leaving anything it can't read with confidence blank and flagged for review.
 
 **Your data stays yours.**
 
