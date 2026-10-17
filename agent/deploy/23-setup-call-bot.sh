@@ -86,6 +86,17 @@ for k in LIVEKIT_API_SECRET SPEND_TOKEN; do
   env_has "${CB_ENV}" "${k}" || set_env_line "${CB_ENV}" "${k}" "$(openssl rand -hex 24)"
 done
 env_has "${CB_ENV}" LIVEKIT_API_KEY || set_env_line "${CB_ENV}" LIVEKIT_API_KEY "key_$(openssl rand -hex 12)"
+# Call wakes (missed call, call ended, recap) go to the graph adapter on :3005, which hands them to
+# Hermes, exactly as on Poppie. Without these the bridge defaults to OpenClaw's :3000 (Sallie) and
+# every wake is quarantined. The adapter and the bridge must share HOOKS_TOKEN.
+HOOKS_ENV="${HERMES_DIR}/env"
+env_has "${HOOKS_ENV}" HOOKS_TOKEN || set_env_line "${HOOKS_ENV}" HOOKS_TOKEN "$(openssl rand -hex 24)"
+set_env_line "${HOOKS_ENV}" OPENCLAW_URL "http://127.0.0.1:3005"
+HOOKS_TOKEN="$(sudo grep -E '^HOOKS_TOKEN=' "${HOOKS_ENV}" | head -1 | cut -d= -f2- | tr -d "'\"")"
+set_env_line "${CB_ENV}" HOOKS_TOKEN "${HOOKS_TOKEN}"
+set_env_line "${CB_ENV}" OPENCLAW_HOST 127.0.0.1
+set_env_line "${CB_ENV}" OPENCLAW_PORT 3005
+set_env_line "${CB_ENV}" OPENCLAW_URL "http://127.0.0.1:3005"
 if ! env_has "${CB_ENV}" TEAMS_PASSWORD; then
   if [ -t 0 ] || [ -n "${TEAMS_PASSWORD:-}" ]; then
     prompt_secret TEAMS_PASSWORD "Microsoft 365 password for ${AGENT_UPN} (Teams web sign-in)"
