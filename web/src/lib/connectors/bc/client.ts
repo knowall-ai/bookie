@@ -19,6 +19,11 @@ export interface BcRequest {
   /** Required by BC for PATCH/DELETE; `*` means "whatever the current version is". */
   etag?: string;
   raw?: boolean;
+  /**
+   * API route after `/api/`: `v2.0` (default) or a custom API such as the Bookie
+   * BC extension's `knowallBookie/bookie/v1.0` (see bc/extension.ts).
+   */
+  api?: string;
 }
 
 export interface ODataList<T> {
@@ -38,13 +43,17 @@ export class BcClient {
     return this.options.tenantId;
   }
 
-  companyUrl(path = ''): string {
+  get companyId() {
+    return this.options.companyId;
+  }
+
+  companyUrl(path = '', api = 'v2.0'): string {
     const { tenantId, environment, companyId } = this.options;
-    return `${BC_API}/v2.0/${tenantId}/${encodeURIComponent(environment)}/api/v2.0/companies(${companyId})${path ? `/${path.replace(/^\//, '')}` : ''}`;
+    return `${BC_API}/v2.0/${tenantId}/${encodeURIComponent(environment)}/api/${api}/companies(${companyId})${path ? `/${path.replace(/^\//, '')}` : ''}`;
   }
 
   async request<T>(path: string, request: BcRequest = {}): Promise<T> {
-    const url = new URL(this.companyUrl(path));
+    const url = new URL(this.companyUrl(path, request.api));
     for (const [name, value] of Object.entries(request.query ?? {})) {
       if (value !== undefined && value !== '') url.searchParams.set(name, String(value));
     }
@@ -84,8 +93,13 @@ export class BcClient {
   }
 
   /** Every page of an OData collection (BC pages at 20,000 by default; we cap pages for safety). */
-  async all<T>(path: string, query: BcRequest['query'] = {}, maxPages = 10): Promise<T[]> {
-    const first = await this.request<ODataList<T>>(path, { query });
+  async all<T>(
+    path: string,
+    query: BcRequest['query'] = {},
+    maxPages = 10,
+    api?: string
+  ): Promise<T[]> {
+    const first = await this.request<ODataList<T>>(path, { query, api });
     const items = [...first.value];
     let next = first['@odata.nextLink'];
     for (let pages = 1; next && pages < maxPages; pages++) {

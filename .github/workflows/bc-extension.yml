@@ -1,0 +1,59 @@
+name: BC extension
+
+# Compiles the Bookie Business Central extension (bc-extension/) on Linux with the AL
+# compiler dotnet tool and Microsoft's public symbol packages, with CodeCop,
+# PerTenantExtensionCop and UICop, warnings as errors. It never publishes to a BC
+# environment; see bc-extension/README.md for that.
+
+on:
+  pull_request:
+    paths:
+      - "bc-extension/**"
+      - ".github/workflows/bc-extension.yml"
+  push:
+    branches: [main]
+    paths:
+      - "bc-extension/**"
+      - ".github/workflows/bc-extension.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AL_TOOL_VERSION: 18.1.43.24897
+  BC_SYMBOLS_VERSION: 27.0.38460.40293
+  BC_PLATFORM_VERSION: 27.0.40210
+
+jobs:
+  build:
+    name: Compile AL
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install the AL compiler
+        run: dotnet tool install --global Microsoft.Dynamics.BusinessCentral.Development.Tools --version "$AL_TOOL_VERSION"
+
+      - name: Cache BC symbols
+        uses: actions/cache@v4
+        with:
+          path: bc-extension/.alpackages
+          key: bc-symbols-${{ env.BC_SYMBOLS_VERSION }}-${{ env.BC_PLATFORM_VERSION }}
+
+      - name: Compile
+        run: AL_COMPILER=tool bc-extension/scripts/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bookie-bc-extension
+          path: bc-extension/output/*.app
+          if-no-files-found: error

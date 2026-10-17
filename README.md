@@ -34,7 +34,7 @@ Bookie is **free and open source** from [KnowAll AI](https://knowall.ai), a sibl
 **Xero or Business Central, same screens.** Each organisation can live in either system. Turn each connector on or off in Settings.
 
 - **Xero:** connect with "Connect to Xero" (OAuth 2.0, many organisations in one go) or paste Custom Connection keys. Add as many as you like.
-- **Business Central:** found automatically with your own Microsoft sign-in and permissions, across every environment and company you can reach.
+- **Business Central:** found automatically with your own Microsoft sign-in and permissions, across every environment and company you can reach. The optional [Bookie BC extension](bc-extension) fills gaps in BC's standard API (bank balances and transactions, amounts due on bills, posted payments, recording customer payments).
 - **More to come:** connectors are a defined interface, so full Dynamics 365 Finance or a ledger kept in your own SharePoint can be added without touching the screens.
 
 **Built for accountants.** Every organisation you can reach appears in one switcher. Move between clients' books in a click; there is no blending of one client's data with another's.
@@ -74,6 +74,7 @@ Bookie is **free and open source** from [KnowAll AI](https://knowall.ai), a sibl
 | Folder | What |
 |---|---|
 | [`web/`](web) | The website and portal (Next.js 16, Bun, Tailwind 4, TypeScript) |
+| [`bc-extension/`](bc-extension) | Optional Business Central extension (AL) adding the API Bookie needs beyond BC's API v2.0 |
 | [`agent/`](agent) | Bookie the Hermes agent: identity, skills, voice, memory, VM deployment |
 | [`infra/`](infra) | Azure deployment for the web app (App Service, Key Vault, Azure OpenAI) |
 | [`docs/`](docs) | Solution design, deployment, testing, security, agent and hosted-agent isolation |

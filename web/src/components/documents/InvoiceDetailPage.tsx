@@ -36,7 +36,10 @@ export async function InvoiceDetailPage({
   const editable = (invoice.status === 'draft' || invoice.status === 'submitted') && !!m.update;
   // "Make a payment" needs a payments writer and the bank accounts to pay into or from.
   const bankAccounts =
-    invoice.status === 'authorised' && invoice.amountDue > 0 && connector.payments?.create
+    invoice.status === 'authorised' &&
+    invoice.amountDue > 0 &&
+    connector.payments?.create &&
+    (connector.payments.createFor?.includes(type) ?? true)
       ? await (connector.bank?.accounts().catch(() => []) ?? Promise.resolve([]))
       : [];
 
