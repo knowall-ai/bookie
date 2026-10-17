@@ -81,3 +81,12 @@ test.describe('public site', () => {
     await expect(page.locator('#site-menu').getByRole('link', { name: 'FAQ' })).toBeVisible();
   });
 });
+
+test('footer links to the source on GitHub with the GitHub logo', async ({ page }) => {
+  for (const path of ['/', '/security']) {
+    await page.goto(path);
+    const link = page.getByTestId('footer-github');
+    await expect(link).toHaveAttribute('href', 'https://github.com/knowall-ai/bookie');
+    await expect(link.locator('svg')).toBeVisible();
+  }
+});

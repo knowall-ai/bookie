@@ -1,13 +1,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Logo } from '@/components/brand/Logo';
-import { Container, GITHUB_URL } from './ui';
+import { Container, GITHUB_URL, GitHubMark } from './ui';
 
 const LINKS = [
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },
   { href: '/security', label: 'Security' },
-  { href: GITHUB_URL, label: 'GitHub' },
 ];
 
 export function SiteFooter() {
@@ -40,20 +39,32 @@ export function SiteFooter() {
           </ul>
         </nav>
 
-        <a
-          href="https://knowall.ai"
-          className="group text-muted hover:text-ink flex items-center gap-3 text-sm"
-          rel="noreferrer"
-        >
-          <span>Built by</span>
-          <Image
-            src="/knowall-logo.png"
-            alt="KnowAll AI"
-            width={207}
-            height={151}
-            className="h-9 w-auto opacity-80 transition-opacity group-hover:opacity-100"
-          />
-        </a>
+        <div className="flex flex-col gap-4">
+          <a
+            href={GITHUB_URL}
+            className="group text-muted hover:text-ink flex items-center gap-2.5 text-sm"
+            rel="noreferrer"
+            aria-label="Bookie is open source on GitHub"
+            data-testid="footer-github"
+          >
+            <GitHubMark className="h-6 w-6 opacity-80 transition-opacity group-hover:opacity-100" />
+            <span>Open source on GitHub</span>
+          </a>
+          <a
+            href="https://knowall.ai"
+            className="group text-muted hover:text-ink flex items-center gap-3 text-sm"
+            rel="noreferrer"
+          >
+            <span>Built by</span>
+            <Image
+              src="/knowall-logo.png"
+              alt="KnowAll AI"
+              width={207}
+              height={151}
+              className="h-9 w-auto opacity-80 transition-opacity group-hover:opacity-100"
+            />
+          </a>
+        </div>
       </Container>
       <Container className="text-faint text-xs">
         <p className="border-line/50 border-t py-5">

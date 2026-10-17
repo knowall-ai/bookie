@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ProsePage } from '@/components/site/ProsePage';
-import { GITHUB_URL } from '@/components/site/ui';
+import { GITHUB_URL, GitHubMark } from '@/components/site/ui';
 
 export const metadata: Metadata = {
   title: 'Security and data handling',
@@ -45,7 +45,12 @@ export default function SecurityPage() {
           <p className="text-body mt-2 leading-relaxed">
             Bookie is open source. Everything on this page can be verified in the code.
           </p>
-          <a href={GITHUB_URL} rel="noreferrer" className="text-brand-bright mt-3 inline-block">
+          <a
+            href={GITHUB_URL}
+            rel="noreferrer"
+            className="text-brand-bright mt-3 inline-flex items-center gap-2"
+          >
+            <GitHubMark className="h-4 w-4" />
             View the source on GitHub
           </a>
           <p className="text-ink mt-6 font-semibold">Found a vulnerability?</p>
