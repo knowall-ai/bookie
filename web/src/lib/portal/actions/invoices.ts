@@ -23,6 +23,7 @@ const invoiceSchema = z.object({
   currencyRate: currencyRateSchema,
   lineAmountType: z.enum(['exclusive', 'inclusive', 'none']).optional(),
   status: z.enum(['draft', 'submitted', 'authorised']).optional(),
+  brandingThemeId: z.string().trim().max(60).optional(),
   lineItems: z.array(lineItemSchema).min(1, 'Add at least one line.'),
 });
 

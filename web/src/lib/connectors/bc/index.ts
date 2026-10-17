@@ -45,6 +45,7 @@ import { bcCurrencies } from './modules/currencies';
 import { isForeign } from '@/lib/domain/currency';
 import { bcFiscalYear } from './fiscal-year';
 import { invoiceBuckets } from '../buckets';
+import { bcHistory } from './modules/history';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -958,6 +959,7 @@ export function createBcConnector({
     capture: undefined,
     // users: Business Central's standard API v2.0 has no users endpoint (only the
     // separate automation API, which needs admin permissions), so no Users list.
+    history: bcHistory(client),
 
     sourceLink(entity, id) {
       const pages = { invoice: 9301, bill: 9308, quote: 9300, contact: 22 };

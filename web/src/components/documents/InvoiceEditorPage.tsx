@@ -22,7 +22,12 @@ export async function InvoiceEditorPage({
   if (existing && (existing.type !== type || !['draft', 'submitted'].includes(existing.status)))
     notFound();
   const details = await connector.organisation();
-  const data = await editorData(connector, type);
+  const [data, themes] = await Promise.all([
+    editorData(connector, type),
+    type === 'sales' && mod.brandingThemes
+      ? mod.brandingThemes().catch(() => [])
+      : Promise.resolve([]),
+  ]);
   const listPath = `${base}${type === 'sales' ? '/sales/invoices' : '/purchases/bills'}`;
   const orgKey = org.key;
   const invoiceId = existing?.id;
@@ -44,6 +49,7 @@ export async function InvoiceEditorPage({
       numberLabel={type === 'sales' ? 'Invoice number' : undefined}
       docType={type}
       canApprove={!!mod.approve}
+      brandingThemes={themes.map((t) => ({ value: t.id, label: t.name }))}
       save={save}
       cancelHref={existing ? `${listPath}/${encodeURIComponent(existing.id)}` : listPath}
       savedHref={listPath}
@@ -56,6 +62,7 @@ export async function InvoiceEditorPage({
           reference: existing.reference,
           currency: existing.currency || undefined,
           currencyRate: existing.currencyRate,
+          brandingThemeId: existing.brandingThemeId,
           lineAmountType: existing.lineAmountType ?? 'exclusive',
           lineItems: existing.lineItems?.map(
             ({

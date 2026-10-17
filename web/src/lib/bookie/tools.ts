@@ -170,6 +170,43 @@ const TOOLS: Tool[] = [
     run: (c, a) => c.quotes!.list({ status: str(a.status), search: str(a.search), pageSize: 50 }),
   },
   {
+    definition: fn(
+      'list_credit_notes',
+      'Customer credit notes (type "sales") or supplier credit notes (type "purchase"), newest first, with remaining credit where the source reports it (missing means unknown, not zero).',
+      {
+        type: { type: 'string', enum: ['sales', 'purchase'] },
+        status: {
+          type: 'string',
+          enum: ['all', 'draft', 'submitted', 'authorised', 'paid', 'voided'],
+          description: 'authorised = approved with credit outstanding, paid = fully allocated',
+        },
+        search: { type: 'string' },
+        contact_id: { type: 'string' },
+        page: { type: 'number' },
+      },
+      ['type']
+    ),
+    available: (c) => !!c.creditNotes,
+    run: (c, a) =>
+      c.creditNotes!.list(a.type === 'purchase' ? 'purchase' : 'sales', {
+        status: str(a.status),
+        search: str(a.search),
+        contactId: str(a.contact_id),
+        page: num(a.page),
+        pageSize: 50,
+      }),
+  },
+  {
+    definition: fn(
+      'get_credit_note',
+      'One credit note in full, with line items and its allocations to invoices or bills.',
+      { id: { type: 'string' } },
+      ['id']
+    ),
+    available: (c) => !!c.creditNotes,
+    run: (c, a) => c.creditNotes!.get(String(a.id)),
+  },
+  {
     definition: fn('list_chart_of_accounts', 'The chart of accounts.'),
     available: (c) => !!c.accounts,
     run: (c) => c.accounts!.list(),
@@ -320,6 +357,9 @@ export function toolStatus(name: string, rawArgs: string): string {
       return 'Looking at the attached files…';
     case 'list_currencies':
       return 'Checking your currencies…';
+    case 'list_credit_notes':
+    case 'get_credit_note':
+      return 'Checking credit notes…';
     default:
       return 'Looking that up…';
   }

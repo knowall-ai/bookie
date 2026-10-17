@@ -24,15 +24,20 @@ import type {
   BankTransaction,
   BankTransactionInput,
   BankTransactionQuery,
+  AllocationInput,
+  BrandingTheme,
   Contact,
   ContactInput,
   CreditNote,
+  CreditNoteInput,
   CreditNoteType,
   Currency,
   DashboardSummary,
   Employee,
   FixedAsset,
   FixedAssetStatus,
+  HistoryEntity,
+  HistoryResult,
   Invoice,
   InvoiceInput,
   InvoiceType,
@@ -78,6 +83,12 @@ export interface InvoicesModule {
   email?(id: string): Promise<void>;
   /** PDF bytes of the document as the source system renders it. */
   pdf?(id: string): Promise<ArrayBuffer>;
+  /** The customer-facing online invoice URL (Xero "Online invoice"). Sales invoices only. */
+  onlineUrl?(id: string): Promise<string | undefined>;
+  /** Flag an approved sales invoice as sent without emailing it. */
+  markAsSent?(id: string): Promise<Invoice>;
+  /** Invoice templates the source offers (Xero branding themes). */
+  brandingThemes?(): Promise<BrandingTheme[]>;
 }
 
 export interface QuotesModule {
@@ -100,6 +111,25 @@ export type QuoteStatusChange = 'sent' | 'accepted' | 'declined' | 'deleted';
 export interface CreditNotesModule {
   list(type: CreditNoteType, query?: ListQuery): Promise<Page<CreditNote>>;
   get(id: string): Promise<CreditNote>;
+  create?(input: CreditNoteInput): Promise<CreditNote>;
+  /** Drafts only. */
+  update?(id: string, input: CreditNoteInput): Promise<CreditNote>;
+  /** Xero: AUTHORISED. Business Central: post the credit memo. */
+  approve?(id: string): Promise<CreditNote>;
+  void?(id: string): Promise<CreditNote>;
+  /** Delete a draft. */
+  delete?(id: string): Promise<void>;
+  /** Apply part or all of the remaining credit to an outstanding invoice or bill for the same contact. */
+  allocate?(id: string, input: AllocationInput): Promise<CreditNote>;
+  /** Why `allocate` is missing, shown on approved credit notes (e.g. Business Central). */
+  readonly allocationNote?: string;
+}
+
+export interface HistoryModule {
+  /** The document's audit trail, newest first. */
+  list(entity: HistoryEntity, id: string): Promise<HistoryResult>;
+  /** Add a note to the history (Xero "Add note"). */
+  addNote?(entity: HistoryEntity, id: string, note: string): Promise<void>;
 }
 
 export interface PurchaseOrdersModule {
@@ -266,6 +296,7 @@ export interface AccountingConnector {
   attachments?: AttachmentsModule;
   capture?: CaptureModule;
   users?: UsersModule;
+  history?: HistoryModule;
 
   /** Deep link to a document in the source system, for "Open in Xero/BC". */
   sourceLink?(entity: 'invoice' | 'bill' | 'quote' | 'contact', id: string): string | undefined;

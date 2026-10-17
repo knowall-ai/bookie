@@ -281,11 +281,13 @@ export interface Invoice {
   lineItems?: LineItem[];
   payments?: PaymentRef[];
   sentToContact?: boolean;
+  brandingThemeId?: string;
   updatedAt?: string;
   sourceUrl?: string;
 }
 
 export interface InvoiceInput {
+  brandingThemeId?: string;
   type: InvoiceType;
   contactId: string;
   date: IsoDate;
@@ -366,10 +368,73 @@ export interface CreditNote {
   subTotal: number;
   totalTax: number;
   total: number;
-  /** Undefined when the source doesn't report how much credit is left (BC open credit memos). */
+  /** Credit not yet allocated or refunded. Undefined when the source doesn't report it (BC posted memos). */
   remainingCredit?: number;
+  lineAmountType?: LineAmountType;
   lineItems?: LineItem[];
+  /** Allocations to invoices or bills, oldest first. Only populated by `get`, when the source has them. */
+  allocations?: CreditAllocation[];
+  /** The invoice this credit note was raised against, when the source records one (BC "Applies-to"). */
+  appliesTo?: { id?: string; number: string };
+  updatedAt?: string;
   sourceUrl?: string;
+}
+
+export interface CreditNoteInput {
+  type: CreditNoteType;
+  contactId: string;
+  date: IsoDate;
+  number?: string;
+  reference?: string;
+  currency?: string;
+  lineAmountType?: LineAmountType;
+  lineItems: LineItemInput[];
+  /** Create as draft (default) or approve straight away (Xero AUTHORISED / BC post). */
+  status?: 'draft' | 'authorised';
+}
+
+/** Part of a credit note applied to an invoice or bill. */
+export interface CreditAllocation {
+  id?: string;
+  date?: IsoDate;
+  amount: number;
+  invoice: { id: string; number?: string };
+}
+
+export interface AllocationInput {
+  invoiceId: string;
+  amount: number;
+  date: IsoDate;
+}
+
+/* ------------------------------------------------------------------ */
+/* History and notes                                                   */
+/* ------------------------------------------------------------------ */
+
+/** Documents and records that carry a history (Xero "History and notes"). */
+export type HistoryEntity = 'invoice' | 'quote' | 'credit-note' | 'contact';
+
+export interface HistoryRecord {
+  /** ISO timestamp. */
+  date: string;
+  /** What happened, as the source words it: "Approved", "Note", "Invoice Sent"... */
+  change: string;
+  user?: string;
+  details?: string;
+}
+
+export interface HistoryResult {
+  /** Newest first. */
+  records: HistoryRecord[];
+  /** False when the source only exposes part of the history (BC: last modified only). */
+  complete: boolean;
+  note?: string;
+}
+
+export interface BrandingTheme {
+  id: string;
+  name: string;
+  sortOrder?: number;
 }
 
 export type PurchaseOrderStatus = 'draft' | 'submitted' | 'authorised' | 'billed' | 'deleted';

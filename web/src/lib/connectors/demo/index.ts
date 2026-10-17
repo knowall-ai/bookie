@@ -32,6 +32,8 @@ import { demoActivity } from './modules/activity';
 import { demoAttachments, demoCapture } from './modules/attachments';
 import { demoCurrencies, demoInBase, seedForeignCurrency } from './modules/currencies';
 import { demoUsers } from './modules/users';
+import { demoHistory } from './modules/history';
+import { demoInvoiceExtras } from './modules/invoice-extras';
 
 export const DEMO_ORGS: OrgRef[] = [
   {
@@ -122,9 +124,11 @@ function demoInvoices(data: DemoData): InvoicesModule {
       isOverdue: false,
       lineItems,
       payments: [],
+      brandingThemeId: input.brandingThemeId,
     };
   };
   return {
+    ...demoInvoiceExtras(data),
     async list(type, query) {
       const today = DEMO_TODAY();
       const all = data.invoices.filter(
@@ -407,5 +411,6 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
     attachments: demoAttachments(data, org.key),
     capture: demoCapture(data, org.key),
     users: demoUsers(),
+    history: demoHistory(data),
   };
 }

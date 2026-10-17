@@ -20,10 +20,26 @@ export async function QuoteEditorPage({ orgParam, id }: { orgParam: string; id?:
   const orgKey = org.key;
   const quoteId = existing?.id;
 
-  async function save({ dueDate, type: _type, status: _status, ...payload }: EditorPayload) {
+  async function save({
+    dueDate,
+    type: _type,
+    status,
+    brandingThemeId: _theme,
+    ...payload
+  }: EditorPayload) {
     'use server';
-    return saveQuote(orgKey, quoteId, { ...payload, expiryDate: dueDate });
+    return saveQuote(
+      orgKey,
+      quoteId,
+      { ...payload, expiryDate: dueDate },
+      { markSent: status === 'authorised' }
+    );
   }
+  // "Save and mark as sent", as in Xero's quote editor, for new and draft quotes.
+  const canMarkSent =
+    !!mod.setStatus &&
+    (!mod.statusChanges || mod.statusChanges.includes('sent')) &&
+    (!existing || existing.status === 'draft');
 
   return (
     <DocumentEditor
@@ -35,6 +51,9 @@ export async function QuoteEditorPage({ orgParam, id }: { orgParam: string; id?:
       secondDateLabel="Expiry"
       numberLabel="Quote number"
       extraFields={['title', 'summary', 'terms']}
+      canApprove={canMarkSent}
+      approveLabel="Save and mark as sent"
+      approveBody="The quote is saved and moves to Sent in your accounting system. Nothing is emailed to the customer."
       save={save}
       cancelHref={existing ? `${listPath}/${encodeURIComponent(existing.id)}` : listPath}
       savedHref={listPath}

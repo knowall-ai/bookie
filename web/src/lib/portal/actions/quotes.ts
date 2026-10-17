@@ -32,7 +32,8 @@ const quoteSchema = z.object({
 export async function saveQuote(
   orgKey: string,
   id: string | undefined,
-  input: QuoteInput
+  input: QuoteInput,
+  options: { markSent?: boolean } = {}
 ): Promise<ActionResult<{ id: string }>> {
   try {
     const parsed = quoteSchema.parse(input) as QuoteInput;
@@ -40,7 +41,24 @@ export async function saveQuote(
     const mod = connector.quotes;
     const save = id ? mod?.update?.bind(null, id) : mod?.create;
     if (!save) return { ok: false, error: 'This organisation does not allow editing quotes here.' };
+    const canMarkSent =
+      !!mod?.setStatus && (!mod.statusChanges || mod.statusChanges.includes('sent'));
+    if (options.markSent && !canMarkSent) {
+      return { ok: false, error: 'This organisation cannot mark quotes as sent here.' };
+    }
     const quote = await save(parsed);
+    if (options.markSent && quote.status === 'draft') {
+      try {
+        await mod!.setStatus!(quote.id, 'sent');
+      } catch (error) {
+        // The quote is saved; say so rather than losing it behind the error.
+        revalidatePath(base, 'layout');
+        return {
+          ok: false,
+          error: `The quote was saved as a draft, but couldn't be marked as sent: ${describeError(error)}`,
+        };
+      }
+    }
     revalidatePath(base, 'layout');
     return { ok: true, data: { id: quote.id } };
   } catch (error) {

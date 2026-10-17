@@ -87,6 +87,7 @@ export interface XeroInvoice {
   LineItems?: XeroLineItem[];
   Payments?: { PaymentID: string; Date?: string; Amount?: number; Reference?: string }[];
   SentToContact?: boolean;
+  BrandingThemeID?: string;
   UpdatedDateUTC?: string;
 }
 
@@ -197,6 +198,7 @@ export function fromXeroInvoice(invoice: XeroInvoice): Invoice {
       reference: p.Reference || undefined,
     })),
     sentToContact: invoice.SentToContact,
+    brandingThemeId: invoice.BrandingThemeID || undefined,
     updatedAt: xeroTimestamp(invoice.UpdatedDateUTC),
   };
 }
@@ -217,6 +219,7 @@ export function toXeroInvoice(
     CurrencyRate: input.currency ? xeroRate(input.currencyRate) : undefined,
     LineAmountTypes: toLineAmountTypes(input.lineAmountType),
     Status: XERO_INVOICE_STATUS[input.status ?? 'draft'],
+    BrandingThemeID: input.brandingThemeId || undefined,
     LineItems: input.lineItems.map(toXeroLineItem),
   };
 }

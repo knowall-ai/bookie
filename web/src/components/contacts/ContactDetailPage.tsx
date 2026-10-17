@@ -17,6 +17,8 @@ import { ErrorPanel } from '@/components/ui/States';
 import { cn } from '@/lib/ui/cn';
 import { ContactAvatar, RoleBadges, addressLines } from './ContactParts';
 import { ContactActions } from './ContactActions';
+import { AvailableCredit } from '@/components/sales/AvailableCredit';
+import { HistoryPanel } from '@/components/history/HistoryPanel';
 
 const RECENT = 10;
 
@@ -97,6 +99,22 @@ export async function ContactDetailPage({ orgParam, id }: { orgParam: string; id
         <ContactDetails contact={contact} />
         <div className="min-w-0 space-y-5">
           <BalanceTiles contact={contact} currency={currency} source={source} />
+          {showSales && (
+            <AvailableCredit
+              connector={connector}
+              base={base}
+              contactId={contact.id}
+              type="sales"
+            />
+          )}
+          {showBills && (
+            <AvailableCredit
+              connector={connector}
+              base={base}
+              contactId={contact.id}
+              type="purchase"
+            />
+          )}
           {sales && (
             <RecentDocuments
               title="Invoices"
@@ -117,6 +135,15 @@ export async function ContactDetailPage({ orgParam, id }: { orgParam: string; id
           )}
           <AttachmentsCard connector={connector} org={org} entity="contact" id={contact.id} />
         </div>
+      </div>
+      <div className="mt-5">
+        <HistoryPanel
+          connector={connector}
+          orgKey={org.key}
+          entity="contact"
+          id={contact.id}
+          source={source}
+        />
       </div>
     </>
   );

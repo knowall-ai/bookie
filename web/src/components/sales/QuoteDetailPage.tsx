@@ -16,6 +16,8 @@ import {
 } from '@/components/documents/DocumentParts';
 import { AttachmentsCard } from '@/components/attachments/AttachmentsCard';
 import { QuoteActions } from './QuoteActions';
+import { HistoryPanel } from '@/components/history/HistoryPanel';
+import { QuoteInvoices } from './QuoteInvoices';
 
 /** Which status changes make sense from each status (the back end may allow fewer). */
 const NEXT: Record<string, QuoteStatusChange[]> = {
@@ -121,6 +123,15 @@ export async function QuoteDetailPage({ orgParam, id }: { orgParam: string; id: 
           </div>
         )}
 
+        {quote.status === 'invoiced' && (
+          <QuoteInvoices
+            connector={connector}
+            base={base}
+            quoteNumber={quote.number}
+            contactId={quote.contact.id}
+          />
+        )}
+
         <DocumentLines lines={quote.lineItems ?? []} currency={quote.currency} />
 
         <div className="flex flex-col gap-6 lg:flex-row">
@@ -147,6 +158,14 @@ export async function QuoteDetailPage({ orgParam, id }: { orgParam: string; id: 
             ]}
           />
         </div>
+
+        <HistoryPanel
+          connector={connector}
+          orgKey={org.key}
+          entity="quote"
+          id={quote.id}
+          source={sourceName(org)}
+        />
       </div>
     </>
   );

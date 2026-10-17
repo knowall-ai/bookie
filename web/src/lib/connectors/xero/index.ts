@@ -42,6 +42,8 @@ import { xeroAttachments } from './modules/attachments';
 import { xeroCapture } from './modules/capture';
 import { xeroCurrencies } from './modules/currencies';
 import { fromXeroOrganisation, xeroUsers, type XeroOrganisation } from './modules/organisation';
+import { xeroHistory } from './modules/history';
+import { xeroInvoiceExtras } from './modules/invoice-extras';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -125,6 +127,7 @@ function xeroInvoices(client: XeroClient, shortCode?: string): InvoicesModule {
       await client.request(`Invoices/${id}/Email`, { method: 'POST', body: {} });
     },
     pdf: (id) => client.request<ArrayBuffer>(`Invoices/${id}`, { accept: 'application/pdf' }),
+    ...xeroInvoiceExtras(client, link),
   };
 }
 
@@ -353,7 +356,7 @@ export function createXeroConnector({
     invoices: xeroInvoices(client, shortCode),
     contacts: xeroContacts(client),
     quotes: xeroQuotes(client, shortCode),
-    creditNotes: xeroCreditNotes(client),
+    creditNotes: xeroCreditNotes(client, shortCode),
     purchaseOrders: xeroPurchaseOrders(client),
     items: xeroItems(client),
     payments: xeroPayments(client),
@@ -369,6 +372,7 @@ export function createXeroConnector({
     attachments: xeroAttachments(client),
     capture: xeroCapture(client, shortCode),
     users: xeroUsers(client),
+    history: xeroHistory(client),
 
     sourceLink(entity, id) {
       const paths = {
