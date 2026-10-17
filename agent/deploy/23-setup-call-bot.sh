@@ -81,6 +81,7 @@ declare -A CB=(
   # 60 ms like Poppie: 160 ms plus the writer's 60 ms lead overfills paplay's 200 ms buffer, so every
   # frame stalled and call audio stuttered.
   [PLAYOUT_PREBUFFER_MS]=60
+  [AVATAR_LASHES]=off        # Bookie has no eyelashes (Presence's default draws Sallie's)
   [AVATAR_TICKER]=0          # no scrolling activity ticker along the bottom of the video (as Poppie)
   [VOICE_MODE]="${VOICE_MODE}" [VOICE_REALTIME_PROVIDER]="${VOICE_REALTIME_PROVIDER}"
   [VOICE_LIVE_PROVIDER]="${VOICE_LIVE_PROVIDER}" [VOICE_LIVE_VOICE]="${VOICE_LIVE_VOICE}"
