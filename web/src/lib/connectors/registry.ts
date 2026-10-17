@@ -2,7 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import type { AuthContext } from '@/lib/auth/context';
 import { configStoreFor } from '@/lib/config';
-import type { ConfigStore, XeroConnection } from '@/lib/config/types';
+import { DEFAULT_SETTINGS, type ConfigStore, type XeroConnection } from '@/lib/config/types';
 import type { OrgRef } from '@/lib/domain/types';
 import { BcClient, listBcCompanies, listBcEnvironments } from './bc/client';
 import { createBcConnector } from './bc';
@@ -93,6 +93,8 @@ export interface OrgDirectory {
   /** BC companies the user can see but chose to hide in Settings. */
   hiddenBcOrgs: OrgRef[];
   store: ConfigStore;
+  /** Set when the tenant's settings store could not be read; the portal still opens with BC. */
+  storeError?: string;
 }
 
 /** Every org the signed-in user can switch to. Memoised per request. */
@@ -100,7 +102,15 @@ export const listOrgs = cache(async (auth: AuthContext): Promise<OrgDirectory> =
   const store = configStoreFor(auth);
   if (auth.mode === 'demo') return { orgs: DEMO_ORGS, hiddenBcOrgs: [], store };
 
-  const [settings, connections] = await Promise.all([store.getSettings(), store.listConnections()]);
+  let settings = structuredClone(DEFAULT_SETTINGS);
+  let connections: Awaited<ReturnType<ConfigStore['listConnections']>> = [];
+  let storeError: string | undefined;
+  try {
+    [settings, connections] = await Promise.all([store.getSettings(), store.listConnections()]);
+  } catch (error) {
+    console.error('[bookie] settings store unavailable', error);
+    storeError = error instanceof Error ? error.message : 'Settings could not be read.';
+  }
   const xero = settings.xero.enabled ? xeroOrgs(connections.filter((c) => c.kind === 'xero')) : [];
   const bc = settings.businessCentral.enabled ? await discoverBcOrgs(auth) : [];
   const hidden = new Set(settings.businessCentral.hiddenCompanies);
@@ -111,6 +121,7 @@ export const listOrgs = cache(async (auth: AuthContext): Promise<OrgDirectory> =
     ],
     hiddenBcOrgs: bc.filter((o) => hidden.has(o.key)),
     store,
+    storeError,
   };
 });
 

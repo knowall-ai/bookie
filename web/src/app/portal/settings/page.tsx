@@ -2,6 +2,8 @@ import { ShieldCheck } from 'lucide-react';
 import { requireAuth } from '@/lib/auth/context';
 import { listOrgs } from '@/lib/connectors/registry';
 import { xeroOAuthConfigured } from '@/lib/connectors/xero/oauth';
+import { DEFAULT_SETTINGS } from '@/lib/config/types';
+import { ErrorPanel } from '@/components/ui/States';
 import { TopBar } from '@/components/portal/TopBar';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ConnectorCard } from '@/components/settings/ConnectorCard';
@@ -40,8 +42,10 @@ export default async function SettingsPage({
 }) {
   const auth = await requireAuth('/portal/settings');
   const { xero: xeroStatus } = await searchParams;
-  const { orgs, hiddenBcOrgs, store } = await listOrgs(auth);
-  const [settings, connections] = await Promise.all([store.getSettings(), store.listConnections()]);
+  const { orgs, hiddenBcOrgs, store, storeError } = await listOrgs(auth);
+  const [settings, connections] = storeError
+    ? [structuredClone(DEFAULT_SETTINGS), []]
+    : await Promise.all([store.getSettings(), store.listConnections()]);
 
   const xeroConnections: ConnectionSummary[] = connections.map((c) => ({
     id: c.id,
@@ -74,6 +78,13 @@ export default async function SettingsPage({
           crumbs={[{ label: 'My organisations', href: '/portal' }]}
           meta="Choose which accounting systems Bookie uses for your organisation, and connect them."
         />
+
+        {storeError && (
+          <ErrorPanel
+            title="Bookie couldn't reach your organisation's settings"
+            message={`Bookie keeps connection settings in your own SharePoint and couldn't read them: ${storeError}. An administrator may need to install Bookie (getbook.ie/install) so it can use SharePoint. Business Central still works.`}
+          />
+        )}
 
         <ConnectorCard
           name="Xero"
