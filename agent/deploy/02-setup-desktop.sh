@@ -70,6 +70,26 @@ EOF
 
 echo
 echo "==> Desktop ready. RDP to the VM as ${VM_ADMIN_USER} once step 12 has locked 3389 to your IP."
+step "No lock screen or screen blanking for ${AGENT_NAME}"
+# Nobody sits at this desktop, and on a VM with no GPU KDE's lock screen is drawn in software: it
+# kept Xorg at ~30% CPU around the clock and starved PulseAudio, so Bookie's call audio stuttered.
+sudo -u "${AGENT_NAME}" mkdir -p "/home/${AGENT_NAME}/.config"
+sudo -u "${AGENT_NAME}" tee "/home/${AGENT_NAME}/.config/kscreenlockerrc" >/dev/null <<'KSL'
+[Daemon]
+Autolock=false
+LockOnResume=false
+Timeout=0
+KSL
+sudo -u "${AGENT_NAME}" tee "/home/${AGENT_NAME}/.config/powermanagementprofilesrc" >/dev/null <<'PM'
+[AC][DPMSControl]
+idleTime=0
+lockBeforeTurnOff=0
+
+[AC][SuspendSession]
+idleTime=0
+suspendType=0
+PM
+
 if [ "${REBOOT:-1}" = 1 ]; then
   echo "==> Rebooting in 5 seconds (REBOOT=0 to skip)..."
   sleep 5
