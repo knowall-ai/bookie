@@ -530,7 +530,8 @@ export type ReportId =
   | 'aged-receivables'
   | 'aged-payables'
   | 'bank-summary'
-  | 'executive-summary';
+  | 'executive-summary'
+  | 'cash-flow';
 
 export interface ReportParams {
   from?: IsoDate;

@@ -26,7 +26,11 @@ import { bcAccounts } from './modules/accounts';
 import { bcJournals } from './modules/journals';
 import { bcTaxRates } from './modules/tax-rates';
 import { bcAssets } from './modules/assets';
-import { bcReports } from './modules/reports';
+import {
+  bcReports,
+  incomeIsCreditNegative,
+  type BcStatementLine as BcReportLine,
+} from './modules/reports';
 import { bcPayroll } from './modules/payroll';
 import { bcProjects } from './modules/projects';
 
@@ -699,9 +703,11 @@ async function incomeStatement(client: BcClient, from: string, to: string) {
     $filter: `dateFilter ge ${from} and dateFilter le ${to}`,
   });
   const find = (pattern: RegExp) => lines.find((l) => pattern.test(l.display))?.netChange;
-  // BC shows income as a negative net change (credit); flip so income is positive.
-  const income = -(find(/^Total Revenue$|^Total Income$|^Revenue$|^Income$/i) ?? 0);
-  const net = -(find(/^Net Income$|^Net Profit|^NET INCOME$/i) ?? 0);
+  // BC's standard financial report shows income positive ("Show Opposite Sign"), but a
+  // company can configure it credit-negative; detect that and flip so income is positive.
+  const sign = incomeIsCreditNegative([lines as BcReportLine[]]) ? -1 : 1;
+  const income = sign * (find(/^Total Revenue$|^Total Income$|^Revenue$|^Income$/i) ?? 0);
+  const net = sign * (find(/^Net Income$|^Net Profit|^NET INCOME$/i) ?? 0);
   return { income, expenses: income - net, net };
 }
 
