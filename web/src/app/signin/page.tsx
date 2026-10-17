@@ -22,8 +22,8 @@ export default async function SignInPage({
   if (await getAuthContext()) redirect(target);
 
   return (
-    <main className="grid-glow flex min-h-dvh items-center justify-center px-4">
-      <div className="card w-full max-w-md p-8 text-center">
+    <main className="signin-hero flex min-h-dvh items-end justify-center px-4 pt-[38vh] pb-8 min-[900px]:justify-start min-[900px]:pl-[max(6vw,40px)] sm:items-center sm:py-10">
+      <div className="card bg-surface/85 w-full max-w-md p-8 text-center backdrop-blur-md">
         <Link href="/" className="inline-flex">
           <Logo size="lg" />
         </Link>

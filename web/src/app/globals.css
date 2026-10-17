@@ -79,6 +79,29 @@
     48px 48px;
 }
 
+/* Sign-in splash, as Wardie's: Bookie in his study, darkened behind the card.
+   Phones get his portrait with the card below his face. */
+@utility signin-hero {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(11 17 32 / 0.1) 0%,
+      rgb(11 17 32 / 0.35) 30%,
+      rgb(11 17 32 / 0.92) 60%
+    ),
+    url('/bookie/portrait.webp') center top / cover no-repeat var(--color-canvas);
+  @media (min-width: 900px) {
+    background:
+      linear-gradient(
+        90deg,
+        rgb(11 17 32 / 0.94) 0%,
+        rgb(11 17 32 / 0.72) 42%,
+        rgb(11 17 32 / 0.12) 100%
+      ),
+      url('/bookie/hero.webp') right center / cover no-repeat var(--color-canvas);
+  }
+}
+
 /* Recharts tooltips inherit our palette. */
 .recharts-default-tooltip {
   background: var(--color-surface-2) !important;
