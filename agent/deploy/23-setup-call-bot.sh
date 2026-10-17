@@ -37,6 +37,12 @@ fi
 as_agent "git -C '${PRESENCE_CHECKOUT}' checkout --quiet --detach '${PRESENCE_PIN}'"
 [ "$(as_agent "git -C '${PRESENCE_CHECKOUT}' rev-parse HEAD")" = "$(as_agent "git -C '${PRESENCE_CHECKOUT}' rev-parse '${PRESENCE_PIN}^{commit}'")" ] || die "not at pin ${PRESENCE_PIN}"
 as_agent "rsync -a --delete --exclude .git --exclude node_modules --exclude livekit.yaml --exclude .env '${PRESENCE_CHECKOUT}/' '${PRESENCE_DIR}/'"
+# The media bridge (media/livekit_bridge.py) runs on the host's python3, not in Docker: install its
+# requirements for the agent user, and the speaker-ID models. Without them every call connects in
+# Teams with no audio or video ("No module named 'livekit'").
+as_agent "cd '${PRESENCE_DIR}/src/call-bot/media' && python3 -m pip install --user --quiet --disable-pip-version-check -r requirements.txt"
+as_agent "cd '${PRESENCE_DIR}/src/call-bot/media' && [ -f models/silero_vad.onnx ] || bash fetch-speaker-models.sh"
+as_agent "python3 -c 'from livekit import api, rtc'" || die "the media bridge's python packages did not install"
 info "synced to ${PRESENCE_DIR} ($(as_agent "git -C '${PRESENCE_CHECKOUT}' log -1 --format='%h %s'"))"
 
 step "Node dependencies (browser bridge, shared CLIs)"
