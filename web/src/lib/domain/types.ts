@@ -104,7 +104,12 @@ export interface Contact {
   status: 'active' | 'archived';
   currency?: string;
   /** Outstanding balances, when the source provides them cheaply. */
-  balances?: { receivable?: number; payable?: number; overdueReceivable?: number };
+  balances?: {
+    receivable?: number;
+    payable?: number;
+    overdueReceivable?: number;
+    overduePayable?: number;
+  };
   updatedAt?: string;
 }
 

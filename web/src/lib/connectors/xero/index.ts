@@ -145,36 +145,55 @@ function xeroInvoices(client: XeroClient, shortCode?: string): InvoicesModule {
   };
 }
 
+/** Query parameters for GET Contacts. Exported for tests. */
+export function xeroContactsQuery(
+  query: Parameters<ContactsModule['list']>[0],
+  pageSize: number
+): Record<string, string | number | boolean | undefined> {
+  const where: string[] = [];
+  if (query?.role === 'customer') where.push('IsCustomer==true');
+  if (query?.role === 'supplier') where.push('IsSupplier==true');
+  const archivedOnly = query?.status === 'archived';
+  if (archivedOnly) where.push('ContactStatus=="ARCHIVED"');
+  return {
+    where: where.join(' AND ') || undefined,
+    // searchTerm is a plain query parameter (not a where clause): no escaping needed.
+    // Xero matches it against name, first/last name, contact number and email.
+    searchTerm: query?.search?.trim() || undefined,
+    includeArchived: archivedOnly || query?.includeArchived ? true : undefined,
+    order: 'Name ASC',
+    page: query?.page ?? 1,
+    pageSize,
+    // Full rows carry Balances (omitted by Xero when zero) without an N+1 per contact.
+    summaryOnly: false,
+  };
+}
+
 function xeroContacts(client: XeroClient): ContactsModule {
   const one = async (id: string) => {
-    const result = await client.request<{ Contacts: XeroContact[] }>(`Contacts/${id}`);
-    return fromXeroContact(result.Contacts[0]);
+    const result = await client.request<{ Contacts: XeroContact[] }>(
+      `Contacts/${encodeURIComponent(id)}`
+    );
+    return fromXeroContact(result.Contacts[0], true);
   };
   const save = async (body: Record<string, unknown>): Promise<Contact> => {
     const result = await client.request<{ Contacts: XeroContact[] }>('Contacts', {
       method: 'POST',
       body: { Contacts: [body] },
     });
-    return fromXeroContact(result.Contacts[0]);
+    return fromXeroContact(result.Contacts[0], true);
   };
   return {
     async list(query) {
       const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
-      const where: string[] = [];
-      if (query?.role === 'customer') where.push('IsCustomer==true');
-      if (query?.role === 'supplier') where.push('IsSupplier==true');
       const result = await client.request<{ Contacts: XeroContact[] }>('Contacts', {
-        query: {
-          where: where.join(' AND ') || undefined,
-          searchTerm: query?.search ? xeroString(query.search) : undefined,
-          includeArchived: query?.includeArchived ? true : undefined,
-          order: 'Name ASC',
-          page: query?.page ?? 1,
-          pageSize,
-          summaryOnly: false,
-        },
+        query: xeroContactsQuery(query, pageSize),
       });
-      return pageOf(result.Contacts.map(fromXeroContact), query, pageSize);
+      return pageOf(
+        result.Contacts.map((c) => fromXeroContact(c, true)),
+        query,
+        pageSize
+      );
     },
     get: one,
     create: (input) => save(toXeroContact(input)),

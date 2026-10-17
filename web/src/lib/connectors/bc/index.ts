@@ -91,7 +91,7 @@ export interface BcPurchaseInvoice {
   purchaseInvoiceLines?: BcInvoiceLine[];
 }
 
-interface BcParty {
+export interface BcParty {
   id: string;
   number: string;
   displayName: string;
@@ -110,6 +110,8 @@ interface BcParty {
   balanceDue?: number;
   balance?: number;
   lastModifiedDateTime?: string;
+  /** Customers only, via `$expand=customerFinancialDetail`. */
+  customerFinancialDetail?: { balance?: number; overdueAmount?: number };
 }
 
 interface BcCompanyInformation {
@@ -276,14 +278,20 @@ export function fromPurchaseInvoice(raw: BcPurchaseInvoice, lcy: string): Invoic
 
 /** Contacts merge BC customers (`c:` ids) and vendors (`v:` ids). */
 export function parseContactId(id: string): { entity: 'customers' | 'vendors'; id: string } {
-  if (id.startsWith('c:')) return { entity: 'customers', id: id.slice(2) };
-  if (id.startsWith('v:')) return { entity: 'vendors', id: id.slice(2) };
-  throw new ConnectorError('Unknown contact id.', 400, 'business-central');
+  // Ids end up inside OData paths and filters, so only accept `c:`/`v:` + a GUID.
+  const match = /^([cv]):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(id);
+  if (!match) throw new ConnectorError('Unknown contact id.', 400, 'business-central');
+  return { entity: match[1].toLowerCase() === 'c' ? 'customers' : 'vendors', id: match[2] };
 }
 
-function fromParty(raw: BcParty, entity: 'customers' | 'vendors'): Contact {
+/** BC's `blocked` enum is blank (`" "`, serialised `_x0020_`) for active parties. */
+export function isBlocked(blocked: string | undefined): boolean {
+  return !!blocked && blocked.trim() !== '' && blocked !== '_x0020_';
+}
+
+export function fromParty(raw: BcParty, entity: 'customers' | 'vendors'): Contact {
   const isCustomer = entity === 'customers';
-  const balance = raw.balanceDue ?? raw.balance;
+  const balance = (isCustomer ? raw.balanceDue : raw.balance) ?? raw.balanceDue ?? raw.balance;
   return {
     id: `${isCustomer ? 'c' : 'v'}:${raw.id}`,
     name: raw.displayName,
@@ -305,14 +313,19 @@ function fromParty(raw: BcParty, entity: 'customers' | 'vendors'): Contact {
         : undefined,
     isCustomer,
     isSupplier: !isCustomer,
-    status: raw.blocked && raw.blocked !== '_x0020_' && raw.blocked !== ' ' ? 'archived' : 'active',
+    status: isBlocked(raw.blocked) ? 'archived' : 'active',
     currency: raw.currencyCode || undefined,
-    balances: isCustomer ? { receivable: balance } : { payable: balance },
+    balances: isCustomer
+      ? {
+          receivable: balance ?? 0,
+          overdueReceivable: raw.customerFinancialDetail?.overdueAmount,
+        }
+      : { payable: balance ?? 0 },
     updatedAt: raw.lastModifiedDateTime,
   };
 }
 
-function toParty(input: ContactInput) {
+export function toParty(input: ContactInput) {
   return {
     displayName: input.name,
     email: input.email,
@@ -500,37 +513,90 @@ function bcInvoices(
   return mod;
 }
 
+const PARTY_FIELDS =
+  'id,number,displayName,email,phoneNumber,website,addressLine1,addressLine2,city,state,postalCode,country,taxRegistrationNumber,currencyCode,blocked,lastModifiedDateTime';
+const PARTY_SELECT = {
+  customers: `${PARTY_FIELDS},balanceDue`,
+  vendors: `${PARTY_FIELDS},balance`,
+} as const;
+
+/**
+ * Contacts search: name, number (BC "No.") or email, case-insensitive. Done in
+ * memory because BC's OData rejects `or` across different fields ("The 'OR'
+ * operator is not supported on distinct fields"), and the list already loads
+ * every party to merge customers with vendors.
+ */
+export function matchesPartySearch(contact: Contact, search: string | undefined): boolean {
+  const needle = search?.trim().toLowerCase();
+  if (!needle) return true;
+  return [contact.name, contact.accountNumber, contact.email].some((v) =>
+    v?.toLowerCase().includes(needle)
+  );
+}
+
 function bcContacts(client: BcClient): ContactsModule {
   return {
     async list(query) {
       const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
       const page = query?.page ?? 1;
-      const filter = query?.search
-        ? `contains(displayName,${odataString(query.search)})`
-        : undefined;
       const entities: ('customers' | 'vendors')[] =
         query?.role === 'customer'
           ? ['customers']
           : query?.role === 'supplier'
             ? ['vendors']
             : ['customers', 'vendors'];
+      // BC has no merged "contacts" endpoint, so fetch customers and vendors
+      // (lean $select), then merge, filter and page here. Balances come with
+      // the rows, so there is no per-contact call.
       const results = await Promise.all(
         entities.map(async (entity) =>
-          (await client.all<BcParty>(entity, { $filter: filter, $orderby: 'displayName' })).map(
-            (raw) => fromParty(raw, entity)
-          )
+          (
+            await client.all<BcParty>(entity, {
+              $orderby: 'displayName',
+              $select: PARTY_SELECT[entity],
+            })
+          ).map((raw) => fromParty(raw, entity))
         )
       );
+      const archivedOnly = query?.status === 'archived';
       const all = results
         .flat()
-        .filter((c) => query?.includeArchived || c.status === 'active')
+        .filter(
+          (c) =>
+            (archivedOnly
+              ? c.status === 'archived'
+              : query?.includeArchived || c.status === 'active') &&
+            matchesPartySearch(c, query?.search)
+        )
         .sort((a, b) => a.name.localeCompare(b.name));
       const items = all.slice((page - 1) * pageSize, page * pageSize);
       return { items, page, pageSize, hasMore: all.length > page * pageSize, total: all.length };
     },
     async get(id) {
       const { entity, id: raw } = parseContactId(id);
-      return fromParty(await client.request<BcParty>(`${entity}(${raw})`), entity);
+      if (entity === 'customers') {
+        // The financial detail carries the overdue amount (one expand, detail page only).
+        return fromParty(
+          await client.request<BcParty>(`customers(${raw})`, {
+            query: { $expand: 'customerFinancialDetail' },
+          }),
+          entity
+        );
+      }
+      const [vendor, overdue] = await Promise.all([
+        client.request<BcParty>(`vendors(${raw})`),
+        // BC's v2.0 API has no vendor overdue figure and purchase invoices carry no
+        // remaining amount: sum open bills past their due date, as the bills list does.
+        client
+          .all<BcPurchaseInvoice>('purchaseInvoices', {
+            $filter: `vendorId eq ${raw} and status eq 'Open' and dueDate lt ${today()}`,
+            $select: 'id,totalAmountIncludingTax',
+          })
+          .then((rows) => rows.reduce((s, r) => s + (r.totalAmountIncludingTax ?? 0), 0))
+          .catch(() => undefined),
+      ]);
+      const contact = fromParty(vendor, entity);
+      return { ...contact, balances: { ...contact.balances, overduePayable: overdue } };
     },
     async create(input) {
       const entity = input.isSupplier && !input.isCustomer ? 'vendors' : 'customers';
@@ -733,9 +799,10 @@ export function createBcConnector({
     projects: bcProjects(client, lcy),
 
     sourceLink(entity, id) {
-      void id;
       const pages = { invoice: 9301, bill: 9308, quote: 9300, contact: 22 };
-      return bcWebClientLink(client.tenantId, client.environment, companyName, pages[entity]);
+      // Contacts open the Customers list (22), or the Vendors list (27) for `v:` ids.
+      const page = entity === 'contact' && id.startsWith('v:') ? 27 : pages[entity];
+      return bcWebClientLink(client.tenantId, client.environment, companyName, page);
     },
   };
 }

@@ -1,4 +1,6 @@
 import type {
+  Contact,
+  ContactInput,
   DashboardSummary,
   DocumentBucket,
   Invoice,
@@ -171,42 +173,118 @@ function demoInvoices(data: DemoData): InvoicesModule {
   };
 }
 
+/** Extra fictional contact details and contacts the generated demo data doesn't have. */
+const DEMO_CONTACT_EXTRAS: Contact[] = [
+  {
+    id: 'cust-archived-1',
+    name: 'Fabrikam Pop-up Kiosk',
+    email: 'kiosk@fabrikam.example.com',
+    phone: '0161 496 0999',
+    isCustomer: true,
+    isSupplier: false,
+    status: 'archived',
+    accountNumber: 'FAB-KIOSK',
+  },
+  {
+    id: 'supp-archived-1',
+    name: 'Northwind Packaging (old account)',
+    email: 'accounts@northwind-packaging.example.com',
+    isCustomer: false,
+    isSupplier: true,
+    status: 'archived',
+  },
+];
+
+const seeded = new WeakSet<DemoData>();
+
+/** Enrich the shared demo contacts once per data set (fixtures live here, not in data.ts). */
+function seedContacts(data: DemoData) {
+  if (seeded.has(data)) return;
+  seeded.add(data);
+  data.contacts.forEach((c, i) => {
+    const slug = c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    c.accountNumber ??= `${c.isCustomer ? 'CUS' : 'SUP'}-${String(i + 1).padStart(3, '0')}`;
+    c.website ??= `https://www.${slug.replace(/^-|-$/g, '')}.example.com`;
+    c.taxNumber ??= `GB ${String(200_000_000 + i * 13_717).replace(/(\d{3})(\d{4})(\d{2})/, '$1 $2 $3')}`;
+  });
+  // One contact that is both a customer and a supplier, as in Xero.
+  const both = data.contacts.find((c) => c.isSupplier);
+  if (both) both.isCustomer = true;
+  data.contacts.push(...structuredClone(DEMO_CONTACT_EXTRAS));
+}
+
+/** Balances from the live demo invoices, so they move as documents are approved. */
+export function demoBalances(data: DemoData, contactId: string): Contact['balances'] {
+  const open = data.invoices.filter((i) => i.contact.id === contactId && i.status === 'authorised');
+  const sum = (type: 'sales' | 'purchase', overdue: boolean) =>
+    open
+      .filter((i) => i.type === type && (!overdue || i.isOverdue))
+      .reduce((s, i) => s + i.amountDue, 0);
+  return {
+    receivable: sum('sales', false),
+    overdueReceivable: sum('sales', true),
+    payable: sum('purchase', false),
+    overduePayable: sum('purchase', true),
+  };
+}
+
 function demoContacts(data: DemoData): ContactsModule {
+  seedContacts(data);
   const find = (id: string) => data.contacts.find((c) => c.id === id) ?? notFound('Contact');
+  const view = (c: Contact): Contact => ({
+    ...structuredClone(c),
+    balances: demoBalances(data, c.id),
+  });
+  const clean = (input: ContactInput) =>
+    Object.fromEntries(
+      Object.entries(input).map(([k, v]) => [k, v === '' ? undefined : v])
+    ) as ContactInput;
   return {
     async list(query) {
+      const archivedOnly = query?.status === 'archived';
       const all = data.contacts
         .filter(
           (c) =>
-            (query?.includeArchived || c.status === 'active') &&
+            (archivedOnly
+              ? c.status === 'archived'
+              : query?.includeArchived || c.status === 'active') &&
             (query?.role !== 'customer' || c.isCustomer) &&
             (query?.role !== 'supplier' || c.isSupplier) &&
-            matches([c.name, c.email], query?.search)
+            matches(
+              [c.name, c.email, c.accountNumber, c.firstName, c.lastName],
+              query?.search?.trim()
+            )
         )
         .sort((a, b) => a.name.localeCompare(b.name));
-      return paginate(structuredClone(all), query);
+      return paginate(all.map(view), query);
     },
-    get: async (id) => structuredClone(find(id)),
+    get: async (id) => view(find(id)),
     async create(input) {
-      const contact = {
-        ...input,
+      const contact: Contact = {
+        ...clean(input),
         id: demoId('contact'),
         isCustomer: input.isCustomer ?? true,
         isSupplier: input.isSupplier ?? false,
-        status: 'active' as const,
+        status: 'active',
       };
       data.contacts.push(contact);
-      return structuredClone(contact);
+      return view(contact);
     },
     async update(id, input) {
       const contact = find(id);
-      Object.assign(contact, input);
-      return structuredClone(contact);
+      Object.assign(contact, clean(input), {
+        isCustomer: input.isCustomer ?? contact.isCustomer,
+        isSupplier: input.isSupplier ?? contact.isSupplier,
+      });
+      // Keep names on existing documents in step, as Xero does.
+      for (const invoice of data.invoices)
+        if (invoice.contact.id === id) invoice.contact.name = contact.name;
+      return view(contact);
     },
     async archive(id) {
       const contact = find(id);
       contact.status = 'archived';
-      return structuredClone(contact);
+      return view(contact);
     },
   };
 }
