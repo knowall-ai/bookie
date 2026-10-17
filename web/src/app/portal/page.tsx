@@ -53,9 +53,9 @@ export default async function MyOrganisations() {
             }
           />
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2" data-testid="org-list">
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="org-list">
             {orgs.map((org) => (
-              <li key={org.key}>
+              <li key={org.key} className="min-w-0">
                 <Link
                   href={`/portal/${encodeURIComponent(org.key)}`}
                   className="card group hover:border-brand/50 flex items-center gap-4 p-5 transition-colors"
