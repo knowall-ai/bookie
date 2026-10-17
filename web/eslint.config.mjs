@@ -68,6 +68,8 @@ const eslintConfig = defineConfig([
     '.next/**',
     '.next-e2e/**',
     '.next-e2e-guest/**',
+    // Any other Next build folder (NEXT_DIST_DIR), e.g. a screenshot server's .next-shot.
+    '.next-*/**',
     'out/**',
     'build/**',
     'next-env.d.ts',

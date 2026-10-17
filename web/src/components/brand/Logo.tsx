@@ -1,33 +1,31 @@
 import { cn } from '@/lib/ui/cn';
 
-/** Bookie's glyph: a "B" drawn as a two-page ledger with ruled lines. */
-export function BookieGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" aria-hidden="true" className={className} fill="none">
-      <path
-        d="M8 6.5h9.25a5.25 5.25 0 0 1 0 10.5H8z M8 15.5h10.5a5.75 5.75 0 0 1 0 11.5H8z"
-        fill="currentColor"
-      />
-      <path
-        d="M11 10.25h6 M11 13.25h4.5 M11 19.75h7 M11 22.75h5"
-        stroke="var(--glyph-cut, #22c55e)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
+/**
+ * Bookie's mark: his robot head, with a dark visor and his warm gold eyes (centre #FFF1C2,
+ * rim #FFC85A, as in agent/assets/bookie-character.md), on the brand-green tile.
+ * The same drawing as app/icon.svg; solid circles rather than gradients, so it needs no ids.
+ */
 export function LogoTile({ className }: { className?: string }) {
   return (
-    <span
+    <svg
+      viewBox="0 0 32 32"
+      aria-hidden="true"
       className={cn(
-        'bg-brand text-brand-ink inline-flex items-center justify-center rounded-lg shadow-[0_6px_20px_-6px_rgb(34_197_94/0.6)]',
+        'inline-block shrink-0 rounded-lg shadow-[0_6px_20px_-6px_rgb(34_197_94/0.6)]',
         className ?? 'h-8 w-8'
       )}
     >
-      <BookieGlyph className="h-[70%] w-[70%]" />
-    </span>
+      <rect width="32" height="32" rx="7" fill="#22c55e" />
+      <rect x="4" y="7" width="24" height="18" rx="8" fill="#ffffff" />
+      <rect x="7" y="11.5" width="18" height="9" rx="4.5" fill="#020817" />
+      {[11.8, 20.2].map((cx) => (
+        <g key={cx}>
+          <circle cx={cx} cy="16" r="3.3" fill="#FFC85A" fillOpacity="0.3" />
+          <circle cx={cx} cy="16" r="2.2" fill="#FFC85A" />
+          <circle cx={cx} cy="16" r="1.5" fill="#FFF1C2" />
+        </g>
+      ))}
+    </svg>
   );
 }
 
