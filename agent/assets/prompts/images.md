@@ -57,3 +57,38 @@ pasted back onto the approved image, through a feathered mask, so the head stays
 uniform, pure magenta (#FF00FF)", then chroma-keyed. The matte came from the edit and
 the pixels from the original. Model-made transparent backgrounds and outpainting at a
 new size both redrew the head, so don't use them for plates.
+
+**Mouth off** (for the animated Presence mouth): no model edit. The dashed LED line
+was filled locally in `bookie-agent.png`, inside x 700-820, y 591-611 only. The fill
+interpolates the glass gradient from the box's edges, adds grain taken from the clean
+glass just below, and is feathered over 4 px. The alpha channel and every pixel
+outside the box are unchanged.
+
+## Presence backdrop: the near-future study (`bookie-bg-future.png`)
+
+This is the Teams video backdrop he sits in front of, at `1536x1024` (the same size as
+`bookie-bg-study.png`). The scene is empty, so it uses no reference images and none of
+the character blocks. It calls the generations endpoint with the same model and settings:
+
+```sh
+GEN=~/GitHub/claude-plugins/skills/gen-image/generate.py
+python3 "$GEN" --model gpt-image-2.5-flare --size 1536x1024 --background opaque --quality high \
+  --out bookie-bg-future.png --prompt "$LAYOUT $FUTURE_BASE"
+```
+
+**FUTURE_BASE:**
+
+> Wide 3:2 EMPTY BACKDROP PLATE for a video-call avatar: Bookie's study of the near future, the private office of a calm, precise AI bookkeeper. Photoreal cinematic render, eye level, looking straight at the back wall. Dark walnut-wood and brushed-brass shelving holding neat rows of leather-bound ledgers, each shelf edge lit by a thin soft warm gold LED strip. Faint translucent holographic ledgers and simple abstract charts float in the air near the shelves: a few large glowing rounded bars and one smooth curve in soft gold with a hint of KnowAll green (#22C55E), made only of light, with no numbers, labels or text. Palette: deep navy (#0b1120) and warm gold, with small touches of KnowAll green; calm, warm and trustworthy, never cold or menacing. The CENTRE of the frame, where a character will be composited in front, is calm and uncluttered: smooth, softly lit, darker surfaces with no bright objects and no busy detail. Shallow depth of field: the whole scene is slightly soft-focus and gently blurred, so a figure in front stands out. NO people, NO robots, NO characters, NO furniture in the centre foreground, no readable text, letters or numbers anywhere, no logos, no watermark.
+
+**LAYOUT** (three options were made, and option 1 was chosen):
+
+1. **Chosen.** Layout: tall floor-to-ceiling window on the RIGHT showing a night-time city skyline of slender glass towers with warm gold and soft teal lights, gently out of focus; the ledger shelves fill the LEFT side; the centre is a smooth dark navy wall panel with a faint gold edge-light.
+2. Layout: symmetrical. A wide, tall window across the middle of the back wall shows a night-time skyline far away, deeply blurred into soft gold and navy bokeh; shelves of ledgers with gold LED strips frame both sides; the holographic charts float faintly over the left and right shelves only, never in the centre.
+3. Layout: a curved dark-wood wall of ledger shelves wraps around the scene like a library alcove, gold LED strips tracing every shelf; a tall narrow window on the LEFT shows a night skyline with soft lights; a faint green-and-gold holographic grid glows low across the back wall, deeply blurred; the centre stays dim, soft and empty.
+
+Why option 1: the plain navy panel behind him gives his ivory dome and green eyeshade
+the strongest contrast and the calmest centre. Its holograms are only big bars and a
+curve. Option 2 put ruled lines on some panels that read as pseudo-text, and its skyline
+bokeh sat right behind his head. Option 3 had a green glow in the centre and was busier
+around him. Before committing a candidate, check it composited with Bookie:
+`python3 scripts/plate_test_render.py . /tmp/out --bg candidate.png --size 1920x1080`.

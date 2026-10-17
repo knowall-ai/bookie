@@ -14,7 +14,8 @@ GPT-image and video models, and keeping him consistent. Paste the blocks
 | `bookie-avatar-preview.html` | Developer-only side-by-side with Sallie and Poppie, at 256 px and 48 px. |
 | `bookie-overlay-sallie.png`, `bookie-48-check.png` | Head-shape overlay against Sallie, and the 48 px check. |
 | `bookie-agent.png` | Presence plate: 1536×1024 transparent cut-out, **eyes and the dashed LED line removed** (plain dark visor, glasses kept). The renderer draws both the eyes and his animated mouth. The LED line was filled from the surrounding glass inside x 700-820, y 591-611 only; the alpha channel is unchanged. |
-| `bookie-bg-study.png` | Presence backdrop plate: the empty study. |
+| `bookie-bg-study.png` | Presence backdrop plate: the empty sunlit study (the original). |
+| `bookie-bg-future.png` | Presence backdrop plate: his study of the near future at night, empty. It has gold-lit ledger shelves, faint gold and green holographic charts, a night skyline and a calm navy centre. The prompt is in `prompts/images.md`. |
 | `bookie-avatar.json` | Presence renderer identity (Poppie's schema). |
 | `presence-test/` | Plate + backdrop + drawn eyes: eyes off, eyes on, a blink and glow-pulse GIF, and an "opaque lamp" preview (see Presence). |
 | `references/` | The reference pack for image and video models (below). |
@@ -26,7 +27,7 @@ GPT-image and video models, and keeping him consistent. Paste the blocks
 | `scripts/omni_video.py` | Generates or extends a Gemini Omni video (from Zaplie's kit). |
 | `scripts/realtime_voice.py` | Records Bookie's real voice (gpt-realtime-2.1, voice `cedar`) reading a script. |
 | `scripts/eye_glow_sync.py` | Pulses the eye glow on generated video with the narration's loudness. |
-| `scripts/plate_test_render.py` | Composes the presence plates exactly like the renderer, to prove the eyes land. |
+| `scripts/plate_test_render.py` | Composes the presence plates exactly like the renderer, to prove the eyes land. `--bg FILE` previews another backdrop, and `--size 1920x1080` sets the canvas. |
 
 The website video lives in `web/public/bookie/` (`bookie-intro.mp4`, poster, captions, `bookie-loop.mp4`).
 
