@@ -47,6 +47,12 @@ export default function PrivacyPage() {
           remember context. Ledger figures are looked up afresh each time rather than stored.
         </li>
         <li>
+          <strong>Questions to Bookie&rsquo;s public helper</strong> on this website, typed or
+          spoken: sent to Azure OpenAI to answer them, and not stored or logged by us (we log only
+          counts and errors). The helper cannot see anyone&rsquo;s accounts, so please don&rsquo;t
+          share personal or financial details with it.
+        </li>
+        <li>
           <strong>Technical logs</strong>: request times, errors and IP addresses, kept for up to 30
           days to keep the service secure and working.
         </li>
