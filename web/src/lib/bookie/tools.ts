@@ -198,6 +198,17 @@ const TOOLS: Tool[] = [
       return c.attachments!.list(entity, id);
     },
   },
+  {
+    definition: fn(
+      'list_currencies',
+      'The currencies this organisation trades in, base currency included. Document amounts are in their own currency; currencyRate on a document is the source rate (units of that currency per 1 base unit). Never convert with any other rate.'
+    ),
+    available: (c) => !!c.currencies,
+    run: async (c) => ({
+      baseCurrency: (await c.organisation()).baseCurrency,
+      currencies: await c.currencies!.list(),
+    }),
+  },
 ];
 
 export function toolsFor(connector: AccountingConnector | undefined): ToolDefinition[] {
@@ -261,6 +272,8 @@ export function toolStatus(name: string, rawArgs: string): string {
       return 'Checking your quotes…';
     case 'list_attachments':
       return 'Looking at the attached files…';
+    case 'list_currencies':
+      return 'Checking your currencies…';
     default:
       return 'Looking that up…';
   }

@@ -1,6 +1,7 @@
 import 'server-only';
 import type { AccountingConnector } from '@/lib/connectors/types';
 import type { DocumentBucket, Invoice, InvoiceType } from '@/lib/domain/types';
+import { sumInBase } from '@/lib/domain/currency';
 
 export interface InvoiceOverview {
   draft: DocumentBucket;
@@ -10,19 +11,22 @@ export interface InvoiceOverview {
   recent: Invoice[];
   /** True when a bucket hit the fetch cap, so its figures are a floor. */
   truncated: boolean;
+  /** Foreign-currency documents left out of the base-currency totals (no source rate). */
+  excluded: number;
+  excludedCurrencies: string[];
 }
 
 const CAP = 500;
 
-const sum = (invoices: Invoice[], pick: (i: Invoice) => number): DocumentBucket => ({
-  count: invoices.length,
-  total: Math.round(invoices.reduce((s, i) => s + pick(i), 0) * 100) / 100,
-});
-
-/** Xero's Sales/Purchases overview cards, from the open invoices or bills. */
+/**
+ * Xero's Sales/Purchases overview cards, from the open invoices or bills, in
+ * the base currency: foreign documents convert at their own source rate
+ * (Xero CurrencyRate) and are left out, and counted, when there is none.
+ */
 export async function invoiceOverview(
   connector: AccountingConnector,
-  type: InvoiceType
+  type: InvoiceType,
+  baseCurrency: string
 ): Promise<InvoiceOverview | undefined> {
   const mod = connector.invoices;
   if (!mod) return undefined;
@@ -34,12 +38,22 @@ export async function invoiceOverview(
     list(undefined, 8),
   ]);
   const overdue = authorised.items.filter((i) => i.isOverdue);
+  const parts = {
+    draft: sumInBase(draft.items, (i) => i.total, baseCurrency),
+    awaitingApproval: sumInBase(submitted.items, (i) => i.total, baseCurrency),
+    awaitingPayment: sumInBase(authorised.items, (i) => i.amountDue, baseCurrency),
+    overdue: sumInBase(overdue, (i) => i.amountDue, baseCurrency),
+  };
+  const bucket = ({ count, total }: DocumentBucket): DocumentBucket => ({ count, total });
+  const open = [parts.draft, parts.awaitingApproval, parts.awaitingPayment];
   return {
-    draft: sum(draft.items, (i) => i.total),
-    awaitingApproval: sum(submitted.items, (i) => i.total),
-    awaitingPayment: sum(authorised.items, (i) => i.amountDue),
-    overdue: sum(overdue, (i) => i.amountDue),
+    draft: bucket(parts.draft),
+    awaitingApproval: bucket(parts.awaitingApproval),
+    awaitingPayment: bucket(parts.awaitingPayment),
+    overdue: bucket(parts.overdue),
     recent: recent.items,
     truncated: draft.hasMore || submitted.hasMore || authorised.hasMore,
+    excluded: open.reduce((n, p) => n + p.excluded, 0),
+    excludedCurrencies: [...new Set(open.flatMap((p) => p.excludedCurrencies))].sort(),
   };
 }

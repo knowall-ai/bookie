@@ -98,7 +98,13 @@ export async function ContactListPage({
       key: 'payable',
       header: 'You owe',
       align: 'right',
-      cell: (c) => <Balance amount={c.balances?.payable} currency={c.currency ?? currency} />,
+      cell: (c) => (
+        <Balance
+          amount={c.balances?.payable}
+          currency={c.currency ?? currency}
+          note={c.balancesNote}
+        />
+      ),
     },
     {
       key: 'receivable',
@@ -106,7 +112,11 @@ export async function ContactListPage({
       align: 'right',
       cell: (c) => (
         <span className="flex flex-col items-end">
-          <Balance amount={c.balances?.receivable} currency={c.currency ?? currency} />
+          <Balance
+            amount={c.balances?.receivable}
+            currency={c.currency ?? currency}
+            note={c.balancesNote}
+          />
           {!!c.balances?.overdueReceivable && (
             <span className="text-danger text-xs whitespace-nowrap">
               {formatMoney(c.balances.overdueReceivable, c.currency ?? currency)} overdue
@@ -183,8 +193,21 @@ export async function ContactListPage({
 }
 
 /** Zero balances are muted so the amounts owed stand out. */
-function Balance({ amount, currency }: { amount: number | undefined; currency?: string }) {
-  if (amount === undefined) return <span className="text-faint">—</span>;
+function Balance({
+  amount,
+  currency,
+  note,
+}: {
+  amount: number | undefined;
+  currency?: string;
+  note?: string;
+}) {
+  if (amount === undefined)
+    return (
+      <span className="text-faint" title={note}>
+        {note ? 'Not available' : '—'}
+      </span>
+    );
   if (amount === 0) return <span className="text-faint num">{formatMoney(0)}</span>;
   return <Money amount={amount} currency={currency} className="text-ink" />;
 }

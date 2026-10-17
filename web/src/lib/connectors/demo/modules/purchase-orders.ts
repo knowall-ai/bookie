@@ -73,7 +73,8 @@ export function demoPurchaseOrders(data: DemoData): PurchaseOrdersModule | undef
       contact: { id: contact.id, name: contact.name },
       date: input.date,
       deliveryDate: input.deliveryDate,
-      currency: 'GBP',
+      currency: input.currency ?? 'GBP',
+      currencyRate: input.currency && input.currency !== 'GBP' ? input.currencyRate : undefined,
       ...totals(lineItems),
       lineItems,
     } satisfies PurchaseOrder;

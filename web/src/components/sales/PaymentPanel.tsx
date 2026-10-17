@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { recordPayment } from '@/lib/portal/actions/payments';
-import { formatDate, formatMoney } from '@/lib/ui/format';
+import { formatDate, formatMoney, formatNumber } from '@/lib/ui/format';
+import { isForeign } from '@/lib/domain/currency';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select } from '@/components/ui/Field';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -13,6 +14,7 @@ export interface PaymentBankOption {
   id: string;
   name: string;
   code?: string;
+  currency?: string;
 }
 
 /** Xero's "Make a payment" box under an approved invoice or bill. */
@@ -21,16 +23,30 @@ export function PaymentPanel({
   invoiceId,
   amountDue,
   currency,
-  bankAccounts,
+  bankAccounts: allBankAccounts,
   isSales,
+  baseCurrency,
+  invoiceRate,
+  acceptsRate,
 }: {
   orgKey: string;
   invoiceId: string;
   amountDue: number;
+  /** The document's currency: the amount paid is entered in it, as in Xero. */
   currency: string;
   bankAccounts: PaymentBankOption[];
   isSales: boolean;
+  baseCurrency?: string;
+  /** The document's own source exchange rate, shown for reference. */
+  invoiceRate?: number;
+  /** The source takes a payment exchange rate (Xero CurrencyRate). */
+  acceptsRate?: boolean;
 }) {
+  // A foreign-currency document can be paid from an account in its own currency
+  // or in the base currency, as Xero allows; hide accounts in any other currency.
+  const bankAccounts = allBankAccounts.filter(
+    (b) => !b.currency || !baseCurrency || b.currency === currency || b.currency === baseCurrency
+  );
   const router = useRouter();
   const [pending, start] = useTransition();
   const [confirming, setConfirming] = useState(false);
@@ -41,9 +57,14 @@ export function PaymentPanel({
     bankAccounts.length === 1 ? bankAccounts[0].id : ''
   );
   const [reference, setReference] = useState('');
+  const [rate, setRate] = useState('');
 
   const value = Number(amount);
   const bank = bankAccounts.find((b) => b.id === bankAccountId);
+  const foreign = !!baseCurrency && isForeign(currency, baseCurrency);
+  // Paying a foreign document from a base-currency account converts at a rate.
+  const converts = foreign && !!bank && (!bank.currency || bank.currency !== currency);
+  const rateValue = rate ? Number(rate) : undefined;
 
   const validate = () => {
     if (!(value > 0)) return 'Enter an amount above zero.';
@@ -51,6 +72,7 @@ export function PaymentPanel({
       return `The amount can't be more than the ${formatMoney(amountDue, currency)} due.`;
     if (!date) return 'Enter the date paid.';
     if (!bank) return `Choose the account it was paid ${isSales ? 'into' : 'from'}.`;
+    if (rateValue !== undefined && !(rateValue > 0)) return 'The exchange rate must be above zero.';
     return null;
   };
 
@@ -62,6 +84,7 @@ export function PaymentPanel({
         date,
         amount: Math.round(value * 100) / 100,
         reference: reference.trim() || undefined,
+        currencyRate: converts && acceptsRate ? rateValue : undefined,
       });
       setConfirming(false);
       if (!result.ok) {
@@ -87,7 +110,7 @@ export function PaymentPanel({
           if (!problem) setConfirming(true);
         }}
       >
-        <Field label="Amount paid" htmlFor="pay-amount">
+        <Field label={foreign ? `Amount paid (${currency})` : 'Amount paid'} htmlFor="pay-amount">
           <Input
             id="pay-amount"
             type="number"
@@ -114,6 +137,7 @@ export function PaymentPanel({
             {bankAccounts.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.code ? `${b.code} · ${b.name}` : b.name}
+                {foreign && b.currency ? ` (${b.currency})` : ''}
               </option>
             ))}
           </Select>
@@ -126,6 +150,31 @@ export function PaymentPanel({
             onChange={(e) => setReference(e.target.value)}
           />
         </Field>
+        {converts && acceptsRate && (
+          <Field
+            label="Exchange rate"
+            htmlFor="pay-rate"
+            hint={`${currency} per 1 ${baseCurrency}.${
+              invoiceRate ? ` Invoice rate ${formatNumber(invoiceRate, 4)}.` : ''
+            } Leave blank to let your accounting system set it.`}
+          >
+            <Input
+              id="pay-rate"
+              type="number"
+              step="any"
+              min="0"
+              className="num"
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+              data-testid="payment-rate"
+            />
+          </Field>
+        )}
+        {converts && rateValue !== undefined && rateValue > 0 && value > 0 && (
+          <p className="text-muted self-end pb-2 text-sm" data-testid="payment-base">
+            {formatMoney(value / rateValue, baseCurrency)} at this rate
+          </p>
+        )}
         {error && (
           <p role="alert" className="text-danger text-sm sm:col-span-2">
             {error}

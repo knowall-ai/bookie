@@ -83,6 +83,7 @@ export function DocumentsCard({
   listHref,
   newHref,
   newLabel,
+  note,
 }: {
   title: string;
   noun: 'invoice' | 'bill';
@@ -91,6 +92,8 @@ export function DocumentsCard({
   listHref?: string;
   newHref?: string;
   newLabel?: string;
+  /** Shown under the totals, e.g. foreign-currency documents left out. */
+  note?: string;
 }) {
   const awaiting = buckets.awaitingPayment;
   const overduePart = awaiting.total > 0 ? Math.min(1, buckets.overdue.total / awaiting.total) : 0;
@@ -148,6 +151,14 @@ export function DocumentsCard({
           />
         ))}
       </ul>
+      {note && (
+        <p
+          className="text-faint border-line border-t px-5 py-2.5 text-xs"
+          data-testid="documents-note"
+        >
+          {note}
+        </p>
+      )}
     </Card>
   );
 }

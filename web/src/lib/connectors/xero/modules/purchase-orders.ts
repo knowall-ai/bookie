@@ -3,7 +3,13 @@ import type { PurchaseOrdersModule } from '../../types';
 import { ConnectorError } from '../../types';
 import { xeroDate, type XeroClient } from '../client';
 import { matchesSearch } from '../../search';
-import { fromXeroLineItem, toLineAmountTypes, toXeroLineItem, type XeroLineItem } from '../mappers';
+import {
+  fromXeroLineItem,
+  toLineAmountTypes,
+  toXeroLineItem,
+  xeroRate,
+  type XeroLineItem,
+} from '../mappers';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -19,6 +25,7 @@ export interface XeroPurchaseOrder {
   Status: 'DRAFT' | 'SUBMITTED' | 'AUTHORISED' | 'BILLED' | 'DELETED';
   LineAmountTypes?: 'Exclusive' | 'Inclusive' | 'NoTax';
   CurrencyCode?: string;
+  CurrencyRate?: number;
   SubTotal?: number;
   TotalTax?: number;
   Total?: number;
@@ -51,6 +58,7 @@ export function fromXeroPurchaseOrder(raw: XeroPurchaseOrder): PurchaseOrder {
     deliveryDate: xeroDate(raw.DeliveryDateString ?? raw.DeliveryDate),
     status: STATUS[raw.Status] ?? 'draft',
     currency: raw.CurrencyCode ?? '',
+    currencyRate: xeroRate(raw.CurrencyRate),
     subTotal: raw.SubTotal ?? 0,
     totalTax: raw.TotalTax ?? 0,
     total: raw.Total ?? 0,
@@ -69,6 +77,7 @@ export function toXeroPurchaseOrder(
     DeliveryDate: input.deliveryDate,
     Reference: input.reference || undefined,
     CurrencyCode: input.currency || undefined,
+    CurrencyRate: input.currency ? xeroRate(input.currencyRate) : undefined,
     LineAmountTypes: toLineAmountTypes(input.lineAmountType),
     LineItems: input.lineItems.map(toXeroLineItem),
   };

@@ -27,6 +27,7 @@ import type {
   ContactInput,
   CreditNote,
   CreditNoteType,
+  Currency,
   DashboardSummary,
   Employee,
   FixedAsset,
@@ -159,6 +160,13 @@ export interface AssetsModule {
   ): Promise<Page<FixedAsset>>;
 }
 
+export interface CurrenciesModule {
+  /** The currencies the organisation has enabled, base currency included. */
+  list(): Promise<Currency[]>;
+  /** True when documents and payments accept an exchange rate on write (Xero `CurrencyRate`). */
+  readonly acceptsRate?: boolean;
+}
+
 export interface ReportsModule {
   /** Report ids this connector can run, in the order the Reporting tab lists them. */
   available: ReportId[];
@@ -222,6 +230,7 @@ export interface AccountingConnector {
   accounts?: AccountsModule;
   journals?: JournalsModule;
   taxRates?: TaxRatesModule;
+  currencies?: CurrenciesModule;
   assets?: AssetsModule;
   reports?: ReportsModule;
   payroll?: PayrollModule;

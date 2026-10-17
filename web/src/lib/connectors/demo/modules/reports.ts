@@ -15,6 +15,7 @@ import type {
   ReportSection,
 } from '@/lib/domain/types';
 import { buildAgedReport } from '@/lib/reports/aged';
+import { demoInBase } from './currencies';
 import {
   addDays,
   asAtLabel,
@@ -60,9 +61,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /** Posted invoices (approved or paid): drafts and those awaiting approval aren't in the books yet. */
 const live = (data: DemoData, type: Invoice['type']) =>
-  data.invoices.filter(
-    (i) => i.type === type && (i.status === 'authorised' || i.status === 'paid')
-  );
+  data.invoices
+    .filter((i) => i.type === type && (i.status === 'authorised' || i.status === 'paid'))
+    .map((i) => demoInBase(i))
+    .filter((i): i is Invoice => !!i);
 
 /**
  * The seeded demo books date some payments a few days ahead; treat those as
@@ -388,6 +390,8 @@ export function demoReports(
       asAt,
       items: data.invoices
         .filter((i) => i.type === type && i.status === 'authorised')
+        .map((i) => demoInBase(i))
+        .filter((i): i is Invoice => !!i)
         .map((i) => ({
           contactId: i.contact.id,
           contactName: i.contact.name,

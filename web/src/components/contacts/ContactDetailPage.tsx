@@ -214,28 +214,35 @@ function BalanceTiles({ contact, currency }: { contact: Contact; currency?: stri
     tiles.push({ label: 'You owe them', amount: b.payable });
   }
   return (
-    <div
-      className={cn('grid grid-cols-2 gap-3', tiles.length > 2 && 'xl:grid-cols-4')}
-      role="group"
-      aria-label="Balances"
-    >
-      {tiles.map((tile, i) => (
-        <div key={i} className="card p-4" data-testid="balance-tile">
-          <p className="text-faint text-xs font-semibold tracking-wide uppercase">{tile.label}</p>
-          <p
-            className={cn(
-              'mt-1.5 text-xl font-semibold',
-              tile.danger && tile.amount ? 'text-danger' : 'text-ink'
-            )}
-          >
-            {tile.amount === undefined ? (
-              <span className="text-faint text-base font-normal">Not available</span>
-            ) : (
-              <Money amount={tile.amount} currency={currency} />
-            )}
-          </p>
-        </div>
-      ))}
+    <div className="space-y-2">
+      <div
+        className={cn('grid grid-cols-2 gap-3', tiles.length > 2 && 'xl:grid-cols-4')}
+        role="group"
+        aria-label="Balances"
+      >
+        {tiles.map((tile, i) => (
+          <div key={i} className="card p-4" data-testid="balance-tile">
+            <p className="text-faint text-xs font-semibold tracking-wide uppercase">{tile.label}</p>
+            <p
+              className={cn(
+                'mt-1.5 text-xl font-semibold',
+                tile.danger && tile.amount ? 'text-danger' : 'text-ink'
+              )}
+            >
+              {tile.amount === undefined ? (
+                <span className="text-faint text-base font-normal">Not available</span>
+              ) : (
+                <Money amount={tile.amount} currency={currency} />
+              )}
+            </p>
+          </div>
+        ))}
+      </div>
+      {contact.balancesNote && (
+        <p className="text-faint text-xs" data-testid="balances-note">
+          {contact.balancesNote}
+        </p>
+      )}
     </div>
   );
 }

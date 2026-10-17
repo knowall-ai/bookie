@@ -7,7 +7,13 @@ import { formatDate, todayIso } from '@/lib/ui/format';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusBadge } from '@/components/ui/Badge';
 import { ButtonLink } from '@/components/ui/Button';
-import { DocumentFacts, DocumentLines, DocumentTotals } from '@/components/documents/DocumentParts';
+import {
+  baseTotalRows,
+  currencyFacts,
+  DocumentFacts,
+  DocumentLines,
+  DocumentTotals,
+} from '@/components/documents/DocumentParts';
 import { AttachmentsCard } from '@/components/attachments/AttachmentsCard';
 import { QuoteActions } from './QuoteActions';
 
@@ -28,6 +34,7 @@ export async function QuoteDetailPage({ orgParam, id }: { orgParam: string; id: 
     throw error;
   });
   if (quote.status === 'deleted') notFound();
+  const baseCurrency = (await connector.organisation().catch(() => undefined))?.baseCurrency;
 
   const listPath = `${base}/sales/quotes`;
   const allowed = (change: QuoteStatusChange) =>
@@ -103,6 +110,7 @@ export async function QuoteDetailPage({ orgParam, id }: { orgParam: string; id: 
             },
             { label: 'Quote number', value: quote.number || '—' },
             { label: 'Reference', value: quote.reference || '—' },
+            ...currencyFacts(quote, baseCurrency, sourceName(org)),
           ]}
         />
 
@@ -135,6 +143,7 @@ export async function QuoteDetailPage({ orgParam, id }: { orgParam: string; id: 
                 muted: true,
               },
               { label: 'Total', amount: quote.total, strong: true },
+              ...baseTotalRows(quote, baseCurrency),
             ]}
           />
         </div>

@@ -84,6 +84,18 @@ describe('bc contacts', () => {
     });
   });
 
+  it('shows no balance for a foreign-currency contact, since BC sums it unconverted', () => {
+    const eur = fromParty({ ...customer, currencyCode: 'EUR' }, 'customers', 'GBP');
+    expect(eur.balances).toBeUndefined();
+    expect(eur.balancesNote).toContain('EUR');
+    expect(eur.currency).toBe('EUR');
+    const gbp = fromParty({ ...customer, currencyCode: 'GBP' }, 'customers', 'GBP');
+    expect(gbp.balances?.receivable).toBe(1200);
+    expect(gbp.balancesNote).toBeUndefined();
+    const { balanceDue: _b, ...unknown } = customer;
+    expect(fromParty(unknown, 'customers', 'GBP').balances?.receivable).toBeUndefined();
+  });
+
   it('searches name, number and email case-insensitively', () => {
     const c = fromParty(customer, 'customers');
     expect(matchesPartySearch(c, undefined)).toBe(true);

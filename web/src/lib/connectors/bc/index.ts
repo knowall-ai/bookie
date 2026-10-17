@@ -42,6 +42,8 @@ import {
   type BcVendorLedgerEntry,
   type BookieExtension,
 } from './extension';
+import { bcCurrencies } from './modules/currencies';
+import { excludedNote, isForeign } from '@/lib/domain/currency';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -316,9 +318,15 @@ export function isBlocked(blocked: string | undefined): boolean {
   return !!blocked && blocked.trim() !== '' && blocked !== '_x0020_';
 }
 
-export function fromParty(raw: BcParty, entity: 'customers' | 'vendors'): Contact {
+/**
+ * `lcy` is the company's local currency. For a contact in another currency BC's
+ * balanceDue/balance sums the ledger entries without converting them (EUR plus GBP),
+ * so Bookie shows no balance and says why rather than a mixed figure.
+ */
+export function fromParty(raw: BcParty, entity: 'customers' | 'vendors', lcy?: string): Contact {
   const isCustomer = entity === 'customers';
   const balance = (isCustomer ? raw.balanceDue : raw.balance) ?? raw.balanceDue ?? raw.balance;
+  const foreign = !!lcy && isForeign(raw.currencyCode || undefined, lcy);
   return {
     id: `${isCustomer ? 'c' : 'v'}:${raw.id}`,
     name: raw.displayName,
@@ -342,12 +350,17 @@ export function fromParty(raw: BcParty, entity: 'customers' | 'vendors'): Contac
     isSupplier: !isCustomer,
     status: isBlocked(raw.blocked) ? 'archived' : 'active',
     currency: raw.currencyCode || undefined,
-    balances: isCustomer
-      ? {
-          receivable: balance ?? 0,
-          overdueReceivable: raw.customerFinancialDetail?.overdueAmount,
-        }
-      : { payable: balance ?? 0 },
+    balances: foreign
+      ? undefined
+      : isCustomer
+        ? {
+            receivable: balance,
+            overdueReceivable: raw.customerFinancialDetail?.overdueAmount,
+          }
+        : { payable: balance },
+    balancesNote: foreign
+      ? `Not available: Business Central's balance for a ${raw.currencyCode} contact can mix ${raw.currencyCode} and ${lcy} amounts.`
+      : undefined,
     updatedAt: raw.lastModifiedDateTime,
   };
 }
@@ -607,7 +620,7 @@ export function matchesPartySearch(contact: Contact, search: string | undefined)
   );
 }
 
-function bcContacts(client: BcClient): ContactsModule {
+function bcContacts(client: BcClient, lcy: () => Promise<string>): ContactsModule {
   return {
     async list(query) {
       const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
@@ -621,6 +634,7 @@ function bcContacts(client: BcClient): ContactsModule {
       // BC has no merged "contacts" endpoint, so fetch customers and vendors
       // (lean $select), then merge, filter and page here. Balances come with
       // the rows, so there is no per-contact call.
+      const currency = await lcy();
       const results = await Promise.all(
         entities.map(async (entity) =>
           (
@@ -628,7 +642,7 @@ function bcContacts(client: BcClient): ContactsModule {
               $orderby: 'displayName',
               $select: PARTY_SELECT[entity],
             })
-          ).map((raw) => fromParty(raw, entity))
+          ).map((raw) => fromParty(raw, entity, currency))
         )
       );
       const archivedOnly = query?.status === 'archived';
@@ -647,28 +661,36 @@ function bcContacts(client: BcClient): ContactsModule {
     },
     async get(id) {
       const { entity, id: raw } = parseContactId(id);
+      const currency = await lcy();
       if (entity === 'customers') {
         // The financial detail carries the overdue amount (one expand, detail page only).
         return fromParty(
           await client.request<BcParty>(`customers(${raw})`, {
             query: { $expand: 'customerFinancialDetail' },
           }),
-          entity
+          entity,
+          currency
         );
       }
       const [vendor, overdue] = await Promise.all([
         client.request<BcParty>(`vendors(${raw})`),
         // BC's v2.0 API has no vendor overdue figure and purchase invoices carry no
         // remaining amount: sum open bills past their due date, as the bills list does.
+        // Only when every one is in the local currency: no summing EUR with GBP.
         client
           .all<BcPurchaseInvoice>('purchaseInvoices', {
             $filter: `vendorId eq ${raw} and status eq 'Open' and dueDate lt ${today()}`,
-            $select: 'id,totalAmountIncludingTax',
+            $select: 'id,totalAmountIncludingTax,currencyCode',
           })
-          .then((rows) => rows.reduce((s, r) => s + (r.totalAmountIncludingTax ?? 0), 0))
+          .then((rows) =>
+            rows.some((r) => isForeign(r.currencyCode || undefined, currency))
+              ? undefined
+              : rows.reduce((s, r) => s + (r.totalAmountIncludingTax ?? 0), 0)
+          )
           .catch(() => undefined),
       ]);
-      const contact = fromParty(vendor, entity);
+      const contact = fromParty(vendor, entity, currency);
+      if (!contact.balances) return contact;
       return { ...contact, balances: { ...contact.balances, overduePayable: overdue } };
     },
     async create(input) {
@@ -712,8 +734,15 @@ function emptyBuckets() {
   return { draft: b(), awaitingApproval: b(), awaitingPayment: b(), overdue: b() };
 }
 
-function summarise(invoices: Invoice[]) {
+/**
+ * Dashboard buckets in LCY. BC's invoice API gives amounts in the document
+ * currency and no exchange rate, so foreign-currency documents can't be
+ * converted: they are left out and counted for the note. Exported for tests.
+ */
+export function summarise(invoices: Invoice[], lcy: string) {
   const summary = emptyBuckets();
+  let excluded = 0;
+  const currencies = new Set<string>();
   for (const invoice of invoices) {
     const target =
       invoice.status === 'draft'
@@ -724,6 +753,11 @@ function summarise(invoices: Invoice[]) {
             ? summary.awaitingPayment
             : undefined;
     if (!target) continue;
+    if (isForeign(invoice.currency, lcy)) {
+      excluded += 1;
+      currencies.add(invoice.currency);
+      continue;
+    }
     target.count += 1;
     target.total += invoice.status === 'authorised' ? invoice.amountDue : invoice.total;
     if (invoice.isOverdue) {
@@ -731,7 +765,7 @@ function summarise(invoices: Invoice[]) {
       summary.overdue.total += invoice.amountDue;
     }
   }
-  return summary;
+  return { buckets: summary, excluded, currencies: [...currencies].sort() };
 }
 
 interface BcStatementLine {
@@ -866,14 +900,32 @@ export function createBcConnector({
           purchases.filter((p) => p.status === 'Open').map((p) => p.number)
         ),
       ]);
+      const receivables = summarise(
+        sales.map((s) => fromSalesInvoice(s, currency)),
+        currency
+      );
+      const payables = summarise(
+        purchases.map((p) =>
+          fromPurchaseInvoice(p, currency, billAmountDue(bills?.get(p.number), p.vendorNumber))
+        ),
+        currency
+      );
       return {
         currency,
         bankAccounts,
-        receivables: summarise(sales.map((s) => fromSalesInvoice(s, currency))),
-        payables: summarise(
-          purchases.map((p) =>
-            fromPurchaseInvoice(p, currency, billAmountDue(bills?.get(p.number), p.vendorNumber))
-          )
+        receivables: receivables.buckets,
+        payables: payables.buckets,
+        receivablesNote: excludedNote(
+          receivables.excluded,
+          receivables.currencies,
+          'invoice',
+          'Business Central'
+        ),
+        payablesNote: excludedNote(
+          payables.excluded,
+          payables.currencies,
+          'bill',
+          'Business Central'
         ),
         trend: trend.map(({ month, income, expenses }) => ({ month, income, expenses })),
         profitAndLoss: { from: fyStart, to: today(), ...ytd },
@@ -882,7 +934,7 @@ export function createBcConnector({
 
     activity: bcActivity(client),
     invoices: bcInvoices(client, lcy, link),
-    contacts: bcContacts(client),
+    contacts: bcContacts(client, lcy),
     quotes: bcQuotes(client, lcy),
     creditNotes: bcCreditNotes(client, lcy),
     purchaseOrders: bcPurchaseOrders(client, lcy),
@@ -892,6 +944,7 @@ export function createBcConnector({
     accounts: bcAccounts(client),
     journals: bcJournals(client),
     taxRates: bcTaxRates(client),
+    currencies: bcCurrencies(client, lcy),
     assets: bcAssets(client),
     reports: bcReports(client, lcy),
     payroll: bcPayroll(client),

@@ -15,7 +15,13 @@ import { Pagination } from '@/components/ui/Pagination';
 import { SearchBox } from '@/components/ui/SearchBox';
 import { ButtonLink } from '@/components/ui/Button';
 import { EmptyState, NotAvailable } from '@/components/ui/States';
-import { DocumentFacts, DocumentLines, DocumentTotals } from '@/components/documents/DocumentParts';
+import {
+  baseTotalRows,
+  currencyFacts,
+  DocumentFacts,
+  DocumentLines,
+  DocumentTotals,
+} from '@/components/documents/DocumentParts';
 import { DocumentEditor, type EditorPayload } from '@/components/documents/DocumentEditor';
 import type { ListSearchParams } from '@/components/documents/InvoiceListPage';
 import { toEditorLines } from './editor-lines';
@@ -155,13 +161,14 @@ export async function PurchaseOrderListPage({
 }
 
 export async function PurchaseOrderDetailPage({ orgParam, id }: { orgParam: string; id: string }) {
-  const { connector, base } = await orgContext(orgParam);
+  const { connector, base, org } = await orgContext(orgParam);
   const mod = connector.purchaseOrders;
   if (!mod) notFound();
   const order = await mod.get(decodeURIComponent(id)).catch((error) => {
     if (isConnectorError(error) && (error.status === 404 || error.status === 400)) notFound();
     throw error;
   });
+  const baseCurrency = (await connector.organisation().catch(() => undefined))?.baseCurrency;
   if (order.status === 'deleted') notFound();
   const listPath = `${base}/purchases/orders`;
   const editable = editableStatus(order.status) && !!mod.update;
@@ -195,6 +202,7 @@ export async function PurchaseOrderDetailPage({ orgParam, id }: { orgParam: stri
             { label: 'Delivery date', value: formatDate(order.deliveryDate) },
             { label: 'Order number', value: order.number || '—' },
             { label: 'Reference', value: order.reference || '—' },
+            ...currencyFacts(order, baseCurrency, sourceName(org)),
           ]}
         />
         <DocumentLines lines={order.lineItems ?? []} currency={order.currency} />
@@ -204,6 +212,7 @@ export async function PurchaseOrderDetailPage({ orgParam, id }: { orgParam: stri
             { label: 'Subtotal', amount: order.subTotal },
             { label: 'Total tax', amount: order.totalTax, muted: true },
             { label: 'Total', amount: order.total, strong: true },
+            ...baseTotalRows(order, baseCurrency),
           ]}
         />
       </div>
@@ -237,6 +246,8 @@ export async function PurchaseOrderEditorPage({ orgParam, id }: { orgParam: stri
       date: payload.date,
       deliveryDate: payload.dueDate,
       reference: payload.reference,
+      currency: payload.currency,
+      currencyRate: payload.currencyRate,
       lineAmountType: payload.lineAmountType,
       lineItems: payload.lineItems,
     });
@@ -259,6 +270,8 @@ export async function PurchaseOrderEditorPage({ orgParam, id }: { orgParam: stri
           date: existing.date,
           dueDate: existing.deliveryDate,
           reference: existing.reference,
+          currency: existing.currency || undefined,
+          currencyRate: existing.currencyRate,
           lineAmountType: 'exclusive',
           lineItems: toEditorLines(existing.lineItems),
         }

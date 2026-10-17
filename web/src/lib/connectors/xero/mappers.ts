@@ -82,6 +82,8 @@ export interface XeroInvoice {
   AmountPaid?: number;
   AmountCredited?: number;
   CurrencyCode?: string;
+  /** Units of `CurrencyCode` per one base-currency unit (1 for base-currency documents). */
+  CurrencyRate?: number;
   LineItems?: XeroLineItem[];
   Payments?: { PaymentID: string; Date?: string; Amount?: number; Reference?: string }[];
   SentToContact?: boolean;
@@ -123,6 +125,11 @@ export function toLineAmountTypes(value?: LineAmountType): XeroInvoice['LineAmou
 
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Xero's CurrencyRate, kept only when it is a usable positive number. */
+export function xeroRate(rate: number | undefined): number | undefined {
+  return typeof rate === 'number' && Number.isFinite(rate) && rate > 0 ? rate : undefined;
 }
 
 /* Mappers */
@@ -167,6 +174,7 @@ export function fromXeroInvoice(invoice: XeroInvoice): Invoice {
     dueDate,
     status,
     currency: invoice.CurrencyCode ?? '',
+    currencyRate: xeroRate(invoice.CurrencyRate),
     lineAmountType: fromLineAmountTypes(invoice.LineAmountTypes),
     subTotal: invoice.SubTotal ?? 0,
     totalTax: invoice.TotalTax ?? 0,
@@ -201,6 +209,7 @@ export function toXeroInvoice(
     InvoiceNumber: input.number || undefined,
     Reference: input.reference || undefined,
     CurrencyCode: input.currency || undefined,
+    CurrencyRate: input.currency ? xeroRate(input.currencyRate) : undefined,
     LineAmountTypes: toLineAmountTypes(input.lineAmountType),
     Status: XERO_INVOICE_STATUS[input.status ?? 'draft'],
     LineItems: input.lineItems.map(toXeroLineItem),

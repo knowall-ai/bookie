@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { orgContext } from '@/lib/portal/context';
 import type { PaymentInput } from '@/lib/domain/types';
-import { describeError, isoDate, type ActionResult } from './util';
+import { currencyRateSchema, describeError, isoDate, type ActionResult } from './util';
 
 const paymentSchema = z.object({
   invoiceId: z.string().min(1),
@@ -12,6 +12,7 @@ const paymentSchema = z.object({
   date: isoDate,
   amount: z.coerce.number().finite().positive('Enter an amount above zero.'),
   reference: z.string().trim().max(255).optional(),
+  currencyRate: currencyRateSchema,
 });
 
 /** Record a payment against an approved invoice or bill. The UI confirms first. */

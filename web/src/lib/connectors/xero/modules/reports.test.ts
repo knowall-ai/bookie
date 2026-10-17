@@ -107,6 +107,21 @@ describe('xero reports', () => {
     });
   });
 
+  it('leaves out a foreign-currency invoice with no Xero rate instead of mixing currencies', () => {
+    const item = toAgedItem(
+      {
+        InvoiceID: 'i2',
+        Type: 'ACCREC',
+        Status: 'AUTHORISED',
+        Contact: { ContactID: 'c1', Name: 'Fabrikam' },
+        AmountDue: 120,
+        CurrencyCode: 'EUR',
+      },
+      'GBP'
+    );
+    expect(item).toBeUndefined();
+  });
+
   it('builds the aged receivables summary from outstanding invoices', async () => {
     const calls: { path: string; query?: unknown }[] = [];
     const reports = xeroReports(

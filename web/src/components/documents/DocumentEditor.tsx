@@ -15,6 +15,8 @@ import { cn } from '@/lib/ui/cn';
 export interface EditorOption {
   value: string;
   label: string;
+  /** Contacts only: the contact's default currency, when the source has one. */
+  currency?: string;
 }
 
 export interface EditorItem {
@@ -42,6 +44,10 @@ export interface EditorValues {
   terms?: string;
   lineAmountType: LineAmountType;
   lineItems: LineItemInput[];
+  /** Only sent when the source lists currencies. */
+  currency?: string;
+  /** Units of `currency` per one base unit; blank lets the source set it. */
+  currencyRate?: number;
 }
 
 export interface EditorPayload extends EditorValues {
@@ -81,6 +87,9 @@ export function DocumentEditor({
   cancelHref,
   savedHref,
   canApprove,
+  currencies = [],
+  baseCurrency,
+  acceptsCurrencyRate,
 }: {
   heading: string;
   currency: string;
@@ -102,12 +111,26 @@ export function DocumentEditor({
   /** Detail path; the saved id is appended. */
   savedHref: string;
   canApprove?: boolean;
+  /** The org's enabled currencies; the picker shows when there is more than one. */
+  currencies?: EditorOption[];
+  baseCurrency?: string;
+  /** The source takes an exchange rate on write (Xero CurrencyRate). */
+  acceptsCurrencyRate?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [confirmApprove, setConfirmApprove] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
+  const multiCurrency = currencies.length > 0;
+  /** A contact's own default currency if the org has it enabled, else the base currency. */
+  const defaultCurrency = (contactId: string) => {
+    const own = contacts.find((c) => c.value === contactId)?.currency;
+    if (own && currencies.some((c) => c.value === own)) return own;
+    return baseCurrency ?? currency;
+  };
+  // An existing document keeps its currency; a new one follows the contact until changed by hand.
+  const [currencyTouched, setCurrencyTouched] = useState(!!initial?.currency);
   const [values, setValues] = useState<EditorValues>({
     contactId: initial?.contactId ?? '',
     date: initial?.date ?? today,
@@ -119,7 +142,29 @@ export function DocumentEditor({
     terms: initial?.terms,
     lineAmountType: initial?.lineAmountType ?? 'exclusive',
     lineItems: initial?.lineItems?.length ? initial.lineItems : [blankLine()],
+    currency: multiCurrency
+      ? (initial?.currency ?? defaultCurrency(initial?.contactId ?? ''))
+      : undefined,
+    currencyRate: initial?.currencyRate,
   });
+  const docCurrency = values.currency ?? currency;
+  const foreign = !!baseCurrency && !!values.currency && values.currency !== baseCurrency;
+  const currencyOptions =
+    values.currency && !currencies.some((c) => c.value === values.currency)
+      ? [{ value: values.currency, label: values.currency }, ...currencies]
+      : currencies;
+  const chooseContact = (contactId: string) =>
+    setValues((v) => ({
+      ...v,
+      contactId,
+      ...(multiCurrency && !currencyTouched
+        ? { currency: defaultCurrency(contactId), currencyRate: undefined }
+        : {}),
+    }));
+  const chooseCurrency = (code: string) => {
+    setCurrencyTouched(true);
+    setValues((v) => ({ ...v, currency: code, currencyRate: undefined }));
+  };
 
   const rateFor = useMemo(() => {
     const map = new Map(taxRates.map((t) => [t.taxType, t.rate]));
@@ -171,6 +216,8 @@ export function DocumentEditor({
       if (lines.length === 0) return setError('Add at least one line.');
       const result = await save({
         ...values,
+        // A rate only means something on a foreign-currency document.
+        currencyRate: foreign ? values.currencyRate : undefined,
         lineItems: lines,
         type: docType,
         status: intent === 'approve' ? 'authorised' : 'draft',
@@ -204,7 +251,7 @@ export function DocumentEditor({
           <Select
             id="contact"
             value={values.contactId}
-            onChange={(e) => set('contactId', e.target.value)}
+            onChange={(e) => chooseContact(e.target.value)}
             required
             data-testid="editor-contact"
           >
@@ -262,6 +309,42 @@ export function DocumentEditor({
             <option value="none">No tax</option>
           </Select>
         </Field>
+        {currencies.length > 1 && (
+          <Field label="Currency" htmlFor="currency">
+            <Select
+              id="currency"
+              value={values.currency ?? ''}
+              onChange={(e) => chooseCurrency(e.target.value)}
+              data-testid="editor-currency"
+            >
+              {currencyOptions.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        {foreign && acceptsCurrencyRate && (
+          <Field
+            label="Exchange rate"
+            htmlFor="currency-rate"
+            hint={`${values.currency} per 1 ${baseCurrency}. Leave blank to let your accounting system set it.`}
+          >
+            <Input
+              id="currency-rate"
+              type="number"
+              step="any"
+              min={0}
+              className="num"
+              value={values.currencyRate ?? ''}
+              onChange={(e) =>
+                set('currencyRate', e.target.value ? Number(e.target.value) : undefined)
+              }
+              data-testid="editor-currency-rate"
+            />
+          </Field>
+        )}
         {extraFields.includes('title') && (
           <Field label="Title" htmlFor="title" className="sm:col-span-2">
             <Input
@@ -476,9 +559,17 @@ export function DocumentEditor({
           <div className="border-line-strong text-ink flex justify-between border-t pt-2 text-base font-bold">
             <dt>Total</dt>
             <dd className="num" data-testid="editor-total">
-              {formatMoney(totals.total, currency)}
+              {formatMoney(totals.total, docCurrency)}
             </dd>
           </div>
+          {foreign && values.currencyRate !== undefined && values.currencyRate > 0 && (
+            <div className="text-muted flex justify-between" data-testid="editor-total-base">
+              <dt>Total in {baseCurrency} at this rate</dt>
+              <dd className="num">
+                {formatMoney(totals.total / values.currencyRate, baseCurrency)}
+              </dd>
+            </div>
+          )}
           {!taxOptions && values.lineAmountType !== 'none' && (
             <p className="text-faint text-xs">
               Tax shown here is an estimate; your accounting system calculates the final figure.
@@ -518,7 +609,7 @@ export function DocumentEditor({
       {confirmApprove && (
         <ConfirmDialog
           title="Save and approve?"
-          body={`This posts the document to your live books for ${formatMoney(totals.total, currency)}.`}
+          body={`This posts the document to your live books for ${formatMoney(totals.total, docCurrency)}.`}
           cta="Approve"
           busy={pending}
           onCancel={() => setConfirmApprove(false)}

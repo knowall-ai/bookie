@@ -7,6 +7,13 @@ export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; e
 
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date.');
 
+/** A source exchange rate: units of document currency per one base unit. */
+export const currencyRateSchema = z.coerce
+  .number()
+  .finite()
+  .positive('The exchange rate must be above zero.')
+  .optional();
+
 export const lineItemSchema = z.object({
   itemCode: z.string().trim().max(60).optional(),
   description: z.string().trim().max(4000).default(''),

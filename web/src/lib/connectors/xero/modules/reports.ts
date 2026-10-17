@@ -6,6 +6,7 @@ import { xeroDate } from '../client';
 import type { XeroInvoice } from '../mappers';
 import { buildAgedReport, type AgedItem } from '@/lib/reports/aged';
 import { asAtLabel } from '@/lib/reports/periods';
+import { toBaseAmount } from '@/lib/domain/currency';
 
 const AVAILABLE: ReportId[] = [
   'profit-and-loss',
@@ -54,13 +55,21 @@ export function keepColumns(report: Report, count: number): Report {
   };
 }
 
-type RawInvoice = XeroInvoice & { CurrencyRate?: number };
+type RawInvoice = XeroInvoice;
 
-/** Outstanding invoice → base-currency amount due (Xero rates are base → foreign). */
-export function toAgedItem(invoice: RawInvoice, baseCurrency: string): AgedItem {
-  const due = invoice.AmountDue ?? 0;
-  const foreign = invoice.CurrencyCode && invoice.CurrencyCode !== baseCurrency;
-  const amount = foreign && invoice.CurrencyRate ? due / invoice.CurrencyRate : due;
+/**
+ * Outstanding invoice → base-currency amount due, at the invoice's own Xero
+ * CurrencyRate (base → foreign), as Xero's aged reports do. `undefined` when a
+ * foreign-currency invoice has no rate: never guess one.
+ */
+export function toAgedItem(invoice: RawInvoice, baseCurrency: string): AgedItem | undefined {
+  const amount = toBaseAmount(
+    invoice.AmountDue ?? 0,
+    invoice.CurrencyCode,
+    baseCurrency,
+    invoice.CurrencyRate
+  );
+  if (amount === undefined) return undefined;
   return {
     contactId: invoice.Contact.ContactID,
     contactName: invoice.Contact.Name,
@@ -110,12 +119,22 @@ export function xeroReports(client: XeroClient): ReportsModule {
       organisation(),
       outstanding(id === 'aged-receivables' ? 'ACCREC' : 'ACCPAY'),
     ]);
+    const items = invoices.map((i) => toAgedItem(i, details.BaseCurrency));
+    const skipped = items.filter((i) => !i).length;
     return buildAgedReport({
       id,
       title: id === 'aged-receivables' ? 'Aged Receivables Summary' : 'Aged Payables Summary',
-      subtitles: [details.Name, `${asAtLabel(asAt)} · Ageing by due date`],
+      subtitles: [
+        details.Name,
+        `${asAtLabel(asAt)} · Ageing by due date · Amounts in ${details.BaseCurrency}`,
+        ...(skipped
+          ? [
+              `${skipped} foreign-currency ${skipped === 1 ? 'document is' : 'documents are'} left out: Xero gave no exchange rate.`,
+            ]
+          : []),
+      ],
       asAt,
-      items: invoices.map((i) => toAgedItem(i, details.BaseCurrency)),
+      items: items.filter((i): i is AgedItem => !!i),
     });
   };
 

@@ -3,7 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { orgContext } from '@/lib/portal/context';
-import { describeError, isoDate, lineItemSchema, type ActionResult } from './util';
+import {
+  describeError,
+  isoDate,
+  lineItemSchema,
+  currencyRateSchema,
+  type ActionResult,
+} from './util';
 import type { InvoiceInput } from '@/lib/domain/types';
 
 const invoiceSchema = z.object({
@@ -14,6 +20,7 @@ const invoiceSchema = z.object({
   number: z.string().trim().max(255).optional(),
   reference: z.string().trim().max(255).optional(),
   currency: z.string().length(3).optional(),
+  currencyRate: currencyRateSchema,
   lineAmountType: z.enum(['exclusive', 'inclusive', 'none']).optional(),
   status: z.enum(['draft', 'submitted', 'authorised']).optional(),
   lineItems: z.array(lineItemSchema).min(1, 'Add at least one line.'),

@@ -2,6 +2,44 @@ import type { LineItem } from '@/lib/domain/types';
 import { formatNumber, formatMoney } from '@/lib/ui/format';
 import { Money } from '@/components/ui/Money';
 import { cn } from '@/lib/ui/cn';
+import { isForeign, toBaseAmount } from '@/lib/domain/currency';
+
+/**
+ * Facts for a foreign-currency document: its currency and the source's own
+ * exchange rate. Nothing for base-currency documents. Without a source rate
+ * there is no base-currency figure to show, and we say so.
+ */
+export function currencyFacts(
+  doc: { currency: string; currencyRate?: number },
+  baseCurrency: string | undefined,
+  source: string
+): { label: string; value: React.ReactNode }[] {
+  if (!baseCurrency || !isForeign(doc.currency, baseCurrency)) return [];
+  return [
+    { label: 'Currency', value: <span data-testid="doc-currency">{doc.currency}</span> },
+    {
+      label: 'Exchange rate',
+      value: doc.currencyRate ? (
+        <span className="num" data-testid="doc-currency-rate">
+          {formatNumber(doc.currencyRate, 4)} {doc.currency} per 1 {baseCurrency}
+        </span>
+      ) : (
+        <span className="text-muted whitespace-normal">Not available from {source}</span>
+      ),
+    },
+  ];
+}
+
+/** "Total in GBP" under a foreign-currency document, only at the source's own rate. */
+export function baseTotalRows(
+  doc: { currency: string; currencyRate?: number; total: number },
+  baseCurrency: string | undefined
+): TotalRow[] {
+  if (!baseCurrency || !isForeign(doc.currency, baseCurrency)) return [];
+  const base = toBaseAmount(doc.total, doc.currency, baseCurrency, doc.currencyRate);
+  if (base === undefined) return [];
+  return [{ label: `Total in ${baseCurrency}`, amount: base, muted: true, currency: baseCurrency }];
+}
 
 /** Key facts under a document title: "To · Date · Due date · Reference". */
 export function DocumentFacts({ facts }: { facts: { label: string; value: React.ReactNode }[] }) {
@@ -71,6 +109,8 @@ export interface TotalRow {
   amount: number | undefined;
   strong?: boolean;
   muted?: boolean;
+  /** Show with this currency symbol (e.g. a base-currency equivalent row). */
+  currency?: string;
 }
 
 export function DocumentTotals({ rows, currency }: { rows: TotalRow[]; currency: string }) {
@@ -90,7 +130,10 @@ export function DocumentTotals({ rows, currency }: { rows: TotalRow[]; currency:
             >
               <dt>{r.label}</dt>
               <dd>
-                <Money amount={r.amount} currency={r.strong ? currency : undefined} />
+                <Money
+                  amount={r.amount}
+                  currency={r.currency ?? (r.strong ? currency : undefined)}
+                />
               </dd>
             </div>
           ))}
