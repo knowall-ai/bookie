@@ -1,8 +1,30 @@
+import type { TaxRate } from '@/lib/domain/types';
 import type { XeroClient } from '../client';
 import type { TaxRatesModule } from '../../types';
 
-/** TODO(bookie): implement. Returning undefined hides this module in the UI. */
-export function xeroTaxRates(client: XeroClient): TaxRatesModule | undefined {
-  void client;
-  return undefined;
+export interface XeroTaxRate {
+  Name: string;
+  TaxType: string;
+  EffectiveRate?: number;
+  DisplayTaxRate?: number;
+  Status?: 'ACTIVE' | 'DELETED' | 'ARCHIVED' | 'PENDING';
+}
+
+export function fromXeroTaxRate(raw: XeroTaxRate): TaxRate {
+  return {
+    id: raw.TaxType,
+    name: raw.Name,
+    taxType: raw.TaxType,
+    rate: raw.EffectiveRate ?? raw.DisplayTaxRate ?? 0,
+    status: raw.Status === 'ACTIVE' ? 'active' : 'archived',
+  };
+}
+
+export function xeroTaxRates(client: XeroClient): TaxRatesModule {
+  return {
+    async list() {
+      const result = await client.request<{ TaxRates: XeroTaxRate[] }>('TaxRates');
+      return result.TaxRates.filter((t) => t.Status !== 'DELETED').map(fromXeroTaxRate);
+    },
+  };
 }
