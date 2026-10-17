@@ -3,6 +3,7 @@ import { ConnectorError } from '../../types';
 import type { BcClient, ODataList } from '../client';
 import type { BankModule } from '../../types';
 import { journalBatchCode, postAndRemoveBatch } from './journals';
+import { extensionBankBalances, extensionBankTransactions, withBankBalance } from '../extension';
 
 export interface BcBankAccount {
   id: string;
@@ -17,7 +18,8 @@ export interface BcBankAccount {
 /**
  * BC's `bankAccounts` entity has no balance and no link to the G/L account its
  * posting group uses, so "Balance in BC", statement balance and the
- * unreconciled count are all left undefined rather than guessed.
+ * unreconciled count are all left undefined rather than guessed. The Bookie BC
+ * extension supplies them (see `withBankBalance` in ../extension).
  */
 export function fromBcBankAccount(raw: BcBankAccount, lcy: string): BankAccount {
   return {
@@ -31,7 +33,7 @@ export function fromBcBankAccount(raw: BcBankAccount, lcy: string): BankAccount 
 }
 
 export const BC_BANK_LEDGER_NOTE =
-  "Business Central's API doesn't publish bank account ledger entries, so Bookie can't list this account's transactions. Open the bank account in Business Central to see them.";
+  "Business Central's API doesn't publish bank account ledger entries, so Bookie can't list this account's transactions. Install the Bookie BC extension to see them here, or open the bank account in Business Central.";
 
 /**
  * Spend/receive money as a general journal, the way BC itself records it:
@@ -86,16 +88,25 @@ export function bcBank(client: BcClient, lcy: () => Promise<string>): BankModule
 
   return {
     async accounts() {
-      const [currency, result] = await Promise.all([
+      const [currency, result, balances] = await Promise.all([
         lcy(),
         client.request<ODataList<BcBankAccount>>('bankAccounts', {
           query: { $filter: 'blocked eq false', $orderby: 'number' },
         }),
+        // Bookie BC extension (bc-extension/): balances, last statement, unreconciled count.
+        extensionBankBalances(client),
       ]);
-      return result.value.map((raw) => fromBcBankAccount(raw, currency));
+      return result.value.map((raw) => {
+        const account = fromBcBankAccount(raw, currency);
+        const balance = balances?.get(raw.id.toLowerCase());
+        return balance ? withBankBalance(account, balance) : account;
+      });
     },
 
-    async transactions(_bankAccountId, query) {
+    async transactions(bankAccountId, query) {
+      // Bookie BC extension (bc-extension/): the bank account ledger entries.
+      const posted = await extensionBankTransactions(client, bankAccountId, query, lcy);
+      if (posted) return posted;
       return {
         items: [],
         page: query?.page ?? 1,

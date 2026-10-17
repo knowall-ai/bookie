@@ -125,6 +125,8 @@ export interface ItemsModule {
 export interface PaymentsModule {
   list(query?: ListQuery & { invoiceType?: InvoiceType }): Promise<Page<Payment>>;
   create?(input: PaymentInput): Promise<Payment>;
+  /** Document types `create` can pay; every type when absent (BC: invoices only). */
+  createFor?: InvoiceType[];
 }
 
 export interface BankModule {

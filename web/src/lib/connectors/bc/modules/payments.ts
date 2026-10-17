@@ -2,6 +2,7 @@ import type { InvoiceType, Payment } from '@/lib/domain/types';
 import type { PaymentsModule } from '../../types';
 import type { BcClient } from '../client';
 import { bcDate, parseContactId } from '../index';
+import { extensionPayments, extensionRegisterPayment, type BookieExtension } from '../extension';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -58,17 +59,25 @@ export function fromBcJournalPayment(
  * customer and vendor payment journals (`customerPayments`, `vendorPayments`).
  * Posted customer/vendor ledger entries are not in the standard API.
  *
- * `create` is deliberately absent: payment journals in API v2.0 can only
- * balance against a G/L account (not the bank account the user picks), and
- * posting a journal posts every line in its batch, including other people's.
- * Record payments in Business Central itself (Payment Registration).
+ * Without the Bookie BC extension, `create` is deliberately absent: payment
+ * journals in API v2.0 can only balance against a G/L account (not the bank
+ * account the user picks), and posting a journal posts every line in its batch,
+ * including other people's. Record payments in Business Central itself.
+ *
+ * With the extension (bc-extension/), `list` returns posted payments applied to
+ * invoices and bills, and `create` registers a customer payment against one
+ * invoice in one BC transaction (customer payments only).
  */
 export function bcPayments(
   client: BcClient,
-  lcy: () => Promise<string>
+  lcy: () => Promise<string>,
+  extension?: BookieExtension
 ): PaymentsModule | undefined {
-  return {
+  const mod: PaymentsModule = {
     async list(query) {
+      // Bookie BC extension: posted payments rather than unposted journal lines.
+      const posted = await extensionPayments(client, query, lcy);
+      if (posted) return posted;
       const pageSize = query?.pageSize ?? DEFAULT_PAGE_SIZE;
       const page = query?.page ?? 1;
       const types: InvoiceType[] = query?.invoiceType ? [query.invoiceType] : ['sales', 'purchase'];
@@ -101,4 +110,10 @@ export function bcPayments(
       };
     },
   };
+  // Bookie BC extension: register customer payments (bills stay in Business Central).
+  if (extension) {
+    mod.create = (input) => extensionRegisterPayment(client, input, lcy);
+    mod.createFor = ['sales'];
+  }
+  return mod;
 }

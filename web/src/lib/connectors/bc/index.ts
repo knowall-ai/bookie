@@ -35,6 +35,13 @@ import { bcPayroll } from './modules/payroll';
 import { bcProjects } from './modules/projects';
 import { bcActivity } from './modules/activity';
 import { bcAttachments } from './modules/attachments';
+import {
+  billAmountDue,
+  bookieExtension,
+  extensionBillRemaining,
+  type BcVendorLedgerEntry,
+  type BookieExtension,
+} from './extension';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -86,6 +93,7 @@ export interface BcPurchaseInvoice {
   invoiceDate: string;
   dueDate?: string;
   vendorId: string;
+  vendorNumber?: string;
   vendorName: string;
   currencyCode?: string;
   pricesIncludeTax?: boolean;
@@ -254,11 +262,24 @@ export function fromSalesInvoice(raw: BcSalesInvoice, lcy: string): Invoice {
   };
 }
 
-export function fromPurchaseInvoice(raw: BcPurchaseInvoice, lcy: string): Invoice {
+/**
+ * `remaining`: the bill's remaining amount from its vendor ledger entry, when the
+ * Bookie BC extension is installed (see `billAmountDue` in ./extension).
+ */
+export function fromPurchaseInvoice(
+  raw: BcPurchaseInvoice,
+  lcy: string,
+  remaining?: number
+): Invoice {
   const status = STATUS[raw.status] ?? 'draft';
   const total = raw.totalAmountIncludingTax ?? 0;
   // BC's purchase invoice API has no remaining amount; Open means unpaid.
-  const amountDue = status === 'paid' || status === 'voided' ? 0 : total;
+  const amountDue =
+    status === 'paid' || status === 'voided'
+      ? 0
+      : status === 'authorised' && remaining !== undefined
+        ? remaining
+        : total;
   const dueDate = bcDate(raw.dueDate);
   return {
     id: raw.id,
@@ -359,12 +380,28 @@ function bcInvoices(
   const entity = (type: InvoiceType) => (type === 'sales' ? 'salesInvoices' : 'purchaseInvoices');
   const linesOf = (type: InvoiceType) =>
     type === 'sales' ? 'salesInvoiceLines' : 'purchaseInvoiceLines';
-  const map = async (type: InvoiceType, raw: BcSalesInvoice | BcPurchaseInvoice) =>
+  const map = async (
+    type: InvoiceType,
+    raw: BcSalesInvoice | BcPurchaseInvoice,
+    bills?: Map<string, BcVendorLedgerEntry[]>
+  ) =>
     link(
       type === 'sales'
         ? fromSalesInvoice(raw as BcSalesInvoice, await lcy())
-        : fromPurchaseInvoice(raw as BcPurchaseInvoice, await lcy())
+        : fromPurchaseInvoice(
+            raw as BcPurchaseInvoice,
+            await lcy(),
+            billAmountDue(bills?.get(raw.number), (raw as BcPurchaseInvoice).vendorNumber)
+          )
     );
+  // Bookie BC extension: remaining amounts of posted (Open) bills from the vendor ledger.
+  const billsDue = (type: InvoiceType, raws: (BcSalesInvoice | BcPurchaseInvoice)[]) =>
+    type === 'purchase'
+      ? extensionBillRemaining(
+          client,
+          raws.filter((r) => r.status === 'Open').map((r) => r.number)
+        )
+      : Promise.resolve(undefined);
 
   /** Purchase and sales invoice ids are unique GUIDs; try sales first, then purchase. */
   const locate = async (id: string) => {
@@ -456,7 +493,8 @@ function bcInvoices(
           (a, b) => b.invoiceDate.localeCompare(a.invoiceDate) || b.number.localeCompare(a.number)
         );
         const slice = merged.slice((page - 1) * pageSize, page * pageSize);
-        const items = await Promise.all(slice.map((raw) => map(type, raw)));
+        const bills = await billsDue(type, slice);
+        const items = await Promise.all(slice.map((raw) => map(type, raw, bills)));
         return {
           items,
           page,
@@ -476,12 +514,14 @@ function bcInvoices(
           },
         }
       );
-      const items = await Promise.all(result.value.slice(0, pageSize).map((raw) => map(type, raw)));
+      const rows = result.value.slice(0, pageSize);
+      const bills = await billsDue(type, rows);
+      const items = await Promise.all(rows.map((raw) => map(type, raw, bills)));
       return { items, page, pageSize, hasMore: result.value.length > pageSize };
     },
     async get(id) {
       const { type, raw } = await locate(id);
-      return map(type, raw);
+      return map(type, raw, await billsDue(type, [raw]));
     },
     async create(input) {
       const created = await client.request<{ id: string }>(entity(input.type), {
@@ -717,12 +757,15 @@ export interface BcConnectorOptions {
   org: OrgRef;
   client: BcClient;
   companyName: string;
+  /** The Bookie BC extension, when installed (from `bookieExtension(client)`). */
+  extension?: BookieExtension;
 }
 
 export function createBcConnector({
   org,
   client,
   companyName,
+  extension,
 }: BcConnectorOptions): AccountingConnector {
   let info: Promise<BcCompanyInformation> | undefined;
   const companyInformation = () =>
@@ -730,9 +773,16 @@ export function createBcConnector({
       .request<ODataList<BcCompanyInformation>>('companyInformation')
       .then((r) => r.value[0] ?? {}));
   // BC leaves currencyCode blank when it is the local currency; infer it from the country.
+  // Bookie BC extension: General Ledger Setup's LCY Code comes before any inference.
   const lcy = async () => {
     const c = await companyInformation();
-    return c.currencyCode || currencyForCountry(c.country) || org.baseCurrency || 'GBP';
+    return (
+      c.currencyCode ||
+      (await bookieExtension(client))?.lcyCode ||
+      currencyForCountry(c.country) ||
+      org.baseCurrency ||
+      'GBP'
+    );
   };
 
   const link = (invoice: Invoice): Invoice => {
@@ -776,7 +826,7 @@ export function createBcConnector({
     },
 
     async dashboard(): Promise<DashboardSummary> {
-      const [currency, info, sales, purchases] = await Promise.all([
+      const [currency, info, sales, purchases, ext] = await Promise.all([
         lcy(),
         companyInformation(),
         client.all<BcSalesInvoice>('salesInvoices', {
@@ -785,6 +835,7 @@ export function createBcConnector({
         client.all<BcPurchaseInvoice>('purchaseInvoices', {
           $filter: "status ne 'Paid' and status ne 'Canceled' and status ne 'Corrective'",
         }),
+        bookieExtension(client),
       ]);
       const now = new Date();
       const months = Array.from({ length: 12 }, (_, i) => {
@@ -796,8 +847,12 @@ export function createBcConnector({
           to: end.toISOString().slice(0, 10),
         };
       });
-      const fyStart = bcDate(info.currentFiscalYearStartDate) ?? `${now.getUTCFullYear()}-01-01`;
-      const [trend, ytd, bankAccounts] = await Promise.all([
+      // Bookie BC extension: the fiscal year from the Accounting Periods when API v2.0 has none.
+      const fyStart =
+        bcDate(info.currentFiscalYearStartDate) ??
+        ext?.fiscalYearStart ??
+        `${now.getUTCFullYear()}-01-01`;
+      const [trend, ytd, bankAccounts, bills] = await Promise.all([
         Promise.all(
           months.map(async (m) => ({
             month: m.month,
@@ -806,12 +861,20 @@ export function createBcConnector({
         ),
         incomeStatement(client, fyStart, today()),
         bank?.accounts().catch(() => []) ?? Promise.resolve([]),
+        extensionBillRemaining(
+          client,
+          purchases.filter((p) => p.status === 'Open').map((p) => p.number)
+        ),
       ]);
       return {
         currency,
         bankAccounts,
         receivables: summarise(sales.map((s) => fromSalesInvoice(s, currency))),
-        payables: summarise(purchases.map((p) => fromPurchaseInvoice(p, currency))),
+        payables: summarise(
+          purchases.map((p) =>
+            fromPurchaseInvoice(p, currency, billAmountDue(bills?.get(p.number), p.vendorNumber))
+          )
+        ),
         trend: trend.map(({ month, income, expenses }) => ({ month, income, expenses })),
         profitAndLoss: { from: fyStart, to: today(), ...ytd },
       };
@@ -824,7 +887,7 @@ export function createBcConnector({
     creditNotes: bcCreditNotes(client, lcy),
     purchaseOrders: bcPurchaseOrders(client, lcy),
     items: bcItems(client),
-    payments: bcPayments(client, lcy),
+    payments: bcPayments(client, lcy, extension),
     bank,
     accounts: bcAccounts(client),
     journals: bcJournals(client),

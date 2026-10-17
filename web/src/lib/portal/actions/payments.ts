@@ -28,6 +28,9 @@ export async function recordPayment(
     }
     // Re-read the document so the amount can't exceed what is actually due.
     const invoice = await connector.invoices.get(parsed.invoiceId);
+    if (connector.payments?.createFor && !connector.payments.createFor.includes(invoice.type)) {
+      return { ok: false, error: 'This organisation does not allow paying this document here.' };
+    }
     if (invoice.status !== 'authorised') {
       return { ok: false, error: 'Only approved documents awaiting payment can be paid.' };
     }

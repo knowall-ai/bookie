@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, type ConfigStore, type XeroConnection } from '@/lib/c
 import type { OrgRef } from '@/lib/domain/types';
 import { BcClient, listBcCompanies, listBcEnvironments } from './bc/client';
 import { createBcConnector } from './bc';
+import { bookieExtension } from './bc/extension';
 import { createDemoConnector, DEMO_ORGS } from './demo';
 import { ConnectorError, type AccountingConnector } from './types';
 import { XeroClient } from './xero/client';
@@ -163,6 +164,9 @@ export const getConnector = cache(
       companyId: bcOrg.companyId,
       token: () => auth.getToken('bc'),
     });
-    return createBcConnector({ org, client, companyName: bcOrg.companyName });
+    // The optional Bookie BC extension adds writes (payment registration), so detect it
+    // up front (cached 10 minutes per tenant, environment and company).
+    const extension = await bookieExtension(client);
+    return createBcConnector({ org, client, companyName: bcOrg.companyName, extension });
   }
 );
