@@ -1,0 +1,8 @@
+title = "Bookie gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test-only fixtures"
+paths = ['''web/playwright\.config\.ts''']

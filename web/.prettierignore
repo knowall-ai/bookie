@@ -1,5 +1,6 @@
 node_modules
 .next
+.next-e2e
 bun.lock
 playwright-report
 test-results

@@ -22,7 +22,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
+    {
+      name: 'desktop',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
     { name: 'mobile', use: { ...devices['Pixel 7'] }, grep: /@mobile/ },
   ],
   webServer: process.env.BASE_URL
@@ -33,11 +36,13 @@ export default defineConfig({
         reuseExistingServer: !process.env.CI,
         timeout: 180_000,
         env: {
+          NEXT_DIST_DIR: '.next-e2e',
           BOOKIE_DEV_AUTH: 'demo',
           BOOKIE_CONFIG_STORE: 'file',
           NEXTAUTH_URL: baseURL,
           NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? 'e2e-only-secret-not-used-in-production',
-          BOOKIE_CONFIG_KEY: process.env.BOOKIE_CONFIG_KEY ?? Buffer.alloc(32, 7).toString('base64'),
+          BOOKIE_CONFIG_KEY:
+            process.env.BOOKIE_CONFIG_KEY ?? Buffer.alloc(32, 7).toString('base64'),
         },
       },
 });

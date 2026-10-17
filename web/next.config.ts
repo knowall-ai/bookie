@@ -10,6 +10,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Lets the Playwright server run beside a developer's own `next dev`.
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
   poweredByHeader: false,
   // We maintain our own AGENTS.md at the repo root.
   agentRules: false,
