@@ -1,0 +1,26 @@
+# Rendered by agent/deploy/04-configure-hermes.sh to /etc/systemd/system/hermes-gateway-{{AGENT_NAME}}.service
+[Unit]
+Description=Hermes Agent gateway - {{AGENT_DISPLAY_NAME}}
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{AGENT_NAME}}
+Group={{AGENT_NAME}}
+WorkingDirectory=/home/{{AGENT_NAME}}
+Environment=HOME=/home/{{AGENT_NAME}}
+Environment=HERMES_HOME={{HERMES_DIR}}
+# The MCP servers (mcp-business-central, reverie) are npm global binaries under ~/.npm-global.
+Environment=PATH=/home/{{AGENT_NAME}}/.local/bin:/home/{{AGENT_NAME}}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+# Secrets live in {{HERMES_DIR}}/.env (mode 600), not here.
+ExecStart=/home/{{AGENT_NAME}}/.local/bin/hermes gateway
+Restart=always
+RestartSec=10
+KillMode=mixed
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

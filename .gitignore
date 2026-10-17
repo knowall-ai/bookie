@@ -10,3 +10,6 @@ coverage/
 playwright-report/
 test-results/
 /tmp/
+
+# Bookie agent deploy settings (filled in per install)
+agent/deploy/config.env
