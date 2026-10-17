@@ -13,7 +13,7 @@ GPT-image and video models, and keeping him consistent. Paste the blocks
 | `bookie-avatar.svg` | Standalone animated avatar: the 512 image plus one soft sunlight sweep across the study window (backdrop only, stops under `prefers-reduced-motion`). |
 | `bookie-avatar-preview.html` | Developer-only side-by-side with Sallie and Poppie, at 256 px and 48 px. |
 | `bookie-overlay-sallie.png`, `bookie-48-check.png` | Head-shape overlay against Sallie, and the 48 px check. |
-| `bookie-agent.png` | Presence plate: 1536×1024 transparent cut-out, **eyes removed** (plain dark visor, glasses kept). |
+| `bookie-agent.png` | Presence plate: 1536×1024 transparent cut-out, **eyes and the dashed LED line removed** (plain dark visor, glasses kept). The renderer draws both the eyes and his animated mouth. The LED line was filled from the surrounding glass inside x 700-820, y 591-611 only; the alpha channel is unchanged. |
 | `bookie-bg-study.png` | Presence backdrop plate: the empty study. |
 | `bookie-avatar.json` | Presence renderer identity (Poppie's schema). |
 | `presence-test/` | Plate + backdrop + drawn eyes: eyes off, eyes on, a blink and glow-pulse GIF, and an "opaque lamp" preview (see Presence). |
