@@ -59,12 +59,16 @@ Report back in the same chat. **Keep it short: it's read in Teams.** The count l
 line per document**, then the footer. Nothing else: no method notes, no field-by-field confidence, no
 contact ids, no list of what you didn't do.
 
-```
-Preview of 3 invoices: 1 would draft, 2 need you.
-- Contoso Cloud INV-20431, £1,204.50 (Example Ltd): two Contoso contacts in Xero. Which one, and which account?
-- Fabrikam F-0912, $80.00 (Example Ltd): new supplier. Add them?
-- Northwind 4471, £240.00 (Example Ltd): would draft to 429 General Expenses, as their last 3 bills.
-Preview only: nothing was created or moved. Say "details" for the full workings.
+Send it as Teams HTML (SOUL.md "How I write"), shaped like this:
+
+```html
+<p><b>Preview of 3 invoices: 1 ready to draft, 2 need you.</b></p>
+<ul>
+<li><b>Contoso Cloud</b> INV-20431, £1,204.50: two Contoso contacts in Xero. Which one, and which account?</li>
+<li><b>Fabrikam</b> F-0912, $80.00: new supplier. Shall I add them?</li>
+<li><b>Northwind</b> 4471, £240.00: ready to draft to 429 General Expenses, like their last 3 bills.</li>
+</ul>
+<p><i>Preview only: nothing was created or moved. Say "details" for the workings.</i></p>
 ```
 
 Each line: supplier, invoice number, total, organisation, then **either** what you'd do **or** the one
