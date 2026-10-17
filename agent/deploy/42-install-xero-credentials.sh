@@ -28,7 +28,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 must_run_on vm
-[ -t 0 ] || die "this step prompts for keys: run it in an interactive terminal"
+[ -t 0 ] || [ "${XERO_KEYS_STDIN:-}" = "1" ] || die "this step prompts for keys: run it in an interactive terminal, or pipe "id\\nsecret" with XERO_KEYS_STDIN=1"
 
 COMPANIES="${1:-${XERO_COMPANIES}}"
 CRED_DIR="/home/${AGENT_NAME}/.config/xero"

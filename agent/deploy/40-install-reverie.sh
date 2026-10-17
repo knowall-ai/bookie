@@ -59,6 +59,7 @@ done
 curl -s -o /dev/null http://127.0.0.1:7474 || warn "Neo4j is not answering on 127.0.0.1:7474 yet (docker logs ${NEO4J_CONTAINER})"
 
 step "mcp-reverie server (${REVERIE_SERVER_SPEC})"
+as_agent "grep -q npm-global ~/.profile || printf '\\n# npm global installs (Reverie, BC MCP)\\nexport PATH=\\\"\\\$HOME/.npm-global/bin:\\\$PATH\\\"\\n' >> ~/.profile"
 as_agent "npm install -g --silent '${REVERIE_SERVER_SPEC}'"
 as_agent "command -v reverie" >/dev/null || die "reverie not on the agent's PATH (~/.npm-global/bin)"
 info "$(as_agent "npm ls -g --depth 0 2>/dev/null | grep -i reverie" || true)"
