@@ -29,6 +29,7 @@ import { demoAssets } from './modules/assets';
 import { demoReports } from './modules/reports';
 import { demoPayroll } from './modules/payroll';
 import { demoProjects } from './modules/projects';
+import { demoActivity } from './modules/activity';
 
 export const DEMO_ORGS: OrgRef[] = [
   {
@@ -381,6 +382,7 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
         },
       };
     },
+    activity: demoActivity(data),
     invoices: demoInvoices(data),
     contacts: demoContacts(data),
     quotes: demoQuotes(data),

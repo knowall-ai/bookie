@@ -594,3 +594,17 @@ export interface DashboardSummary {
   /** Profit and loss for the current financial year to date. */
   profitAndLoss?: { from: IsoDate; to: IsoDate; income: number; expenses: number; net: number };
 }
+
+/** Documents and payments entered on one day (by document date), for the activity chart. */
+export interface ActivityDay {
+  date: IsoDate;
+  /** Sales invoices. */
+  sales: number;
+  /** Purchase bills. */
+  purchases: number;
+  /** Payments received and made. */
+  payments: number;
+  quotes: number;
+  /** Sales and purchase credit notes. */
+  creditNotes: number;
+}
