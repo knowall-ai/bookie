@@ -1,6 +1,6 @@
 ---
 name: bill-capture
-description: Turn supplier invoices and receipts that arrive at the shared accounts mailbox (PDF, image or HTML invoice) into DRAFT bills - Xero ACCPAY DRAFT with the document attached, or a Business Central draft purchase invoice - after matching the supplier, checking for duplicates and (where used) the purchase order. Never approves or pays unless the organisation has switched on "approve in Teams" and an authorised approver says "approve". Keeps a capture log and answers "why was X not captured?".
+description: Turn supplier invoices and receipts that arrive at the shared accounts mailbox (PDF, image or HTML invoice) into DRAFT bills - Xero ACCPAY DRAFT with the document attached, or a Business Central draft purchase invoice - after matching the supplier, checking for duplicates and (where used) the purchase order. Never approves or pays unless the organisation has switched on "approve in Teams" and an authorised approver says "approve". Keeps a capture log and answers "why was X not captured?". Also a read-only preview ("preview / test / dry-run bill capture") that reports what it would draft without creating or moving anything.
 version: 0.2.0
 metadata:
   hermes:
@@ -40,6 +40,39 @@ Settings (`~/.hermes/.env`): `ACCOUNTS_MAILBOX`, `BILL_CAPTURE_PROCESSED_FOLDER`
    bill only. Nothing is kept for AI training, and nothing goes into Reverie except who the supplier is
    (a durable entity) and preferences ("Northwind bills always go to account 429").
 7. Every outcome is logged with a reason (step 10), so "why was X not captured?" always has an answer.
+
+## Preview mode (dry run: nothing is written anywhere)
+
+When someone asks to **preview**, **test** or **dry-run** bill capture (e.g. "preview the last five
+invoices in the accounts mailbox"), run steps 1 to 6 exactly as below, but **read-only**, then stop:
+
+- **Never** take step 7, 8, 9 or 10: no `POST` to Xero, no `create_item` in Business Central, no
+  attachment upload, no new contact or vendor, no Teams proposal or reply to the thread, no moving or
+  flagging the email, no capture-log entry. Never widen the Xero scope (no write token at all).
+- Step 4 with no supplier match: report "would propose a new supplier: <details>" and carry on with the
+  rest of the preview; don't ask anyone to approve it.
+- Step 5 finds a duplicate: report "already in <Xero|BC> as <bill number>", which is a useful result.
+- Read messages from the mailbox in place. Don't mark them as read; if your tool marks them read anyway,
+  say so in the report.
+
+Report back to the person who asked, in the same chat, one block per document:
+
+```
+<Subject or file name> (received <date>)
+Bill? yes | no: <why>
+Organisation: <name> (<evidence>) | unsure: <why>
+Supplier: <matched contact> | would propose new: <name, tax no.> | ambiguous: <candidates>
+Fields: invoice no., date, due date, currency, net, VAT, total, each with high/low/missing
+Lines: <as read>; lines + VAT = total? yes/no (difference)
+Duplicate: none | already in <system> as <number>
+PO: <as step 6>
+Would draft: <the exact bill you would send, coding included, or "would not draft: why">
+Flags: <bank details changed, possible revised invoice, low-confidence fields>
+```
+
+End with a one-line total ("5 documents: 3 would draft, 1 duplicate, 1 not a bill") and the words
+**"Preview only: nothing was created or moved."** Only share this with people SOUL.md allows to see
+that organisation's figures.
 
 ## Run (one message at a time)
 
