@@ -27,10 +27,27 @@ const creds = Object.fromEntries(
     .filter((l) => l.includes('='))
     .map((l) => {
       const i = l.indexOf('=');
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^"|"$/g, '')];
+      return [
+        l.slice(0, i).trim(),
+        l
+          .slice(i + 1)
+          .trim()
+          .replace(/^"|"$/g, ''),
+      ];
     })
 );
-const token = execFileSync('az', ['account', 'get-access-token', '--resource', 'https://graph.microsoft.com', '--query', 'accessToken', '-o', 'tsv']).toString().trim();
+const token = execFileSync('az', [
+  'account',
+  'get-access-token',
+  '--resource',
+  'https://graph.microsoft.com',
+  '--query',
+  'accessToken',
+  '-o',
+  'tsv',
+])
+  .toString()
+  .trim();
 const tenantId = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).tid as string;
 
 const now = new Date().toISOString();
@@ -38,7 +55,11 @@ const connection: XeroConnection = {
   id: randomUUID(),
   kind: 'xero',
   label: 'Custom Connection',
-  auth: { type: 'custom-connection', clientId: creds.XERO_CLIENT_ID, clientSecret: creds.XERO_CLIENT_SECRET },
+  auth: {
+    type: 'custom-connection',
+    clientId: creds.XERO_CLIENT_ID,
+    clientSecret: creds.XERO_CLIENT_SECRET,
+  },
   orgs: [],
   createdBy: 'dev-seed',
   createdAt: now,
@@ -47,11 +68,28 @@ const connection: XeroConnection = {
 const tenants = await discoverXeroTenants(connection, tenantId);
 for (const t of tenants) {
   const client = new XeroClient({ ownerTenantId: tenantId, connection, xeroTenantId: t.tenantId });
-  const { Organisations: [o] } = await client.request<{ Organisations: { Name: string; BaseCurrency: string; CountryCode: string; ShortCode: string }[] }>('Organisation');
-  connection.orgs.push({ xeroTenantId: t.tenantId, name: o.Name, baseCurrency: o.BaseCurrency, country: o.CountryCode, shortCode: o.ShortCode });
+  const {
+    Organisations: [o],
+  } = await client.request<{
+    Organisations: { Name: string; BaseCurrency: string; CountryCode: string; ShortCode: string }[];
+  }>('Organisation');
+  connection.orgs.push({
+    xeroTenantId: t.tenantId,
+    name: o.Name,
+    baseCurrency: o.BaseCurrency,
+    country: o.CountryCode,
+    shortCode: o.ShortCode,
+  });
 }
 const store = new FileConfigStore(tenantId);
-const existing = (await store.listConnections()).find((c) => c.kind === 'xero' && c.auth.type === 'custom-connection' && c.auth.clientId === creds.XERO_CLIENT_ID);
+const existing = (await store.listConnections()).find(
+  (c) =>
+    c.kind === 'xero' &&
+    c.auth.type === 'custom-connection' &&
+    c.auth.clientId === creds.XERO_CLIENT_ID
+);
 if (existing) connection.id = existing.id;
 await store.saveConnection(connection);
-console.log(`Saved Xero connection with ${connection.orgs.length} organisation(s) to ${store.location}`);
+console.log(
+  `Saved Xero connection with ${connection.orgs.length} organisation(s) to ${store.location}`
+);
