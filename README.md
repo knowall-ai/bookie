@@ -128,10 +128,15 @@ To use real books in development, see [docs/DEPLOYMENT.adoc](docs/DEPLOYMENT.ado
 ## Checks
 
 ```bash
-bun run check        # format, lint, typecheck, unit tests, production build
-bun run test:e2e     # Playwright on the demo organisations, desktop and mobile
-bun run parity       # live: Bookie's numbers vs the source system's own reports (no amounts printed)
+bun run check          # format, lint, typecheck, unit tests, production build
+bun run test:coverage  # unit tests with coverage (fails below the thresholds in vitest.config.ts)
+bun run test:e2e       # Playwright on the demo organisations, desktop and mobile
+bun run parity         # live: Bookie's numbers vs the source system's own reports (no amounts printed)
 ```
+
+CI runs all of these except `parity` on every pull request (coverage in the job summary, Playwright
+for desktop and mobile in parallel), and checks PR titles use a conventional-commit prefix. Pushing
+a `v*` tag deploys to production; see [docs/DEPLOYMENT.adoc](docs/DEPLOYMENT.adoc).
 
 ## Licence
 
