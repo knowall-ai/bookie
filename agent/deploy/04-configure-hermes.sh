@@ -140,6 +140,12 @@ if [ -n "${ACCOUNTS_MAILBOX:-}" ]; then
   if cron_absent bill-capture; then
     as_agent "hermes cron create --name bill-capture --deliver local --skill bill-capture --skill books --script accounts-inbox-gate.sh '${BILL_CAPTURE_CRON}' 'New mail arrived at ${ACCOUNTS_MAILBOX}: the message ids are in the script output above. Process each one with the bill-capture skill.'" \
       || warn "could not create the bill-capture cron job"
+    # Automatic capture drafts bills in the live books, so it starts PAUSED. A person turns it on
+    # (BILL_CAPTURE_AUTO=1 here, or `hermes cron resume <id>`) once previews look right.
+    if [ "${BILL_CAPTURE_AUTO:-0}" != 1 ]; then
+      BC_ID="$(as_agent "hermes cron list" 2>/dev/null | grep -B2 -E 'Name:[[:space:]]+bill-capture$' | grep -oE '^ *[0-9a-f]{12}' | tr -d ' ')"
+      [ -n "${BC_ID}" ] && as_agent "hermes cron pause ${BC_ID}" >/dev/null && info "bill-capture created PAUSED (BILL_CAPTURE_AUTO=1 to start it running)"
+    fi
   fi
 fi
 as_agent "hermes cron list" 2>/dev/null | grep -E "Name:|Schedule:" || true
