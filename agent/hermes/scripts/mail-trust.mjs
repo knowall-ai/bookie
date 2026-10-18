@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // mail-trust.mjs: the sender-authentication facts for one email, for bill-capture's "Is it genuine?" step.
-//   node mail-trust.mjs --mailbox accounts@knowall.ai --messageId <id>
+//   node mail-trust.mjs --mailbox <accounts mailbox, e.g. accounts@example.com> --messageId <id>
 // Prints JSON: from / sender / reply-to / return-path domains and the SPF, DKIM, DMARC and
 // composite-auth results Exchange Online recorded when the message arrived. Reads only; no body,
 // no attachments. Uses Bookie's delegated Graph sign-in from Agent Presence.
