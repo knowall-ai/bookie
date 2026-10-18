@@ -40,8 +40,14 @@ export interface XeroConnection {
 
 export type Connection = XeroConnection;
 
-/** One person's organisation access, matched by email (case-insensitive). */
+/**
+ * One person's organisation access. Matched by `userId` (their Entra object id)
+ * when the entry has one, otherwise by email (case-insensitive). Entries added
+ * before the directory picker have no `userId` and keep matching by email.
+ */
 export interface AccessPerson {
+  /** Entra object id from the directory picker. Optional for entries saved before it existed. */
+  userId?: string;
   email: string;
   name?: string;
   /** Org keys this person may open, or `'all'` for every organisation (including ones added later). */

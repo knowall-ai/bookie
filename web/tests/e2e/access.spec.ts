@@ -55,7 +55,7 @@ test.describe('guest accountant', () => {
 });
 
 test.describe('People and access (member)', () => {
-  test('lists the guest and lets a member add, grant and remove a person', async ({ page }) => {
+  test('lists the guest and their access', async ({ page }) => {
     await page.goto('/portal/settings');
     const card = page.locator('section', {
       has: page.getByRole('heading', { name: 'People and access' }),
@@ -71,18 +71,70 @@ test.describe('People and access (member)', () => {
     ).toBeChecked();
     await expect(guest.getByRole('checkbox', { name: /Contoso Wholesale Ltd/ })).not.toBeChecked();
 
-    const email = `e2e-${Date.now()}@example.com`;
-    await card.getByLabel('Email').fill(email);
-    await card.getByLabel('Name').fill('Robin Example');
-    await card.getByTestId('add-person').click();
-    const person = card.locator(`[data-email="${email}"]`);
+    // The seeded guest entry predates the picker: it has no Entra object id and matches by email.
+    await expect(guest.getByText(/Matched by email/)).toBeVisible();
+    await expect(card.getByLabel('Email')).toHaveCount(0);
+  });
+
+  test('adds a person from the directory people picker, grants and removes them', async ({
+    page,
+  }) => {
+    await page.goto('/portal/settings');
+    const card = page.locator('section', {
+      has: page.getByRole('heading', { name: 'People and access' }),
+    });
+    const person = card.locator('[data-email="sam.taylor@contoso.example"]');
+    // A retried run may find Sam left over from a failed attempt: start clean.
+    if (await person.count()) {
+      await person.getByRole('button', { name: 'Remove Sam Taylor' }).click();
+      await page.getByTestId('confirm-action').click();
+      await expect(person).toHaveCount(0);
+    }
+
+    const picker = page.getByRole('combobox', { name: 'Add a person' });
+    await picker.fill('s');
+    await expect(page.getByRole('option')).toHaveCount(0);
+
+    // Search as you type: name, email and Member/Guest, keyboard to choose.
+    await picker.fill('sam');
+    const option = page.getByRole('option', { name: /Sam Taylor/ });
+    await expect(option).toBeVisible();
+    await expect(option).toContainText('sam.taylor@contoso.example');
+    await expect(option).toContainText('Member');
+    await picker.fill('fabrikam');
+    await expect(page.getByRole('option', { name: /Jordan Lee/ })).toContainText('Guest');
+    await expect(page.getByRole('option', { name: /Jordan Lee/ })).toContainText('Already listed');
+    await picker.fill('nobody-like-this');
+    await expect(card.getByTestId('combobox-message')).toHaveText(/No one in .* directory matches/);
+
+    await picker.fill('sam');
+    await expect(page.getByRole('option', { name: /Sam Taylor/ })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    await picker.press('Enter');
     await expect(person.getByText('No organisations')).toBeVisible();
+    await expect(picker).toHaveValue('');
+    await expect(person).toHaveAttribute('data-user-id', /^[0-9a-f-]{36}$/);
+
+    // Sam isn't assigned to Bookie in the demo directory, so he can't sign in yet.
+    const hint = person.getByTestId('sign-in-hint');
+    await expect(hint).toContainText(
+      'Can’t sign in yet: an administrator needs to assign them to Bookie in Microsoft Entra'
+    );
+    await expect(hint.getByRole('link', { name: /Enterprise applications/ })).toHaveAttribute(
+      'href',
+      /^https:\/\/entra\.microsoft\.com\//
+    );
 
     await person.getByRole('checkbox', { name: /Contoso Wholesale Ltd/ }).check();
     await person.getByRole('button', { name: 'Save access' }).click();
     await expect(person.getByText('1 organisation')).toBeVisible();
 
-    await person.getByRole('button', { name: 'Remove Robin Example' }).click();
+    await page.reload();
+    await expect(person.getByRole('checkbox', { name: /Contoso Wholesale Ltd/ })).toBeChecked();
+
+    await person.getByRole('button', { name: 'Remove Sam Taylor' }).click();
     await page.getByTestId('confirm-action').click();
     await expect(person).toHaveCount(0);
   });
