@@ -3,16 +3,23 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Trash2, UserPlus, Users } from 'lucide-react';
+import { ExternalLink, Trash2, TriangleAlert, Users } from 'lucide-react';
 import {
+  addAccessPersonAction,
   removeAccessPersonAction,
   saveAccessPersonAction,
+  searchDirectoryAction,
   setMembersSeeAllAction,
 } from '@/lib/portal/actions/settings';
+import {
+  ENTRA_ENTERPRISE_APPS_URL,
+  type DirectoryPerson,
+  type SignInStatus,
+} from '@/lib/directory/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Combobox } from '@/components/ui/Combobox';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Field, Input } from '@/components/ui/Field';
 import { Toggle } from '@/components/ui/Toggle';
 
 export interface AccessOrgOption {
@@ -24,9 +31,55 @@ export interface AccessOrgOption {
 }
 
 export interface AccessPersonRow {
+  /** Entra object id; missing on entries added before the directory picker (matched by email). */
+  userId?: string;
   email: string;
   name?: string;
   orgKeys: string[] | 'all';
+  /** From the app-assignment check; missing when Bookie couldn't tell. */
+  signIn?: SignInStatus;
+}
+
+function rowKey(person: { userId?: string; email: string }) {
+  return person.userId ?? person.email.toLowerCase();
+}
+
+/** The listed person can't sign in until an administrator assigns them to Bookie in Entra. */
+function SignInHint() {
+  return (
+    <p
+      className="border-warn/30 bg-warn/10 text-warn mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-sm"
+      data-testid="sign-in-hint"
+    >
+      <TriangleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>
+        Can’t sign in yet: an administrator needs to assign them to Bookie in Microsoft Entra.{' '}
+        <a
+          href={ENTRA_ENTERPRISE_APPS_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 font-medium underline underline-offset-2"
+        >
+          Open Enterprise applications
+          <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+          <span className="sr-only">(opens in a new tab)</span>
+        </a>
+      </span>
+    </p>
+  );
+}
+
+function DirectoryOption({ person, listed }: { person: DirectoryPerson; listed: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-ink truncate text-sm font-medium">{person.name}</p>
+        <p className="text-muted truncate text-xs">{person.email}</p>
+      </div>
+      {listed && <span className="text-faint text-xs whitespace-nowrap">Already listed</span>}
+      <Badge tone={person.userType === 'Guest' ? 'violet' : 'neutral'}>{person.userType}</Badge>
+    </div>
+  );
 }
 
 function sameKeys(a: string[] | 'all', b: string[] | 'all') {
@@ -49,7 +102,7 @@ function PersonCard({
   const dirty = !sameKeys(orgKeys, person.orgKeys);
   const all = orgKeys === 'all';
   const granted = all ? orgs.length : orgs.filter((o) => orgKeys.includes(o.key)).length;
-  const id = person.email.replace(/[^a-z0-9]/gi, '-');
+  const id = `person-${rowKey(person).replace(/[^a-z0-9]/gi, '-')}`;
 
   const toggle = (key: string, on: boolean) => {
     if (orgKeys === 'all') return;
@@ -58,7 +111,11 @@ function PersonCard({
 
   const save = () =>
     start(async () => {
-      const result = await saveAccessPersonAction({ ...person, orgKeys });
+      const result = await saveAccessPersonAction({
+        userId: person.userId,
+        email: person.email,
+        orgKeys,
+      });
       if (!result.ok) return void toast.error(result.error);
       toast.success(`Access updated for ${person.name || person.email}`);
       router.refresh();
@@ -69,11 +126,18 @@ function PersonCard({
       className="border-line rounded-xl border p-4"
       data-testid="access-person"
       data-email={person.email}
+      data-user-id={person.userId}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
           <p className="text-ink font-medium break-words">{person.name || person.email}</p>
           {person.name && <p className="text-muted text-xs break-all">{person.email}</p>}
+          {!person.userId && (
+            <p className="text-faint mt-0.5 text-xs">
+              Matched by email. Find them in the directory below to link their Microsoft 365
+              account.
+            </p>
+          )}
         </div>
         <Badge tone={granted === 0 ? 'amber' : 'green'}>
           {all
@@ -91,6 +155,8 @@ function PersonCard({
           <Trash2 className="h-4 w-4" /> Remove
         </Button>
       </div>
+
+      {person.signIn === 'not-assigned' && <SignInHint />}
 
       <fieldset className="mt-3" aria-describedby={`${id}-hint`}>
         <legend className="sr-only">Organisations {person.name || person.email} can open</legend>
@@ -159,22 +225,34 @@ export function PeopleAccess({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [form, setForm] = useState({ email: '', name: '' });
   const [removing, setRemoving] = useState<AccessPersonRow | null>(null);
   const tenant = orgName ?? 'your organisation';
+  const listedIds = new Set(people.flatMap((p) => p.userId ?? []));
+  const listedEmails = new Set(people.map((p) => p.email.toLowerCase()));
+  const isListed = (p: DirectoryPerson) =>
+    listedIds.has(p.id) || listedEmails.has(p.email.toLowerCase());
 
-  const add = () =>
-    start(async () => {
-      const result = await saveAccessPersonAction({ ...form, orgKeys: [] });
-      if (!result.ok) return void toast.error(result.error);
-      toast.success(`Added ${form.name || form.email}. Tick the organisations they can open.`);
-      setForm({ email: '', name: '' });
-      router.refresh();
-    });
+  const add = async (person: DirectoryPerson) => {
+    const result = await addAccessPersonAction(person.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return false;
+    }
+    toast.success(
+      isListed(person)
+        ? `${result.data.name} is already listed. Their Microsoft 365 account is linked.`
+        : `Added ${result.data.name}. Tick the organisations they can open.`
+    );
+    start(() => router.refresh());
+    return true;
+  };
 
   const remove = (person: AccessPersonRow) =>
     start(async () => {
-      const result = await removeAccessPersonAction(person.email);
+      const result = await removeAccessPersonAction({
+        userId: person.userId,
+        email: person.email,
+      });
       setRemoving(null);
       if (!result.ok) return void toast.error(result.error);
       toast.success(`Removed ${person.name || person.email}`);
@@ -182,7 +260,8 @@ export function PeopleAccess({
     });
 
   return (
-    <section className="card overflow-hidden" aria-labelledby="access-title">
+    // No overflow-hidden: the people picker's list opens below the card's last row.
+    <section className="card" aria-labelledby="access-title">
       <div className="border-line flex items-start gap-4 border-b p-5">
         <span className="bg-brand/10 text-brand-bright flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
           <Users className="h-5 w-5" />
@@ -249,7 +328,7 @@ export function PeopleAccess({
           <ul className="space-y-3" data-testid="access-people">
             {people.map((person) => (
               <PersonCard
-                key={`${person.email}:${JSON.stringify(person.orgKeys)}`}
+                key={`${rowKey(person)}:${JSON.stringify(person.orgKeys)}`}
                 person={person}
                 orgs={orgs}
                 onRemove={() => setRemoving(person)}
@@ -262,40 +341,22 @@ export function PeopleAccess({
           </p>
         )}
 
-        <form
-          className="bg-surface-2/60 border-line grid gap-4 rounded-xl border p-4 sm:grid-cols-[1fr_1fr_auto]"
-          onSubmit={(e) => {
-            e.preventDefault();
-            add();
-          }}
-          aria-label="Add a person"
-        >
-          <Field label="Email" htmlFor="access-email" hint="The address they sign in with">
-            <Input
-              id="access-email"
-              type="email"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="accountant@example.com"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-            />
-          </Field>
-          <Field label="Name" htmlFor="access-name">
-            <Input
-              id="access-name"
-              autoComplete="off"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </Field>
-          <div className="flex items-start sm:pt-7">
-            <Button type="submit" variant="secondary" disabled={pending} data-testid="add-person">
-              <UserPlus className="h-4 w-4" /> Add person
-            </Button>
-          </div>
-        </form>
+        <div className="bg-surface-2/60 border-line rounded-xl border p-4">
+          <Combobox<DirectoryPerson>
+            label="Add a person"
+            placeholder={`Search ${tenant}’s directory by name or email`}
+            testId="people-picker"
+            search={searchDirectoryAction}
+            getKey={(p) => p.id}
+            renderOption={(p) => <DirectoryOption person={p} listed={isListed(p)} />}
+            onSelect={add}
+            emptyText={`No one in ${tenant}’s directory matches. Invite guests in Microsoft Entra first.`}
+          />
+          <p className="text-faint mt-2 text-xs">
+            Only people in your Microsoft 365 directory can be added. Invite an outside accountant
+            as a guest in Microsoft Entra first.
+          </p>
+        </div>
       </div>
 
       {removing && (

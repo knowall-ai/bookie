@@ -35,6 +35,21 @@ const PERMISSIONS = [
     scope: 'Sites.Manage.All',
     why: 'Keep Bookie’s sealed connection settings in a hidden list on your own SharePoint, instead of on our servers.',
   },
+  {
+    api: 'Microsoft Graph',
+    scope: 'User.ReadBasic.All',
+    why: 'Find people in your directory (name and email) when a member gives someone access in Settings › People and access.',
+  },
+  {
+    api: 'Microsoft Graph',
+    scope: 'Application.Read.All (optional)',
+    why: 'Read who is assigned to Bookie in Enterprise applications, so People and access can say when someone can’t sign in yet. Bookie never assigns anyone itself.',
+  },
+  {
+    api: 'Microsoft Graph',
+    scope: 'GroupMember.Read.All (optional)',
+    why: 'Check group membership for people assigned to Bookie through a group, for the same sign-in hint.',
+  },
 ];
 
 export default async function InstallPage() {

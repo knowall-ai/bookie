@@ -14,7 +14,7 @@ export const DEMO_TENANT_ID = '00000000-0000-0000-0000-00000000d3e0';
 
 /** The fictional demo users: a Contoso member, and an external accountant who is a guest. */
 export const DEMO_MEMBER: AuthContext['user'] = {
-  id: 'demo-user',
+  id: '00000000-0000-0000-0000-00000000d301',
   tenantId: DEMO_TENANT_ID,
   name: 'Alex Morgan',
   email: 'alex.morgan@contoso.example',
@@ -22,7 +22,7 @@ export const DEMO_MEMBER: AuthContext['user'] = {
 };
 
 export const DEMO_GUEST: AuthContext['user'] = {
-  id: 'demo-guest',
+  id: '00000000-0000-0000-0000-00000000d302',
   tenantId: DEMO_TENANT_ID,
   name: 'Jordan Lee',
   email: 'jordan.lee@fabrikam.example',

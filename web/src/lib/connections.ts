@@ -1,12 +1,21 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import { assertCanManageSettings, removeAccessPerson, upsertAccessPerson } from '@/lib/auth/access';
+import {
+  AccessChangeError,
+  accessEntryIndex,
+  assertCanManageSettings,
+  removeAccessPerson,
+  upsertAccessPerson,
+  type AccessIdentity,
+} from '@/lib/auth/access';
 import type { AuthContext } from '@/lib/auth/context';
 import { configStoreFor } from '@/lib/config';
 import type { AccessPerson, XeroConnection, XeroOrgMeta } from '@/lib/config/types';
 import { forgetBcDiscovery } from '@/lib/connectors/registry';
 import { ConnectorError } from '@/lib/connectors/types';
 import { XeroClient } from '@/lib/connectors/xero/client';
+import { getDirectoryPerson, searchDirectory } from '@/lib/directory/graph';
+import type { DirectoryPerson } from '@/lib/directory/types';
 
 /** Organisations reachable with a Xero access token, with the details Bookie shows. */
 async function describeXeroOrgs(accessToken: string, only?: string[]): Promise<XeroOrgMeta[]> {
@@ -182,22 +191,76 @@ export async function updateConnectorSettings(
 /**
  * Settings › People and access. Members only, so a guest can never widen their
  * own access. Changes take effect on the next request (listOrgs re-reads them).
+ *
+ * - `upsert` inserts or replaces an entry (people picked from the directory).
+ * - `grant` changes the organisations of an entry that already exists.
+ * - `remove` deletes an entry.
  */
 export async function updateAccessSettings(
   auth: AuthContext,
   change:
     | { type: 'upsert'; person: AccessPerson }
-    | { type: 'remove'; email: string }
+    | { type: 'grant'; who: AccessIdentity; orgKeys: AccessPerson['orgKeys'] }
+    | { type: 'remove'; who: AccessIdentity }
     | { type: 'membersSeeAll'; value: boolean }
 ): Promise<void> {
   assertCanManageSettings(auth.user);
   const store = configStoreFor(auth);
   const settings = await store.getSettings();
-  settings.access =
-    change.type === 'upsert'
-      ? upsertAccessPerson(settings.access, change.person)
-      : change.type === 'remove'
-        ? removeAccessPerson(settings.access, change.email)
-        : { ...settings.access, membersSeeAll: change.value };
+  switch (change.type) {
+    case 'upsert':
+      settings.access = upsertAccessPerson(settings.access, change.person);
+      break;
+    case 'grant': {
+      const index = accessEntryIndex(settings.access, change.who);
+      if (index === -1)
+        throw new AccessChangeError(
+          'That person isn’t listed any more. Refresh the page and add them again.'
+        );
+      const people = [...settings.access.people];
+      people[index] = { ...people[index], orgKeys: change.orgKeys };
+      settings.access = { ...settings.access, people };
+      break;
+    }
+    case 'remove':
+      settings.access = removeAccessPerson(settings.access, change.who);
+      break;
+    case 'membersSeeAll':
+      settings.access = { ...settings.access, membersSeeAll: change.value };
+      break;
+  }
   await store.saveSettings(settings);
+}
+
+/** People and access: search the tenant's directory as the signed-in member. Members only. */
+export async function searchPeople(auth: AuthContext, query: string): Promise<DirectoryPerson[]> {
+  assertCanManageSettings(auth.user);
+  return searchDirectory(auth, query);
+}
+
+/**
+ * Add someone picked from the directory. Bookie looks them up again by Entra
+ * object id, so only people who are really in the directory can be added, with
+ * the name and email the directory gives. An existing entry for them (by id,
+ * or an older email-only one) keeps its organisations and gains the id.
+ */
+export async function addAccessPersonFromDirectory(
+  auth: AuthContext,
+  userId: string
+): Promise<DirectoryPerson> {
+  assertCanManageSettings(auth.user);
+  const person = await getDirectoryPerson(auth, userId);
+  if (!person) throw new AccessChangeError('That person isn’t in your Microsoft 365 directory.');
+  const settings = await configStoreFor(auth).getSettings();
+  const index = accessEntryIndex(settings.access, { userId: person.id, email: person.email });
+  await updateAccessSettings(auth, {
+    type: 'upsert',
+    person: {
+      userId: person.id,
+      email: person.email,
+      name: person.name,
+      orgKeys: index === -1 ? [] : settings.access.people[index].orgKeys,
+    },
+  });
+  return person;
 }

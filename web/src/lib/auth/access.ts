@@ -14,22 +14,51 @@ import type { AccessPerson, AccessSettings } from '@/lib/config/types';
 export type UserType = 'Member' | 'Guest';
 
 export interface AccessSubject {
+  /** Entra object id of the signed-in user. */
+  id?: string;
   email: string;
   userType: UserType;
+}
+
+/** Who an access entry is for: an Entra object id and/or an email. */
+export interface AccessIdentity {
+  userId?: string;
+  email: string;
 }
 
 export function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/** The access entry for this email (case-insensitive), if any. An empty email never matches. */
+/**
+ * Index of the entry for this identity, or -1.
+ *
+ * An entry with a `userId` matches only that Entra object id, so an address
+ * reused by a different account never inherits someone else's access. An
+ * entry without one (saved before the directory picker) matches by email,
+ * case-insensitively. An empty email never matches.
+ */
+export function accessEntryIndex(access: AccessSettings | undefined, who: AccessIdentity): number {
+  const people = access?.people ?? [];
+  const userId = who.userId?.trim();
+  if (userId) {
+    const byId = people.findIndex((p) => p.userId === userId);
+    if (byId !== -1) return byId;
+  }
+  const email = normaliseEmail(who.email);
+  if (!email) return -1;
+  return people.findIndex(
+    (p) => normaliseEmail(p.email) === email && (!p.userId || p.userId === userId)
+  );
+}
+
+/** The access entry for this user: by Entra object id first, then by email. */
 export function accessEntryFor(
   access: AccessSettings | undefined,
-  email: string
+  user: { id?: string; email: string }
 ): AccessPerson | undefined {
-  const wanted = normaliseEmail(email);
-  if (!wanted) return undefined;
-  return access?.people.find((p) => normaliseEmail(p.email) === wanted);
+  const index = accessEntryIndex(access, { userId: user.id, email: user.email });
+  return index === -1 ? undefined : access?.people[index];
 }
 
 /** The org keys this user may open: `'all'`, or an explicit set (possibly empty). */
@@ -40,7 +69,7 @@ export function allowedOrgKeys(
   // Unknown user types are treated as guests: fail closed.
   const member = user.userType === 'Member';
   if (member && (access?.membersSeeAll ?? true)) return 'all';
-  const entry = accessEntryFor(access, user.email);
+  const entry = accessEntryFor(access, user);
   if (!entry) return new Set();
   return entry.orgKeys === 'all' ? 'all' : new Set(entry.orgKeys);
 }
@@ -70,26 +99,41 @@ export class SettingsAccessError extends Error {
   }
 }
 
+/** A people-and-access change that can't be made, with a message that is safe to show. */
+export class AccessChangeError extends Error {
+  readonly status = 400;
+  constructor(message: string) {
+    super(message);
+    this.name = 'AccessChangeError';
+  }
+}
+
 /** Throws unless the user may change settings. Called by every settings write. */
 export function assertCanManageSettings(user: { userType: UserType }): void {
   if (!canManageSettings(user)) throw new SettingsAccessError();
 }
 
-/** Insert or replace a person's entry (matched by email, case-insensitive). */
+/**
+ * Insert or replace a person's entry, matched like `accessEntryFor`. Saving
+ * with a `userId` links an email-only entry for the same address, so older
+ * entries become linked to the directory once they're picked. Saving without
+ * one never replaces an entry that is linked to an account.
+ */
 export function upsertAccessPerson(access: AccessSettings, person: AccessPerson): AccessSettings {
   const email = person.email.trim();
-  const entry: AccessPerson = { email, orgKeys: person.orgKeys };
+  const userId = person.userId?.trim();
+  const index = accessEntryIndex(access, { userId, email });
+  const entry: AccessPerson = { ...(userId ? { userId } : {}), email, orgKeys: person.orgKeys };
   if (person.name?.trim()) entry.name = person.name.trim();
-  const index = access.people.findIndex((p) => normaliseEmail(p.email) === normaliseEmail(email));
   const people = [...access.people];
   if (index === -1) people.push(entry);
   else people[index] = entry;
   return { ...access, people };
 }
 
-export function removeAccessPerson(access: AccessSettings, email: string): AccessSettings {
-  return {
-    ...access,
-    people: access.people.filter((p) => normaliseEmail(p.email) !== normaliseEmail(email)),
-  };
+/** Remove the entry for this identity (matched like `accessEntryFor`), if there is one. */
+export function removeAccessPerson(access: AccessSettings, who: AccessIdentity): AccessSettings {
+  const index = accessEntryIndex(access, who);
+  if (index === -1) return access;
+  return { ...access, people: access.people.filter((_, i) => i !== index) };
 }

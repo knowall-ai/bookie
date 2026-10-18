@@ -26,6 +26,11 @@ const { updateAccessSettings, updateConnectorSettings } = await import('@/lib/co
 const { saveAccessPersonAction, setMembersSeeAllAction, updateSettingsAction } =
   await import('@/lib/portal/actions/settings');
 const { SettingsAccessError } = await import('@/lib/auth/access');
+const { configStoreFor } = await import('@/lib/config');
+const { addAccessPersonAction, removeAccessPersonAction, searchDirectoryAction } =
+  await import('@/lib/portal/actions/settings');
+
+const SAM = '00000000-0000-0000-0000-00000000d304';
 
 let tenant = 0;
 let member: AuthContext;
@@ -122,7 +127,6 @@ describe('organisation access across Bookie', () => {
     expect(
       await saveAccessPersonAction({
         email: ' Jordan.Lee@Fabrikam.example ',
-        name: 'Jordan Lee',
         orgKeys: ['demo.contoso-wholesale', 'demo.contoso-wholesale'],
       })
     ).toEqual({ ok: true, data: undefined });
@@ -137,6 +141,15 @@ describe('organisation access across Bookie', () => {
     expect(await keys(member)).toEqual(['demo.contoso']);
   });
 
+  it('only changes the organisations of people already listed', async () => {
+    current = member;
+    expect(
+      await saveAccessPersonAction({ email: 'robin@example.com', orgKeys: 'all' })
+    ).toMatchObject({ ok: false, error: expect.stringMatching(/isn’t listed/) });
+    const settings = await configStoreFor(member).getSettings();
+    expect(settings.access.people.map((p) => p.email)).toEqual([DEMO_GUEST.email]);
+  });
+
   it('rejects invalid access input', async () => {
     current = member;
     expect(await saveAccessPersonAction({ email: 'not an email', orgKeys: [] })).toMatchObject({
@@ -146,5 +159,88 @@ describe('organisation access across Bookie', () => {
     expect(
       await saveAccessPersonAction({ email: 'a@example.com', orgKeys: ['../../etc'] })
     ).toMatchObject({ ok: false });
+  });
+});
+
+describe('the directory people picker (demo directory)', () => {
+  it('searches the directory for members, with Member/Guest', async () => {
+    current = member;
+    expect(await searchDirectoryAction(' sam ')).toEqual({
+      ok: true,
+      data: [
+        { id: SAM, name: 'Sam Taylor', email: 'sam.taylor@contoso.example', userType: 'Member' },
+      ],
+    });
+    expect(await searchDirectoryAction('fabrikam')).toMatchObject({
+      ok: true,
+      data: [{ name: 'Jordan Lee', userType: 'Guest' }],
+    });
+  });
+
+  it('needs at least 2 characters', async () => {
+    current = member;
+    expect(await searchDirectoryAction('s')).toEqual({
+      ok: false,
+      error: 'Type at least 2 characters.',
+    });
+  });
+
+  it("won't let a guest search the directory or add people", async () => {
+    current = guest;
+    expect(await searchDirectoryAction('sam')).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/administrators/),
+    });
+    expect(await addAccessPersonAction(SAM)).toMatchObject({ ok: false });
+  });
+
+  it('adds a picked person with their Entra object id and no organisations', async () => {
+    current = member;
+    const sam = { userId: SAM, email: 'sam.taylor@contoso.example' };
+    expect(await addAccessPersonAction(SAM)).toEqual({
+      ok: true,
+      data: { name: 'Sam Taylor', email: sam.email },
+    });
+    expect((await configStoreFor(member).getSettings()).access.people).toContainEqual({
+      ...sam,
+      name: 'Sam Taylor',
+      orgKeys: [],
+    });
+
+    expect(await saveAccessPersonAction({ ...sam, orgKeys: ['demo.contoso'] })).toEqual({
+      ok: true,
+      data: undefined,
+    });
+    expect(await removeAccessPersonAction(sam)).toEqual({ ok: true, data: undefined });
+    expect((await configStoreFor(member).getSettings()).access.people).toHaveLength(1);
+  });
+
+  it('links an email-only entry to the directory and keeps its organisations', async () => {
+    current = member;
+    expect(await addAccessPersonAction(DEMO_GUEST.id)).toMatchObject({ ok: true });
+    expect((await configStoreFor(member).getSettings()).access.people).toEqual([
+      {
+        userId: DEMO_GUEST.id,
+        email: DEMO_GUEST.email,
+        name: DEMO_GUEST.name,
+        orgKeys: ['demo.contoso'],
+      },
+    ]);
+    expect(await keys(guest)).toEqual(['demo.contoso']);
+    // Another account that happens to use the guest's address doesn't inherit the entry.
+    const lookalike = demoAuth(
+      { ...DEMO_GUEST, id: '33333333-3333-4333-8333-333333333333' },
+      guest.user.tenantId
+    );
+    expect(await keys(lookalike)).toEqual([]);
+  });
+
+  it("won't add someone who isn't in the directory", async () => {
+    current = member;
+    expect(await addAccessPersonAction('44444444-4444-4444-8444-444444444444')).toEqual({
+      ok: false,
+      error: 'That person isn’t in your Microsoft 365 directory.',
+    });
+    expect(await addAccessPersonAction('not-an-id')).toMatchObject({ ok: false });
   });
 });
