@@ -75,10 +75,12 @@ step "v4l2loopback-ctl ${V4L2_VER} and the format udev rule"
 [ -d "/usr/src/v4l2loopback-${V4L2_VER}" ] && (cd "/usr/src/v4l2loopback-${V4L2_VER}" && sudo make -s install-utils >/dev/null)
 command -v v4l2loopback-ctl >/dev/null || die "v4l2loopback-ctl not installed (pulse-setup needs it to pin the camera format)"
 # set-caps writes the sysfs `format` attribute, which is root-only by default; pulse-setup runs it as the agent user.
-sudo tee /etc/udev/rules.d/60-v4l2loopback.rules >/dev/null <<'UDEV'
+# Match on the card label: loopback devices have no parent, so DRIVERS=="v4l2 loopback" never matches.
+[ -n "${AVATAR_LABEL:-}" ] || die "AVATAR_LABEL is required (the v4l2loopback card label, e.g. Bookie-Avatar)"
+sudo tee /etc/udev/rules.d/60-v4l2loopback.rules >/dev/null <<UDEV
 # Agent Presence: let the agent user (group video) pin the loopback format at boot with
 # `v4l2loopback-ctl set-caps`, which writes this sysfs attribute (root-only by default).
-ACTION=="add", SUBSYSTEM=="video4linux", DRIVERS=="v4l2 loopback", RUN+="/bin/chgrp video /sys%p/format", RUN+="/bin/chmod g+w /sys%p/format"
+ACTION=="add", SUBSYSTEM=="video4linux", ATTR{name}=="${AVATAR_LABEL}*", RUN+="/bin/chgrp video /sys%p/format", RUN+="/bin/chmod g+w /sys%p/format"
 KERNEL=="v4l2loopback", GROUP="video", MODE="0660"
 UDEV
 sudo udevadm control --reload
