@@ -81,6 +81,9 @@ declare -A CB=(
   # 60 ms like Poppie: 160 ms plus the writer's 60 ms lead overfills paplay's 200 ms buffer, so every
   # frame stalled and call audio stuttered.
   [PLAYOUT_PREBUFFER_MS]=60
+  [AVATAR_HUD]=0             # no usage/budget/voice/telemetry panels on a client-facing call (Ben, 2026-10-18)
+  [AVATAR_DEV]=1             # but do show the DEEP BRAIN activity feed, top left
+  [HUD_VOICE_MODEL]="${VOICE_LIVE_MODEL:-gpt-live-1}"   # the HUD label otherwise shows the rollback realtime model
   [AVATAR_LASHES]=off        # Bookie has no eyelashes (Presence's default draws Sallie's)
   [AVATAR_TICKER]=0          # no scrolling activity ticker along the bottom of the video (as Poppie)
   [VOICE_MODE]="${VOICE_MODE}" [VOICE_REALTIME_PROVIDER]="${VOICE_REALTIME_PROVIDER}"
@@ -108,6 +111,13 @@ set_env_line "${CB_ENV}" HOOKS_TOKEN "${HOOKS_TOKEN}"
 set_env_line "${CB_ENV}" OPENCLAW_HOST 127.0.0.1
 set_env_line "${CB_ENV}" OPENCLAW_PORT 3005
 set_env_line "${CB_ENV}" OPENCLAW_URL "http://127.0.0.1:3005"
+# Presence resolves the caller's identity through Graph; without these the caller email is empty and
+# Bookie (correctly) refuses to give figures on a call. Same app and tenant as graph-subscriptions.env.
+GS_ENV="${HERMES_DIR}/graph-subscriptions.env"
+for k in MS365_MCP_CLIENT_ID MS365_MCP_TENANT_ID; do
+  v="$(sudo grep -E "^(export )?${k}=" "${GS_ENV}" 2>/dev/null | head -1 | sed -E "s/^(export )?${k}=//; s/^['\"]//; s/['\"]$//")"
+  [ -n "${v}" ] && set_env_line "${CB_ENV}" "${k}" "${v}" || warn "${k} not found in ${GS_ENV}: run step 21 first, or calls cannot identify the caller"
+done
 if ! env_has "${CB_ENV}" TEAMS_PASSWORD; then
   if [ -t 0 ] || [ -n "${TEAMS_PASSWORD:-}" ]; then
     prompt_secret TEAMS_PASSWORD "Microsoft 365 password for ${AGENT_UPN} (Teams web sign-in)"
