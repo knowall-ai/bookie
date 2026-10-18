@@ -26,6 +26,8 @@ there is a Xero company key and/or a Business Central company:
 
 KnowAll's own install: KnowAll AI Ltd is in Xero (`uk`) **and** Business Central (`business-central`);
 KnowAll AI SAS de CV is in Business Central only (`business-central-2`).
+In Business Central a company's *name* can differ from its display name:
+the MCP server takes the name, so `BC_COMPANY` must be the name.
 
 Rules:
 - If the person names the organisation, use it. If their question implies one (currency, country,
