@@ -18,6 +18,7 @@ import { PeopleAccess } from '@/components/settings/PeopleAccess';
 import { bcWebhooksConfigured } from '@/lib/webhooks/config';
 import { BitcoinWallets } from '@/components/settings/BitcoinWallets';
 import { electrumStatus, listWallets, type WalletSummary } from '@/lib/bitcoin/wallets';
+import { signInStatuses } from '@/lib/directory/graph';
 
 export const metadata = { title: 'Settings' };
 
@@ -104,6 +105,12 @@ export default async function SettingsPage({
       hidden: hiddenBcOrgs.some((h) => h.key === o.key),
     }))
     .sort((a, b) => a.environment.localeCompare(b.environment) || a.name.localeCompare(b.name));
+  // Can each listed person sign in (app assignment)? Not awaited: the hints stream in after the
+  // page paints (Suspense in PeopleAccess). Never rejects; people Bookie can't check get no hint.
+  const signIn = signInStatuses(
+    auth,
+    settings.access.people.flatMap((p) => p.userId ?? [])
+  );
   const accessOrgs = [...allOrgs, ...hiddenBcOrgs].map((o) => ({
     key: o.key,
     name: o.name,
@@ -170,6 +177,7 @@ export default async function SettingsPage({
           <PeopleAccess
             orgName={orgName}
             people={settings.access.people}
+            signIn={signIn}
             membersSeeAll={settings.access.membersSeeAll}
             orgs={accessOrgs}
           />

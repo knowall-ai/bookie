@@ -1,5 +1,6 @@
 import type {
   BankAccount,
+  BankAccountInput,
   BankTransaction,
   BankTransactionInput,
   BankTransactionQuery,
@@ -15,7 +16,7 @@ import {
   type XeroLineItem,
 } from '../mappers';
 import { fromXeroReport, type XeroReport } from '../reports';
-import type { BankModule } from '../../types';
+import { ConnectorError, type BankModule, type NewBankAccountRules } from '../../types';
 import type { XeroAccount } from './accounts';
 import { xeroTransfers } from './transfers';
 
@@ -84,6 +85,49 @@ export function fromXeroBankAccount(raw: XeroAccount, baseCurrency?: string): Ba
     accountNumber: raw.BankAccountNumber || undefined,
     currency: raw.CurrencyCode || baseCurrency || '',
     type: BANK_TYPE[raw.BankAccountType ?? ''] ?? 'bank',
+  };
+}
+
+const XERO_BANK_TYPE: Record<NonNullable<BankAccountInput['type']>, string> = {
+  bank: 'BANK',
+  'credit-card': 'CREDITCARD',
+  paypal: 'PAYPAL',
+};
+
+/**
+ * PUT Accounts body for a new bank account. Xero needs `Type: BANK`, a name and
+ * a bank account number; the code is optional for bank accounts, and the
+ * currency must be one the organisation has enabled. Bookie always sends the
+ * currency the person chose rather than letting Xero default it.
+ */
+export function toXeroBankAccount(input: BankAccountInput): Record<string, unknown> {
+  return {
+    Type: 'BANK',
+    Name: input.name,
+    Code: input.code || undefined,
+    BankAccountNumber: input.accountNumber || undefined,
+    BankAccountType: XERO_BANK_TYPE[input.type ?? 'bank'],
+    CurrencyCode: input.currency,
+  };
+}
+
+/** `xeroLink` opens the organisation in Xero (deep links go through organisationlogin). */
+export function xeroNewBankAccount(xeroLink?: string): NewBankAccountRules {
+  return {
+    types: ['bank', 'credit-card', 'paypal'],
+    accountNumberRequired: true,
+    codeOptional: true,
+    codeSharedWithChart: true,
+    codeHint: 'Xero bank accounts can have no code.',
+    // Xero: codes up to 10 characters, names up to 150.
+    codeMaxLength: 10,
+    nameMaxLength: 150,
+    accountNumberMaxLength: 255,
+    currencySetup: {
+      text: 'To use another currency, add it in Xero under organisation settings, Currencies.',
+      href: xeroLink,
+      linkLabel: 'Open Xero',
+    },
   };
 }
 
@@ -260,7 +304,8 @@ const MAX_MERGE = 1000;
 
 export function xeroBank(
   client: XeroClient,
-  baseCurrency: () => Promise<string | undefined> = async () => undefined
+  baseCurrency: () => Promise<string | undefined> = async () => undefined,
+  xeroLink?: string
 ): BankModule {
   /** Count unreconciled items per bank account (spend/receive money and payments). */
   const unreconciled = async () => {
@@ -395,6 +440,20 @@ export function xeroBank(
         { method: 'PUT', body: { BankTransactions: [toXeroBankTransaction(input)] } }
       );
       return fromXeroBankTransaction(result.BankTransactions[0]);
+    },
+
+    newAccount: xeroNewBankAccount(xeroLink),
+    async createAccount(input) {
+      const result = await client.request<{ Accounts: XeroAccount[] }>('Accounts', {
+        method: 'PUT',
+        body: toXeroBankAccount(input),
+      });
+      const created = result.Accounts?.[0];
+      if (!created) {
+        throw new ConnectorError('Xero did not return the new bank account.', 502, 'xero');
+      }
+      // Xero echoes CurrencyCode; it is the one Bookie sent, never a default.
+      return fromXeroBankAccount(created, input.currency);
     },
   };
 }

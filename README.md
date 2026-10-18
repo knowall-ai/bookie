@@ -54,7 +54,7 @@ Real pages, read live through Bookie's own connector code from **Microsoft's CRO
 - **Sales:** invoices (with history and notes, mark as sent, and Xero's online invoice link), quotes (draft, mark sent, accepted or declined, convert to an invoice), credit notes (create, approve, allocate to invoices), and products and services.
 - **Purchases:** bills (pay several at once as a batch payment), purchase orders (with Xero's status flow), supplier credit notes, and the **Inbox** of documents waiting to become bills. Bills drafted by the Bookie agent show under **Captured by Bookie**.
 - **Attachments:** upload and view files on invoices, bills and contacts.
-- **Accounting:** bank accounts with a full register and transfers between accounts, chart of accounts, manual journals (post, void, reverse), payments (recording a payment against an invoice), fixed assets, tax rates and organisation settings.
+- **Accounting:** bank accounts with a full register and transfers between accounts, adding a bank account in the books' own currencies, chart of accounts, manual journals (post, void, reverse), payments (recording a payment against an invoice), fixed assets, tax rates and organisation settings.
 - **Reporting:** profit and loss, balance sheet, trial balance, cash flow, aged receivables and payables, account transactions and journal reports, with comparison periods, **CSV export** and print. A report the source system can't provide says so instead of guessing.
 - **Contacts and search:** customers and suppliers with balances and history, and a global search across the organisation.
 - **Payroll and Projects:** employees, pay runs and projects where the source system has them.

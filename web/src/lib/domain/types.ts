@@ -545,6 +545,18 @@ export interface BankAccount {
   type?: 'bank' | 'credit-card' | 'paypal' | 'other';
 }
 
+/** A new bank account, as on Xero's "Add bank account". */
+export interface BankAccountInput {
+  name: string;
+  /** Account code (Xero) or number (BC "No."); the source assigns one when blank and it can. */
+  code?: string;
+  accountNumber?: string;
+  iban?: string;
+  /** One of the organisation's own currencies: never defaulted. */
+  currency: string;
+  type?: 'bank' | 'credit-card' | 'paypal';
+}
+
 export interface BankTransaction {
   id: string;
   bankAccountId: string;

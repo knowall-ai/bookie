@@ -117,3 +117,29 @@ Sign-in uses a multi-tenant Entra app registration. Its redirect URI is
 development), plus one per guest host tenant as described in `docs/ACCESS.adoc`. Put its client id
 and secret in `AZURE_AD_CLIENT_ID` and `AZURE_AD_CLIENT_SECRET` (`web/.env.local` in development,
 App Service settings in production).
+
+=== API permissions
+
+Sign-in asks only for `openid profile email offline_access User.Read`. Every other Microsoft Graph
+call uses a token Bookie redeems for `https://graph.microsoft.com/.default`, which carries whatever
+the tenant has consented to, so adding a permission needs no code change: add it to the app
+registration (*API permissions › Add a permission › Microsoft Graph › Delegated*) and grant admin
+consent in each tenant (the *Install for my organisation* button on `/install` does this for a
+customer). All are delegated.
+
+[cols="1,1,3"]
+|===
+| Permission | Required | Used for
+
+| `User.Read` | Yes | Who signed in (`/me`) and their photo.
+| `Sites.Manage.All` | Yes | Sealed settings in the tenant's SharePoint.
+| `User.ReadBasic.All` | Yes, for People and access | The directory people picker (`docs/ACCESS.adoc`).
+| `Application.Read.All` | Optional | The "Can't sign in yet" hint: reads Bookie's service principal
+and who is assigned to it.
+| `GroupMember.Read.All` | Optional | The same hint for people assigned through a group.
+|===
+
+Without the optional two, People and access works and simply shows no sign-in hint. Bookie never
+needs `AppRoleAssignment.ReadWrite.All`: it never assigns anyone to the app. The repository's `infra/`
+scripts don't manage the app registration or its consents, so grant these in Entra (or with
+`az ad app permission add` and `az ad app permission admin-consent`).
