@@ -15,10 +15,15 @@ export default async function Page({ params }: { params: Promise<{ org: string }
   const rules = connector.bank?.newAccount;
   if (!connector.bank?.createAccount || !rules || !connector.currencies) notFound();
 
-  const [currencies, accounts] = await Promise.all([
+  const [currencies, bankAccounts, chart] = await Promise.all([
     connector.currencies.list(),
-    connector.accounts?.list().catch(() => []) ?? [],
+    connector.bank.accounts().catch(() => []),
+    // Only where bank account codes live in the chart of accounts (Xero) can they clash with it.
+    rules.codeSharedWithChart ? (connector.accounts?.list().catch(() => []) ?? []) : [],
   ]);
+  const usedCodes = [
+    ...new Set([...bankAccounts.map((a) => a.code ?? ''), ...chart.map((a) => a.code)]),
+  ].filter(Boolean);
   const bankPath = `${base}/accounting/bank`;
   const crumbs = [
     { label: 'Accounting', href: `${base}/accounting` },
@@ -52,7 +57,8 @@ export default async function Page({ params }: { params: Promise<{ org: string }
         rules={rules}
         currencies={choices}
         sourceLabel={source}
-        usedCodes={accounts.map((a) => a.code).filter(Boolean)}
+        usedCodes={usedCodes}
+        unnamedLocalCurrency={choices.length < currencies.length}
         save={save}
         cancelHref={bankPath}
       />

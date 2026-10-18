@@ -211,6 +211,7 @@ export function demoBank(data: DemoData): BankModule {
       types: ['bank', 'credit-card', 'paypal'],
       accountNumberRequired: true,
       codeOptional: true,
+      codeSharedWithChart: true,
       codeHint: 'Bank accounts can have no code, as in Xero.',
       codeMaxLength: 10,
       nameMaxLength: 150,

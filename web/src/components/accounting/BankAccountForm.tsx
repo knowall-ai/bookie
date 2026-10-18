@@ -43,6 +43,7 @@ export function BankAccountForm({
   currencies,
   sourceLabel,
   usedCodes,
+  unnamedLocalCurrency,
   save,
   cancelHref,
 }: {
@@ -52,6 +53,8 @@ export function BankAccountForm({
   /** "Xero", "Business Central" or "the demo books". */
   sourceLabel: string;
   usedCodes: string[];
+  /** The source didn't say what its local currency is, so it can't be offered. */
+  unnamedLocalCurrency?: boolean;
   save: (input: BankAccountInput) => Promise<ActionResult<{ id: string }>>;
   cancelHref: string;
 }) {
@@ -120,8 +123,12 @@ export function BankAccountForm({
             <Select
               id="bank-account-type"
               value={values.type ?? ''}
+              // A bank account number isn't a card's last 4 digits or a PayPal email: start again.
               onChange={(e) =>
-                set({ type: (e.target.value || undefined) as BankAccountInput['type'] })
+                set({
+                  type: (e.target.value || undefined) as BankAccountInput['type'],
+                  accountNumber: undefined,
+                })
               }
               required
               data-testid="bank-account-type"
@@ -172,6 +179,7 @@ export function BankAccountForm({
             maxLength={rules.codeMaxLength}
             onChange={(e) => set({ code: e.target.value })}
             required={!rules.codeOptional}
+            aria-invalid={codeTaken || undefined}
             data-testid="bank-account-code"
           />
         </Field>
@@ -206,6 +214,8 @@ export function BankAccountForm({
           </Select>
           <p className="text-faint text-xs" data-testid="bank-account-currency-hint">
             Only the currencies set up in {sourceLabel} are listed.{' '}
+            {unnamedLocalCurrency &&
+              `${sourceLabel} didn't say what its local currency is, so it can't be chosen here. `}
             <HintLink hint={rules.currencySetup} />
           </p>
         </div>
@@ -221,7 +231,11 @@ export function BankAccountForm({
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {problem && <p className="text-faint mr-auto text-xs">{problem}</p>}
+        {problem && (
+          <p id="bank-account-problem" className="text-faint mr-auto text-xs" aria-live="polite">
+            {problem}
+          </p>
+        )}
         <ButtonLink href={cancelHref} variant="ghost">
           Cancel
         </ButtonLink>
@@ -229,6 +243,7 @@ export function BankAccountForm({
           type="submit"
           variant="primary"
           disabled={pending || !!problem}
+          aria-describedby={problem ? 'bank-account-problem' : undefined}
           data-testid="bank-account-save"
         >
           Save

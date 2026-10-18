@@ -26,6 +26,11 @@ describe('add bank account validation', () => {
   it('rejects a missing name or currency, odd codes and malformed IBANs', () => {
     expect(bankAccountSchema.safeParse({ name: '', currency: 'GBP' }).success).toBe(false);
     expect(bankAccountSchema.safeParse({ name: 'A', currency: '' }).success).toBe(false);
+    // BC currency codes can be longer than ISO's three letters.
+    expect(bankAccountSchema.parse({ name: 'A', currency: 'euro' }).currency).toBe('EURO');
+    expect(bankAccountSchema.parse({ name: 'A', currency: 'GBP', code: 'BANK_01/A' }).code).toBe(
+      'BANK_01/A'
+    );
     expect(bankAccountSchema.safeParse({ name: 'A', currency: 'GBP', code: 'a b' }).success).toBe(
       false
     );

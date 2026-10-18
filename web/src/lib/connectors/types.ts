@@ -222,6 +222,8 @@ export interface NewBankAccountRules {
   accountNumberMaxLength: number;
   /** Whether the code can be left blank. */
   codeOptional: boolean;
+  /** True when bank account codes share the chart of accounts' codes (Xero), so they must not clash. */
+  codeSharedWithChart?: boolean;
   /** What happens to a blank code in this source, shown under the field. */
   codeHint?: string;
   /** Where to add a currency the books don't have yet, shown under the currency picker. */

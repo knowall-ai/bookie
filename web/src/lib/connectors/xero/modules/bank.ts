@@ -16,7 +16,7 @@ import {
   type XeroLineItem,
 } from '../mappers';
 import { fromXeroReport, type XeroReport } from '../reports';
-import type { BankModule, NewBankAccountRules } from '../../types';
+import { ConnectorError, type BankModule, type NewBankAccountRules } from '../../types';
 import type { XeroAccount } from './accounts';
 import { xeroTransfers } from './transfers';
 
@@ -117,6 +117,7 @@ export function xeroNewBankAccount(xeroLink?: string): NewBankAccountRules {
     types: ['bank', 'credit-card', 'paypal'],
     accountNumberRequired: true,
     codeOptional: true,
+    codeSharedWithChart: true,
     codeHint: 'Xero bank accounts can have no code.',
     // Xero: codes up to 10 characters, names up to 150.
     codeMaxLength: 10,
@@ -447,8 +448,12 @@ export function xeroBank(
         method: 'PUT',
         body: toXeroBankAccount(input),
       });
+      const created = result.Accounts?.[0];
+      if (!created) {
+        throw new ConnectorError('Xero did not return the new bank account.', 502, 'xero');
+      }
       // Xero echoes CurrencyCode; it is the one Bookie sent, never a default.
-      return fromXeroBankAccount(result.Accounts[0], input.currency);
+      return fromXeroBankAccount(created, input.currency);
     },
   };
 }

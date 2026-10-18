@@ -13,8 +13,8 @@ const optionalText = (max: number) =>
 /** The shape every source accepts; `bankAccountProblem` then applies the source's own rules. */
 export const bankAccountSchema = z.object({
   name: z.string().trim().min(1, 'Enter an account name.').max(150),
-  code: optionalText(20).refine((v) => !v || /^[A-Za-z0-9.-]+$/.test(v), {
-    message: 'Codes use letters, numbers, dots and dashes only.',
+  code: optionalText(20).refine((v) => !v || /^[A-Za-z0-9._/-]+$/.test(v), {
+    message: 'Codes use letters, numbers, dots, dashes, underscores and slashes only.',
   }),
   accountNumber: optionalText(255),
   iban: optionalText(50).refine((v) => !v || /^[A-Za-z]{2}[0-9]{2}[A-Za-z0-9 ]+$/.test(v), {
@@ -23,7 +23,9 @@ export const bankAccountSchema = z.object({
   currency: z
     .string()
     .trim()
-    .regex(/^[A-Za-z]{3}$/, 'Choose a currency.')
+    // BC currency codes are Code[10] (e.g. "EURO"); the real check is against the books' list.
+    .min(1, 'Choose a currency.')
+    .max(10)
     .transform((v) => v.toUpperCase()),
   type: z.enum(['bank', 'credit-card', 'paypal']).optional(),
 });

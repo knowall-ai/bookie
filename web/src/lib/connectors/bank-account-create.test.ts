@@ -38,6 +38,10 @@ describe('Xero: add bank account', () => {
     expect(
       toXeroBankAccount({ name: 'Ops', code: '092', accountNumber: '1', currency: 'GBP' })
     ).toMatchObject({ Code: '092', BankAccountType: 'BANK', CurrencyCode: 'GBP' });
+    // Xero has no IBAN field on accounts.
+    expect(
+      toXeroBankAccount({ name: 'Ops', accountNumber: '1', iban: 'GB00', currency: 'GBP' })
+    ).not.toHaveProperty('IBAN');
   });
 
   it('PUTs Accounts and maps the account Xero returns', async () => {
