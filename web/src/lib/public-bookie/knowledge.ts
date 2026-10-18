@@ -82,6 +82,7 @@ Bookie reads each system through its official API and shows it in one familiar l
   - Microsoft Graph Sites.Manage.All: keep Bookie's sealed connection settings in a hidden list on your own SharePoint.
   - Microsoft Graph User.ReadBasic.All: find people in your directory (name and email) when giving someone access in People and access.
   - Optional, Microsoft Graph Application.Read.All and GroupMember.Read.All: read who is assigned to Bookie in Enterprise applications, so People and access can say when someone can't sign in yet. Bookie never assigns anyone itself.
+  - Microsoft Graph Mail.Read.Shared: the Accounts inbox reads the shared mailbox your suppliers send bills to, as you, and only mailboxes you can already open. Read only.
 - Then anyone in the organisation signs in at /portal on the Bookie website and connects Xero or switches on Business Central.
 - To limit who can use it: in Microsoft Entra, Enterprise applications, set Assignment required to Yes and assign users or groups. Conditional access applies.
 - To remove it: delete Bookie from Enterprise applications and delete the hidden BookieConnections list on the root SharePoint site.

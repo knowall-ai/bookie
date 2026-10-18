@@ -64,6 +64,10 @@ abstract class SealedRecordStore implements ConfigStore {
         people: Array.isArray(stored.access?.people) ? stored.access.people : [],
       },
       forecast: stored.forecast,
+      accountsMailbox:
+        typeof stored.accountsMailbox === 'string' && stored.accountsMailbox
+          ? stored.accountsMailbox
+          : undefined,
     };
   }
 

@@ -46,6 +46,7 @@ export interface XeroContact {
   Website?: string;
   AccountNumber?: string;
   TaxNumber?: string;
+  BankAccountDetails?: string;
   ContactStatus?: 'ACTIVE' | 'ARCHIVED' | 'GDPRREQUEST';
   IsCustomer?: boolean;
   IsSupplier?: boolean;
@@ -271,6 +272,8 @@ export function fromXeroContact(contact: XeroContact, zeroWhenMissing = false): 
     website: contact.Website || undefined,
     accountNumber: contact.AccountNumber || undefined,
     taxNumber: contact.TaxNumber || undefined,
+    // Xero omits empty fields: no BankAccountDetails means none on file.
+    bankDetails: contact.BankAccountDetails?.trim() || null,
     address: fromXeroAddress(contact.Addresses),
     isCustomer: !!contact.IsCustomer,
     isSupplier: !!contact.IsSupplier,

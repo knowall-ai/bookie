@@ -137,6 +137,8 @@ customer). All are delegated.
 | `Application.Read.All` | Optional | The "Can't sign in yet" hint: reads Bookie's service principal
 and who is assigned to it.
 | `GroupMember.Read.All` | Optional | The same hint for people assigned through a group.
+| `Mail.Read.Shared` | Yes, for the Accounts inbox | Read the shared accounts mailbox as the signed-in
+person (`docs/ACCOUNTS_INBOX.adoc`). Tenants that installed Bookie before it was added consent again.
 |===
 
 Without the optional two, People and access works and simply shows no sign-in hint. Bookie never
