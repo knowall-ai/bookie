@@ -136,11 +136,11 @@ It prints the sender, reply-to and return-path domains, and Exchange Online's ow
 composite-auth results. Then decide **trusted**, **unverified** or **suspicious**:
 
 - **Suspicious** (any one is enough): DMARC `fail`, or compauth `fail`; `flaggedByMicrosoft` (Microsoft scored it as spam, phishing, spoofing or impersonation); the from domain is a lookalike
-  of a known supplier or of knowall.ai (swapped or added letters, `rn` for `m`, a different TLD,
+  of a known supplier or of the organisation's own domain (swapped or added letters, `rn` for `m`, a different TLD,
   extra words such as `-billing`); reply-to on a different domain from the sender; bank details that
   differ from the supplier's record in Xero/BC; a payment link to a site that isn't the supplier's;
   pressure ("urgent", "final notice", "legal action", "pay today to avoid"); the invoice is addressed
-  to someone who doesn't exist at KnowAll; or a supplier we have never dealt with sending a bill for
+  to someone who doesn't exist at the organisation; or a supplier we have never dealt with sending a bill for
   something nobody ordered.
 - **Unverified:** authentication passes but the domain has never sent us a bill before (check the
   supplier's previous bills and earlier mail from that domain), or the amount is far outside that
