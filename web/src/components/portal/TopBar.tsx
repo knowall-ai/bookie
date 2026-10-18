@@ -400,14 +400,14 @@ export function UserMenu({
         aria-expanded={open}
         aria-controls={open ? 'user-menu' : undefined}
         data-testid="user-menu-button"
-        className="hover:bg-surface-2 focus-visible:ring-brand/60 flex items-center gap-1 rounded-full p-0.5 transition-colors outline-none focus-visible:ring-2 sm:pr-1.5"
+        className="hover:bg-surface-2 focus-visible:ring-brand/60 flex items-center gap-1 rounded-full p-0.5 pr-1.5 transition-colors outline-none focus-visible:ring-2"
       >
         <Avatar name={user.name} photo={photo} className="h-8 w-8 text-xs" />
+        {/* Like Thyme: a chevron so it reads as a menu, turned up while open. */}
         <ChevronDown
-          className={cn(
-            'text-muted hidden h-4 w-4 transition-transform sm:block',
-            open && 'rotate-180'
-          )}
+          aria-hidden="true"
+          data-testid="user-menu-chevron"
+          className={cn('text-muted h-4 w-4 transition-transform', open && 'rotate-180')}
         />
       </button>
       {open && (
