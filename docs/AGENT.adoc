@@ -124,13 +124,10 @@ See `agent/README.md`, "Open questions". The main ones: Hermes key names to veri
 Presence routing of a shared-mailbox notification; gpt-live-1 quota; licensed access to the private
 Presence and skill repositories for self-hosted customers; Xero outside AU/NZ/UK/US.
 
-*Bitcoin reconcile in the weekly run.* The portal's read-only Bitcoin reconcile
-(`reconcile_bitcoin_wallets` for Bookie in the portal, `GET /api/orgs/{org}/bitcoin/reconcile`;
-`docs/BITCOIN.adoc`) runs as a signed-in person, because reading a wallet needs that person's Business
-Central access (or their tenant's sealed settings) and the portal's Electrum and Kraken lookups. The
-agent reaches the portal only through links today. It has no portal session or token, so the
-scheduled weekly reconcile can't include Bitcoin wallets yet. Two ways forward: a portal endpoint the
-agent calls with an Entra token for its own account, accepted on behalf of that account and limited
-to read-only reconcile; or the agent reads the wallet descriptors (`bitcoinWallets`, with
-`BOOKIE BTC READ` on its BC app user) and the ledger itself and runs the same derivation and Electrum
-code as a tool on the VM.
+*Bitcoin wallets.* The agent reaches the portal only through links, so it reads Bitcoin wallets itself:
+the `bitcoin` skill runs `agent/hermes/scripts/btc-wallet.mjs`, which is the portal's own wallet code
+bundled for Node. It reads Business Central with the agent's app (`BOOKIE BTC READ`, and `BOOKIE READ`
+for reconcile) and the chain through `BOOKIE_ELECTRUM_URL` over TLS. It's read-only; drafting and
+posting stay in the portal, confirmed by a person. With `BOOKIE_ELECTRUM_URL` set at install, the
+weekly reconcile includes the wallets. Organisations whose wallets are sealed in the portal's settings
+(not Business Central) aren't reachable by the agent; see `docs/BITCOIN.adoc`.

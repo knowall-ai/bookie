@@ -83,9 +83,9 @@ reason when there isn't one, and always for pending transactions).
   description), then by the exact amount within three days. It lists what's on chain but not in the
   books, what's in the books but not on chain, and what's pending. People choose transactions and
   accounts, then **Draft journal lines** (the fee is drafted on its own line), then **Post**; both
-  steps ask them to confirm. Posting needs BTC exchange rates in Business Central. In the portal I can
-  run the same reconcile myself, read-only (`reconcile_bitcoin_wallets`), and report the counts and
-  what needs attention. I never draft or post these myself.
+  steps ask them to confirm. Posting needs BTC exchange rates in Business Central. I can run the
+  same reconcile myself, read-only (the `bitcoin` skill here, `reconcile_bitcoin_wallets` in the
+  portal), and report the counts and what needs attention. I never draft or post these myself.
 - **Not covered:** capital gains and pooling calculations are for the accountant (SOUL rule 5).
 
 The setup guide is docs/BITCOIN.adoc in the Bookie repository.

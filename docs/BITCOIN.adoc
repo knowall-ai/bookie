@@ -233,9 +233,21 @@ The same reconcile, read-only, is available:
 * as JSON at `GET /api/orgs/{orgKey}/bitcoin/reconcile` (optionally `?wallet=<id or name>`), as the
   signed-in user, with the organisation re-checked like every portal page.
 
-Both are read-only. Drafting and posting happen only in the portal, after the person confirms. The
-Hermes agent's scheduled weekly reconcile can't call this yet, because the agent has no signed-in
-portal session (see `docs/AGENT.adoc`, open questions).
+Both are read-only. Drafting and posting happen only in the portal, after the person confirms.
+
+=== Bookie the agent
+
+The Hermes agent has no portal session, so it looks wallets up itself with the `bitcoin` skill and
+`agent/hermes/scripts/btc-wallet.mjs` (`list`, `show <wallet> [--gbp]`, `reconcile [<wallet>]`, JSON
+output). The script reuses this code: it's bundled for Node from `web/scripts/agent-btc-wallet.ts`
+with `bun run build:agent-btc` in `web/`, so rebuild and commit it when `web/src/lib/bitcoin` changes.
+It reads Business Central with the agent's own service-to-service app. Give that app user
+`BOOKIE BTC READ`, plus `BOOKIE READ` for reconcile; never EDIT. It reads the chain through
+`BOOKIE_ELECTRUM_URL` from the agent's `config.env`, written to `~/.hermes/.env` by
+`agent/deploy/04-configure-hermes.sh`. The agent accepts only `ssl://`, with the certificate checked,
+or pinned with `BOOKIE_ELECTRUM_CERT_SHA256`. It never prints a descriptor or an address. When
+`BOOKIE_ELECTRUM_URL` is set at install time, the scheduled weekly reconcile also reconciles the
+Bitcoin wallets.
 
 == The Electrum server
 

@@ -137,8 +137,14 @@ if [ -n "${MONTH_END_CRON:-}" ] && cron_absent month-end-review; then
   as_agent "hermes cron create --name month-end-review --deliver local --skill month-end-review --skill books '${MONTH_END_CRON}' 'Run the month-end-review skill for last month for every organisation and send the report to ${PRINCIPAL_UPN:-the accountant} by Teams.'" \
     || warn "could not create the month-end-review cron job"
 fi
+# With an Electrum server configured, the weekly reconcile also reconciles the Bitcoin wallets (skill: bitcoin).
+BTC_RECONCILE_SKILL="" BTC_RECONCILE_TEXT=""
+if [ -n "${BOOKIE_ELECTRUM_URL:-}" ]; then
+  BTC_RECONCILE_SKILL="--skill bitcoin"
+  BTC_RECONCILE_TEXT=" Then run the reconcile command of the bitcoin skill (read-only) for each Business Central organisation and add a Bitcoin section: its counts line, then only what needs attention."
+fi
 if [ -n "${RECONCILE_CRON:-}" ] && [ -n "${ACCOUNTS_MAILBOX:-}" ] && [ -n "${RECONCILE_TO:-}" ] && cron_absent weekly-reconcile; then
-  as_agent "hermes cron create --name weekly-reconcile --deliver local --skill bill-capture --skill books '${RECONCILE_CRON}' 'Scheduled weekly reconcile, set up by the operator. Run bill-capture RECONCILE mode (read-only: nothing created, attached, moved or logged) for the last 7 days of invoice emails in ${ACCOUNTS_MAILBOX}, including step 0 (is it genuine?). Send the report by Teams 1:1 chat to ${RECONCILE_TO}, starting with: Weekly reconcile. Lead with the counts line, then only the items that need attention (not in the books, different, no document, suspicious).'" \
+  as_agent "hermes cron create --name weekly-reconcile --deliver local --skill bill-capture --skill books ${BTC_RECONCILE_SKILL} '${RECONCILE_CRON}' 'Scheduled weekly reconcile, set up by the operator. Run bill-capture RECONCILE mode (read-only: nothing created, attached, moved or logged) for the last 7 days of invoice emails in ${ACCOUNTS_MAILBOX}, including step 0 (is it genuine?).${BTC_RECONCILE_TEXT} Send the report by Teams 1:1 chat to ${RECONCILE_TO}, starting with: Weekly reconcile. Lead with the counts line, then only the items that need attention (not in the books, different, no document, suspicious).'" \
     || warn "could not create the weekly-reconcile cron job"
 fi
 if [ -n "${ACCOUNTS_MAILBOX:-}" ]; then
