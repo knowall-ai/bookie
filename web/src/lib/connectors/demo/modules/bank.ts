@@ -1,9 +1,11 @@
-import type { BankTransaction } from '@/lib/domain/types';
+import type { BankAccount, BankTransaction } from '@/lib/domain/types';
 import type { DemoData } from '../data';
 import { demoSlot } from './state';
 import { ConnectorError, type BankModule } from '../../types';
 import { demoId, matches, notFound, paginate } from '../index';
 import { demoTransfers } from './transfers';
+import { chart } from './accounts';
+import { DEMO_CURRENCIES } from './currencies';
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -202,6 +204,62 @@ export function demoBank(data: DemoData): BankModule {
       d.bankTransactions.sort((a, b) => b.date.localeCompare(a.date));
       account.balance = r2((account.balance ?? 0) + (input.type === 'receive' ? amount : -amount));
       return structuredClone(transaction);
+    },
+
+    // The demo books behave like Xero: same kinds, a required account number, optional code.
+    newAccount: {
+      types: ['bank', 'credit-card', 'paypal'],
+      accountNumberRequired: true,
+      codeOptional: true,
+      codeHint: 'Bank accounts can have no code, as in Xero.',
+      codeMaxLength: 10,
+      nameMaxLength: 150,
+      accountNumberMaxLength: 255,
+      currencySetup: {
+        text: 'The demo books have British pounds, euros and US dollars set up.',
+      },
+    },
+    async createAccount(input) {
+      const d = ready();
+      const accounts = chart(d);
+      if (input.code && accounts.some((a) => a.code === input.code)) {
+        throw new ConnectorError(`Account code ${input.code} is already in use.`, 400, 'demo');
+      }
+      if (d.bankAccounts.some((a) => a.name.toLowerCase() === input.name.toLowerCase())) {
+        throw new ConnectorError(
+          `There is already a bank account called ${input.name}.`,
+          400,
+          'demo'
+        );
+      }
+      if (!DEMO_CURRENCIES.some((c) => c.code === input.currency)) {
+        throw new ConnectorError(`${input.currency} isn't set up in the demo books.`, 400, 'demo');
+      }
+      const id = input.code ? `acc-${input.code}` : demoId('acc');
+      // A brand-new account has no transactions, so its balance really is zero.
+      const account: BankAccount = {
+        id,
+        name: input.name,
+        code: input.code || undefined,
+        accountNumber: input.accountNumber || undefined,
+        currency: input.currency,
+        balance: 0,
+        unreconciledCount: 0,
+        type: input.type ?? 'bank',
+      };
+      d.bankAccounts.push(account);
+      d.bankAccounts.sort((a, b) => a.name.localeCompare(b.name));
+      accounts.push({
+        id,
+        code: input.code ?? '',
+        name: input.name,
+        type: 'BANK',
+        typeLabel: 'Bank',
+        class: 'asset',
+        status: 'active',
+        isBank: true,
+      });
+      return structuredClone(account);
     },
   };
 }

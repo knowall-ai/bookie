@@ -24,6 +24,14 @@ export default async function Page({ params }: { params: Promise<{ org: string }
   const canTransfer = !!connector.bank.createTransfer && accounts.length >= 2;
   const hasTransfers = !!connector.bank.transfers;
   const newHref = `${base}/accounting/bank/new`;
+  // "Add bank account" needs the source's rules and its currency list (never a default).
+  const canAddAccount =
+    !!connector.bank.createAccount && !!connector.bank.newAccount && !!connector.currencies;
+  const addAccount = canAddAccount && (
+    <ButtonLink href={`${base}/accounting/bank/add`} variant="primary">
+      <Landmark className="h-4 w-4" /> Add bank account
+    </ButtonLink>
+  );
   // Xero's own wording is "Balance in Xero"; BC is abbreviated to fit the card.
   const source = org.kind === 'xero' ? 'Xero' : org.kind === 'business-central' ? 'BC' : 'books';
 
@@ -45,10 +53,12 @@ export default async function Page({ params }: { params: Promise<{ org: string }
               </ButtonLink>
             )}
             {canCreate && accounts.length > 0 && (
-              <ButtonLink href={newHref} variant="primary">
+              <ButtonLink href={newHref} variant={canAddAccount ? 'secondary' : 'primary'}>
                 <Plus className="h-4 w-4" /> Spend or receive money
               </ButtonLink>
             )}
+            {/* Where Xero puts "Add Bank Account": the main action, top right. */}
+            {addAccount}
           </>
         }
       />
@@ -57,6 +67,7 @@ export default async function Page({ params }: { params: Promise<{ org: string }
           icon={<Landmark className="h-6 w-6" />}
           title="No bank accounts yet"
           body={`Bank accounts you add in ${sourceName(org)} appear here with their balances.`}
+          action={addAccount || undefined}
         />
       ) : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
