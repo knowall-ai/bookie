@@ -46,6 +46,10 @@ p.add_argument("--crf", type=int, default=16)
 p.add_argument("--frames-dir", type=Path)
 p.add_argument("--sway-px", type=float, default=1.6, help="sideways swing at the floor, px at 1536 wide")
 p.add_argument("--breathe", type=float, default=0.22, help="bead brightness breathing, +/- fraction")
+p.add_argument("--calm-left", type=float, nargs=2, metavar=("FROM", "TO"),
+               help="fade the lights out to the left of FROM (fraction of width), full from TO, e.g. 0.30 0.50: "
+                    "keeps the left side calm behind the avatar's HUD panels")
+p.add_argument("--still-out", type=Path, help="also save frame 0 (the still backdrop/fallback) here")
 p.add_argument("--glint", type=float, default=0.45, help="extra brightness of the travelling glint")
 a = p.parse_args()
 
@@ -73,6 +77,11 @@ bg = im.filter(ImageFilter.MinFilter(size)).filter(ImageFilter.MaxFilter(size))
 bg = np.asarray(bg.filter(ImageFilter.GaussianBlur(6 * k)), dtype=np.float32) / 255.0
 bg = np.minimum(bg, img)
 light = img - bg  # >= 0, and bg + light == img exactly
+if a.calm_left:
+    x0f, x1f = a.calm_left
+    ramp = np.clip((np.arange(W, dtype=np.float32) / W - x0f) / max(1e-6, x1f - x0f), 0, 1)
+    ramp = ramp * ramp * (3 - 2 * ramp)          # smoothstep: no visible edge
+    light = light * ramp[None, :, None]
 
 # Where the floor starts: the reflections below it are treated as hanging from it.
 floor_y = int(0.85 * H)
@@ -139,6 +148,8 @@ for i in range(n):
     ff.stdin.write(f.tobytes())
 ff.stdin.close()
 ff.wait()
+if a.still_out:
+    Image.fromarray(frame(0)).save(a.still_out)
 # Seam check: the frame one step past the end must equal frame 0 to the rounding.
 seam = np.abs(frame(n / a.fps).astype(np.int16) - frame(0).astype(np.int16)).max()
 print(f"{a.out} {n} frames, {a.out.stat().st_size / 1e6:.2f} MB, seam max diff {seam}")
