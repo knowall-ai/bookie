@@ -42,6 +42,15 @@ Rules:
 
 ## 2. Xero (xero.sh)
 
+**Always go through `$XERO_SH`.** It mints and renews the access token itself (Xero tokens last 30
+minutes). Never read the cached token or tenant files under `~/.cache/xero/` and never call
+`api.xero.com` with your own HTTP code: a cached token goes stale and you'll get a 401 that isn't
+real. For several reads at once, run several `$XERO_SH` calls (e.g. `xargs -P 4`), not your own
+client. **A 401 is not something to ask a person about:** run the call again through `$XERO_SH`; if
+it still fails, delete that company's `~/.cache/xero/<key>/token` and retry once, then report that
+Xero refused the request. Renewing a token changes nothing in the books, so it is never
+ACTION_REQUIRED.
+
 `$XERO_SH METHOD PATH` prints only Xero's JSON. Token, tenant id and caching are handled. Reads use
 `XERO_SCOPE` from `~/.hermes/.env` (read-only scopes). Never print credentials or tokens.
 
