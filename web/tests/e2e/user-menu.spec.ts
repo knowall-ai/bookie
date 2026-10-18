@@ -16,9 +16,13 @@ test.describe('account menu', () => {
   test('opens with name, email, Settings and Sign out, and closes on Escape', async ({ page }) => {
     await page.goto(ORG);
     const button = page.getByRole('button', { name: 'Account menu' });
+    const chevron = page.getByTestId('user-menu-chevron');
     await expect(button).toHaveAttribute('aria-expanded', 'false');
+    await expect(chevron).toBeVisible();
+    await expect(chevron).not.toHaveClass(/rotate-180/);
     await button.click();
     await expect(button).toHaveAttribute('aria-expanded', 'true');
+    await expect(chevron).toHaveClass(/rotate-180/);
 
     const menu = page.getByRole('menu', { name: 'Account' });
     await expect(menu.getByText('Alex Morgan')).toBeVisible();
@@ -50,6 +54,13 @@ test.describe('account menu', () => {
     await button.focus();
     await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeFocused();
+  });
+
+  test('shows the chevron and opens the menu on a phone @mobile', async ({ page }) => {
+    await page.goto(ORG);
+    await expect(page.getByTestId('user-menu-chevron')).toBeVisible();
+    await page.getByRole('button', { name: 'Account menu' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible();
   });
 
   test('Settings opens the settings page', async ({ page }) => {
