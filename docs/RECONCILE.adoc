@@ -22,14 +22,17 @@ _Demo organisation only (`BOOKIE_DEV_AUTH=demo`): every name and amount is ficti
   Bookie's connection, and the Finance API's `BankStatementsPlus` is restricted to approved lending
   partners.
 | Not available. API v2.0 has no bank statement, bank account reconciliation or payment
-  reconciliation journal entity (only `bankAccounts`, `journals`/`journalLines`,
-  `customerPayments` and `vendorPayments`).
+  reconciliation journal entity. For banking it has only `bankAccounts`, `journals`/`journalLines`,
+  and the customer and vendor payment journals (`customerPaymentJournals`, `vendorPaymentJournals`)
+  with their lines (`customerPayments`, `vendorPayments`).
 
 | Record the payment
 | `PUT /Payments` against the invoice or bill, from the bank account, for the line's amount and date.
 | With the Bookie BC extension, customer payments are registered and posted to a local-currency
   bank account (`paymentRegistrations`). Bills are paid in Business Central with a payment journal.
-  Without the extension, Bookie can't post a payment to a bank account.
+  Without the extension, the API's payment journal lines balance against the journal batch's own
+  account (not a bank account chosen per payment), and posting posts every line in the batch, so
+  Bookie doesn't record payments there.
 
 | Reconcile the statement line
 | Not through the API. `IsReconciled: true` on a new payment only flags it; it isn't matched to the
@@ -59,12 +62,15 @@ The matcher is a pure module, `web/src/lib/reconcile/match.ts`, unit-tested in `
 ** the amount: the same as the amount still due, or a *part-payment* when the line is smaller
    (a line bigger than the amount due is never a candidate);
 ** the invoice number, or the customer's own reference, in the line's reference or description
-   (ignoring spaces, dashes and case);
-** the contact's name (its first distinctive word) in the line;
+   (ignoring spaces, dashes and case; an all-digit number must appear as a whole word of at least
+   four digits, so it doesn't match inside a sort code or card number);
+** the contact's name (its first distinctive word, which is what the reason names) in the line;
 ** the date: from a few days before the invoice date to 60 days after the due date.
 * A candidate is suggested on an exact amount alone, on the invoice number alone, or on two weaker
   clues together. Several candidates are listed best first; none gives *No match found* and *Find &
   match*.
+* One line is matched to one invoice or bill. A line that pays several documents at once can't be
+  matched here yet; Find & match says no single document has that much due.
 
 == Never guessing
 
@@ -74,19 +80,27 @@ The matcher is a pure module, `web/src/lib/reconcile/match.ts`, unit-tested in `
 * *Unknown amount due* (for example Business Central bills without the Bookie BC extension): never
   treated as zero or as the full total. The candidate can still appear on its number or contact,
   marked "amount due not available from Business Central", without *Match*.
-* *Already recorded:* if the books already have an unreconciled entry for the same amount and
-  direction within a week of the line (a payment against the invoice, or spend or receive money),
-  the line says "Payment already recorded for INV-0042; reconcile it in Xero" and *Match* isn't
-  offered. Each entry explains one line. If the account's transactions can't be read, Bookie says
-  it can't check and doesn't offer *Match*.
+* *Already recorded:* an unreconciled entry in the books for the same amount and direction within
+  a week of a statement line (a payment, or spend or receive money) is that line: it says "Payment
+  already recorded for INV-0042; reconcile it in Xero" and *Match* isn't offered. Each entry
+  explains one line, going first to the line that names its document. For a line typed into Find &
+  match, such an entry is shown as a warning, and *Match* asks the person to confirm it is a
+  different payment.
+* *Never twice on one document:* whatever the page showed, the server refuses a payment when the
+  invoice or bill already has a payment of that amount within a week of the line, reconciled or
+  not.
+* If the account's transactions can't all be read (an error, or more than one page of them),
+  Bookie says it can't check and doesn't offer *Match*.
 
 == Matching
 
 *Match* opens a confirmation that states the payment (amount, document, bank account, date) and
 what will still need doing in the source. On confirm, the `matchBankLine` server action
-(`web/src/lib/portal/actions/reconcile.ts`) re-resolves the organisation, re-checks direction,
-currency and that nothing is already recorded, then records the payment through `recordPayment`,
-which re-reads the invoice or bill and refuses more than the amount due.
+(`web/src/lib/portal/actions/reconcile.ts`) re-resolves the organisation and re-reads a statement
+line from the source rather than trusting the request. It then re-checks the direction, the
+currency, that the amount due is still what the page showed (so a second tab or another person
+can't pay it twice), and that nothing is already recorded. Finally it records the payment through
+`recordPayment`, which re-reads the invoice or bill and refuses more than the amount due.
 
 == For Bookie the agent
 

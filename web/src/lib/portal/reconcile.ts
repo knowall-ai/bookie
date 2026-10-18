@@ -55,6 +55,8 @@ export async function unreconciledEntries(
     });
     // A source that can't list transactions explains why in `note` and returns nothing.
     if (page.note && page.items.length === 0) return undefined;
+    // More than one page: entries past it would go unseen, so don't claim to have checked.
+    if (page.hasMore) return undefined;
     return page.items.filter((t) => !t.isReconciled && t.status === 'authorised');
   } catch {
     return undefined;

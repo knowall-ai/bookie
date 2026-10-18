@@ -13,6 +13,9 @@ export function MatchButton({
   orgKey,
   bankAccountId,
   bankAccountName,
+  lineId,
+  expectedAmountDue,
+  similar,
   line,
   document,
   sourceName,
@@ -22,6 +25,12 @@ export function MatchButton({
   orgKey: string;
   bankAccountId: string;
   bankAccountName: string;
+  /** The statement line's id, when the line came from the source. */
+  lineId?: string;
+  /** The amount due the page showed, re-checked on the server. */
+  expectedAmountDue: number;
+  /** An entry already in the books for this amount ("payment for INV-0042 on 3 Oct 2026"). */
+  similar?: string;
   line: {
     direction: 'in' | 'out';
     date: string;
@@ -45,6 +54,9 @@ export function MatchButton({
       const result = await matchBankLine(orgKey, {
         invoiceId: document.id,
         bankAccountId,
+        lineId,
+        expectedAmountDue,
+        acknowledgeSimilar: !!similar,
         direction: line.direction,
         date: line.date,
         amount: line.amount,
@@ -79,6 +91,7 @@ export function MatchButton({
         size="sm"
         variant="primary"
         onClick={() => setConfirming(true)}
+        aria-label={`Match ${document.number}`}
         data-testid={`match-${document.number}`}
       >
         Match
@@ -97,6 +110,12 @@ export function MatchButton({
                 {document.contactName}), {line.direction === 'in' ? 'into' : 'from'}{' '}
                 {bankAccountName}, dated {formatDate(line.date)}, in {sourceName}.
               </p>
+              {similar && (
+                <p className="text-warn">
+                  Already in the books for this amount: {similar}. Record this payment as well only
+                  if it is a different payment.
+                </p>
+              )}
               <p>{afterPayment}</p>
             </div>
           }

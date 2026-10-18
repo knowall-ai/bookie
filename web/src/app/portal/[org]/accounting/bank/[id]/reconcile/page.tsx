@@ -5,6 +5,7 @@ import { orgContext, sourceName } from '@/lib/portal/context';
 import { canPay, openDocuments, unreconciledEntries } from '@/lib/portal/reconcile';
 import {
   findRecorded,
+  isCalendarDate,
   reconcileLines,
   searchCandidates,
   type BankLine,
@@ -25,13 +26,11 @@ import { registerTypeLabel } from '@/components/accounting/register';
 
 export const metadata = { title: 'Reconcile' };
 
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
-
 /** A line typed into Find & match, when every field is valid. */
 function manualLine(query: Record<string, string | undefined>): BankLine | undefined {
   const amount = Number(query.amount);
   const direction = query.direction === 'out' ? 'out' : query.direction === 'in' ? 'in' : undefined;
-  if (!direction || !(amount > 0) || !query.date || !ISO.test(query.date)) return undefined;
+  if (!direction || !(amount > 0) || !query.date || !isCalendarDate(query.date)) return undefined;
   return {
     id: 'manual',
     direction,
@@ -74,23 +73,29 @@ export default async function Page({
     description: l.description,
     payee: l.payee,
   }));
-  const target = query.line ? lines.find((l) => l.id === query.line) : manualLine(query);
+  const fromStatement = query.line ? lines.find((l) => l.id === query.line) : undefined;
+  const typed = query.line ? undefined : manualLine(query);
+  const target = fromStatement ?? typed;
   const search = query.q?.trim().slice(0, 100) || undefined;
 
   const wants = (direction: BankLine['direction']) =>
     lines.some((l) => l.direction === direction) || target?.direction === direction;
   const none = { items: [] as Invoice[], hasMore: false };
-  const [sales, bills, entries, found] = await Promise.all([
+  const [sales, bills, entries, searched] = await Promise.all([
     wants('in') ? openDocuments(connector, 'sales') : none,
     wants('out') ? openDocuments(connector, 'purchase') : none,
     unreconciledEntries(connector, account, target ? [...lines, target] : lines),
-    target
+    target && search
       ? openDocuments(connector, target.direction === 'in' ? 'sales' : 'purchase', search)
-      : none,
+      : undefined,
   ]);
   const candidates = [...sales.items, ...bills.items];
   const outcomes = reconcileLines(lines, candidates, entries ?? [], options);
-  const targetRecorded = target && entries ? findRecorded(target, entries) : undefined;
+  // Without a search, Find & match looks at the same open documents as the suggestions.
+  const found = searched ?? (target?.direction === 'out' ? bills : sales);
+  // A statement line keeps the outcome it has above; a typed line only gets a warning.
+  const targetOutcome = fromStatement ? outcomes.get(fromStatement.id) : undefined;
+  const similar = typed && entries ? findRecorded(typed, entries) : undefined;
   const results = target ? searchCandidates(target, found.items, search, options) : [];
 
   const docHref = (invoice: Invoice) =>
@@ -98,7 +103,7 @@ export default async function Page({
   // Without the register Bookie can't rule out a duplicate, so it doesn't offer Match.
   const unchecked = entries
     ? undefined
-    : `Bookie couldn't read this account's transactions in ${source}, so it can't check whether a payment is already recorded.`;
+    : `Bookie couldn't read all of this account's transactions in ${source}, so it can't check whether a payment is already recorded.`;
   const afterPayment = guide?.afterPayment ?? `Reconcile the statement line in ${source}.`;
 
   const matchCell = (line: BankLine, s: Suggestion) => {
@@ -108,14 +113,17 @@ export default async function Page({
       (canPay(connector, s.invoice.type)
         ? undefined
         : `${source} doesn't let Bookie record this payment. Record it in ${source}.`);
-    if (blocked) {
-      return <span className="text-faint text-xs">{blocked}</span>;
+    if (blocked || s.invoice.amountDue === undefined) {
+      return <span className="text-muted max-w-xs text-xs">{blocked}</span>;
     }
     return (
       <MatchButton
         orgKey={org.key}
         bankAccountId={account.id}
         bankAccountName={account.name}
+        lineId={lines.includes(line) ? line.id : undefined}
+        expectedAmountDue={s.invoice.amountDue}
+        similar={line === typed && similar ? describeEntry(similar) : undefined}
         line={{
           direction: line.direction,
           date: line.date,
@@ -286,24 +294,38 @@ export default async function Page({
           Find &amp; match
         </h2>
         <p className="text-muted mt-1 text-sm">
-          {query.line && target
+          {fromStatement
             ? 'Search the open invoices and bills for this statement line.'
-            : 'Enter a line from your bank statement to find the invoice or bill it pays.'}
+            : 'Enter a line from your bank statement to find the invoice or bill it pays.'}{' '}
+          Bookie matches one line to one invoice or bill.
         </p>
         <FindForm
           action={`${path}/reconcile`}
           account={account}
-          target={query.line ? target : undefined}
+          target={fromStatement}
           query={query}
           search={search}
         />
         {target && (
           <div className="mt-4" data-testid="find-results">
-            {query.line && <LineSummary line={target} currency={currency} />}
+            {fromStatement && <LineSummary line={fromStatement} currency={currency} />}
+            {found.hasMore && (
+              <p className="text-muted mt-3 text-xs">
+                Bookie looked at the latest 100 open{' '}
+                {target.direction === 'in' ? 'invoices' : 'bills'}
+                {search ? ` matching “${search}”` : ''}. Search to narrow it down.
+              </p>
+            )}
+            {similar && (
+              <p className="text-warn mt-3 text-sm" data-testid="similar-entry">
+                Already in the books for this amount: {describeEntry(similar)}, not yet reconciled.
+                If this line is that, reconcile it in {source} instead of matching.
+              </p>
+            )}
             <div className="mt-3">
-              {targetRecorded ? (
+              {targetOutcome?.kind === 'already-recorded' ? (
                 <AlreadyRecorded
-                  entry={targetRecorded}
+                  entry={targetOutcome.entry}
                   source={source}
                   reconcileUrl={reconcileUrl}
                 />
@@ -311,8 +333,8 @@ export default async function Page({
                 suggestionList(target, results)
               ) : (
                 <p className="text-body text-sm">
-                  No open {target.direction === 'in' ? 'invoices' : 'bills'} in {currency} for this
-                  amount{search ? ` matching “${search}”` : ''}.
+                  No single open {target.direction === 'in' ? 'invoice' : 'bill'} in {currency} has
+                  this much or more due{search ? ` and matches “${search}”` : ''}.
                 </p>
               )}
             </div>
@@ -339,6 +361,15 @@ function LineSummary({ line, currency }: { line: BankLine; currency?: string }) 
       </p>
     </div>
   );
+}
+
+/** "payment for INV-0042 on 3 Oct 2026" or "receive money on 3 Oct 2026". */
+function describeEntry(entry: BankTransaction): string {
+  const what =
+    entry.source === 'payment'
+      ? `payment${entry.document?.number ? ` for ${entry.document.number}` : ''}`
+      : registerTypeLabel(entry).toLowerCase();
+  return `${what} on ${formatDate(entry.date)}`;
 }
 
 function AlreadyRecorded({
@@ -401,7 +432,7 @@ function FindForm({
             </Select>
           </Field>
           <Field
-            label={`Amount (${account.currency || '?'})`}
+            label={account.currency ? `Amount (${account.currency})` : 'Amount'}
             htmlFor="find-amount"
             className="w-36"
           >

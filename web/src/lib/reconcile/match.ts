@@ -99,6 +99,13 @@ const CORPORATE = new Set([
   'cv',
 ]);
 
+/** A real calendar date in `YYYY-MM-DD` form (not 2026-13-01 or 2026-02-30). */
+export function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value;
+}
+
 const DAY = 86_400_000;
 const days = (from: IsoDate, to: IsoDate) =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
@@ -133,21 +140,32 @@ function foundIn(line: BankLine, test: (field: string) => boolean): string | und
   return undefined;
 }
 
+/**
+ * Whether a field contains a document number or reference. Letters-and-digits
+ * numbers ("INV-0042") match ignoring spaces, dashes and case. All-digit
+ * numbers ("103021") must be a whole word of at least four digits, so they
+ * don't match inside sort codes, account or card numbers.
+ */
 const containsCompact = (needle: string) => {
   const n = compact(needle);
-  // Very short numbers ("12") would match almost any reference.
+  if (/^\d+$/.test(n)) {
+    return (field: string) => n.length >= 4 && words(field).includes(n.toLowerCase());
+  }
+  // Very short codes ("A1") would match almost any reference.
   return (field: string) => n.length >= 3 && compact(field).includes(n);
 };
+
+const titleCase = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
 
 const containsWord = (word: string) => (field: string) => words(field).includes(word);
 
 function dateReason(line: BankLine, invoice: Invoice): string | undefined {
   const before = days(invoice.date, line.date);
-  if (before < -BEFORE_INVOICE_DAYS) return undefined;
+  if (!Number.isFinite(before) || before < -BEFORE_INVOICE_DAYS) return undefined;
   const anchor = invoice.dueDate ?? invoice.date;
   const label = invoice.dueDate ? 'due date' : 'invoice date';
   const diff = days(anchor, line.date);
-  if (diff > AFTER_DUE_DAYS) return undefined;
+  if (!Number.isFinite(diff) || diff > AFTER_DUE_DAYS) return undefined;
   if (diff === 0) return `on the ${label}`;
   const n = Math.abs(diff);
   return `${n} ${n === 1 ? 'day' : 'days'} ${diff > 0 ? 'after' : 'before'} ${label}`;
@@ -205,7 +223,8 @@ export function scoreCandidate(
   const contactAt = keyword ? foundIn(line, containsWord(keyword)) : undefined;
   if (contactAt) {
     score += WEIGHTS.contact;
-    reasons.push(`${contactAt} has ${invoice.contact.name}`);
+    // Only the distinctive word is looked for, so that's what the reason names.
+    reasons.push(`${contactAt} has ${titleCase(keyword!)}`);
   }
   const when = dateReason(line, invoice);
   if (when) {
@@ -291,19 +310,23 @@ export function searchCandidates(
 
 const isIncoming = (t: BankTransaction) => t.type === 'receive' || t.type === 'transfer-in';
 
+/** True when the entry is a payment on a document the line names by number. */
+const namesEntry = (line: BankLine, t: BankTransaction) =>
+  !!t.document?.number && !!foundIn(line, containsCompact(t.document.number));
+
 /**
  * The unreconciled entry in the books that this line already is: same
- * direction and amount, within a week. Entries that name a document in the
- * line come first, then the nearest date. `used` holds entries already
- * claimed by earlier lines, so one entry explains one line.
+ * direction and amount, within a week. Entries whose document the line names
+ * come first, then the nearest date. `used` holds entries already claimed by
+ * other lines, so one entry explains one line; `namedOnly` keeps only entries
+ * whose document the line names.
  */
 export function findRecorded(
   line: BankLine,
   entries: BankTransaction[],
-  used: Set<string> = new Set()
+  used: Set<string> = new Set(),
+  namedOnly = false
 ): BankTransaction | undefined {
-  const named = (t: BankTransaction) =>
-    !!t.document?.number && !!foundIn(line, containsCompact(t.document.number));
   return entries
     .filter(
       (t) =>
@@ -312,41 +335,82 @@ export function findRecorded(
         !used.has(entryKey(t)) &&
         isIncoming(t) === (line.direction === 'in') &&
         Math.abs(t.amount - line.amount) < EPSILON &&
-        Math.abs(days(t.date, line.date)) <= RECORDED_WINDOW_DAYS
+        Math.abs(days(t.date, line.date)) <= RECORDED_WINDOW_DAYS &&
+        (!namedOnly || namesEntry(line, t))
     )
     .sort(
       (a, b) =>
-        Number(named(b)) - Number(named(a)) ||
+        Number(namesEntry(line, b)) - Number(namesEntry(line, a)) ||
         Math.abs(days(a.date, line.date)) - Math.abs(days(b.date, line.date)) ||
         a.id.localeCompare(b.id)
     )[0];
 }
 
-const entryKey = (t: BankTransaction) => `${t.source ?? ''}:${t.id}`;
+export const entryKey = (t: BankTransaction) => `${t.source ?? ''}:${t.id}`;
 
 /**
- * Outcomes for every line. Lines are taken oldest first so each existing entry
- * is claimed by the nearest earlier line; the result is keyed by line id.
+ * Which line each existing entry explains. Entries go first to lines that
+ * name their document, then by amount to the other lines, oldest first, so
+ * two lines for the same amount never both claim one payment.
  */
+export function assignRecorded(
+  lines: BankLine[],
+  entries: BankTransaction[]
+): Map<string, BankTransaction> {
+  const used = new Set<string>();
+  const assigned = new Map<string, BankTransaction>();
+  const ordered = [...lines].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
+  );
+  for (const namedOnly of [true, false]) {
+    for (const line of ordered) {
+      if (assigned.has(line.id)) continue;
+      const entry = findRecorded(line, entries, used, namedOnly);
+      if (entry) {
+        used.add(entryKey(entry));
+        assigned.set(line.id, entry);
+      }
+    }
+  }
+  return assigned;
+}
+
+/** Outcomes for every line, keyed by line id. */
 export function reconcileLines(
   lines: BankLine[],
   candidates: Invoice[],
   entries: BankTransaction[],
   options: MatchOptions
 ): Map<string, LineOutcome> {
-  const used = new Set<string>();
-  const outcomes = new Map<string, LineOutcome>();
-  const ordered = [...lines].sort(
-    (a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
+  const assigned = assignRecorded(lines, entries);
+  return new Map(
+    lines.map((line): [string, LineOutcome] => {
+      const entry = assigned.get(line.id);
+      return [
+        line.id,
+        entry ? { kind: 'already-recorded', entry } : suggestForLine(line, candidates, options),
+      ];
+    })
   );
-  for (const line of ordered) {
-    const entry = findRecorded(line, entries, used);
-    if (entry) {
-      used.add(entryKey(entry));
-      outcomes.set(line.id, { kind: 'already-recorded', entry });
-    } else {
-      outcomes.set(line.id, suggestForLine(line, candidates, options));
-    }
-  }
-  return outcomes;
+}
+
+/**
+ * A payment of the line's amount already on this very document within a week
+ * of the line, reconciled or not: recording another would count the money
+ * twice. Checks the document's own payments and register entries for it.
+ */
+export function paidAlready(
+  line: BankLine,
+  invoice: Invoice,
+  entries: BankTransaction[] = []
+): { date: IsoDate; amount: number } | undefined {
+  const near = (date: IsoDate, amount: number) =>
+    Math.abs(amount - line.amount) < EPSILON &&
+    Math.abs(days(date, line.date)) <= RECORDED_WINDOW_DAYS;
+  const own = invoice.payments?.find((p) => near(p.date, p.amount));
+  if (own) return { date: own.date, amount: own.amount };
+  const entry = entries.find(
+    (t) => t.status === 'authorised' && t.document?.id === invoice.id && near(t.date, t.amount)
+  );
+  return entry ? { date: entry.date, amount: entry.amount } : undefined;
 }

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { BankTransaction, Invoice } from '@/lib/domain/types';
 import {
+  assignRecorded,
   contactKeyword,
+  isCalendarDate,
+  paidAlready,
   findRecorded,
   reconcileLines,
   scoreCandidate,
@@ -57,7 +60,7 @@ describe('scoreCandidate', () => {
     expect(s.reasons).toEqual([
       'same amount',
       'reference has INV-0042',
-      'reference has Contoso Coffee Ltd',
+      'reference has Contoso',
       '2 days after due date',
     ]);
     expect(s.payable).toBe(true);
@@ -135,7 +138,7 @@ describe('scoreCandidate', () => {
       options
     )!;
     expect(s.reasons).toContain('description has PO 4123');
-    expect(s.reasons).toContain('description has Contoso Coffee Ltd');
+    expect(s.reasons).toContain('description has Contoso');
   });
 });
 
@@ -223,5 +226,57 @@ describe('contactKeyword', () => {
     expect(contactKeyword('The Contoso Group Ltd')).toBe('contoso');
     expect(contactKeyword('Fabrikam SA de CV')).toBe('fabrikam');
     expect(contactKeyword('Ltd')).toBeUndefined();
+  });
+});
+
+describe('numbers and dates', () => {
+  it('matches all-digit numbers only as a whole word of four or more digits', () => {
+    const bc = invoice({ number: '103021', amountDue: 5000 });
+    const inCard = scoreCandidate(
+      line({ amount: 1, description: 'CARD 4921 10302155' }),
+      bc,
+      options
+    )!;
+    expect(inCard.reasons).not.toContain('description has 103021');
+    const asWord = scoreCandidate(line({ amount: 1, reference: 'INV 103021' }), bc, options)!;
+    expect(asWord.reasons).toContain('reference has 103021');
+  });
+
+  it('accepts only real calendar dates', () => {
+    expect(isCalendarDate('2026-10-03')).toBe(true);
+    expect(isCalendarDate('2026-13-01')).toBe(false);
+    expect(isCalendarDate('2026-02-30')).toBe(false);
+  });
+
+  it('gives no date reason for an impossible date', () => {
+    const s = scoreCandidate(line({ date: '2026-13-01' }), invoice(), options)!;
+    expect(s.reasons.some((r) => r.includes('NaN'))).toBe(false);
+  });
+});
+
+describe('assignRecorded', () => {
+  it('gives an entry to the line naming its document before an older line of the same amount', () => {
+    const older = line({ id: 'older', date: '2026-10-01', reference: 'INV-0099' });
+    const naming = line({ id: 'naming', date: '2026-10-03', reference: 'INV-0042' });
+    const assigned = assignRecorded([older, naming], [entry()]);
+    expect(assigned.get('naming')?.id).toBe('pay-1');
+    expect(assigned.has('older')).toBe(false);
+  });
+});
+
+describe('paidAlready', () => {
+  it('finds a payment of the same amount on the document itself, reconciled or not', () => {
+    const paid = invoice({ payments: [{ id: 'p', date: '2026-10-02', amount: 1200 }] });
+    expect(paidAlready(line(), paid)).toEqual({ date: '2026-10-02', amount: 1200 });
+    expect(paidAlready(line(), invoice(), [entry({ isReconciled: true })])).toBeDefined();
+  });
+
+  it('ignores payments on other documents, other amounts and far-off dates', () => {
+    const other = entry({ document: { id: 'x', kind: 'invoice' } });
+    expect(paidAlready(line(), invoice(), [other])).toBeUndefined();
+    const part = invoice({ payments: [{ id: 'p', date: '2026-10-02', amount: 600 }] });
+    expect(paidAlready(line(), part)).toBeUndefined();
+    const old = invoice({ payments: [{ id: 'p', date: '2026-08-02', amount: 1200 }] });
+    expect(paidAlready(line(), old)).toBeUndefined();
   });
 });
