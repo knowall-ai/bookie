@@ -266,3 +266,51 @@ title, "BOOKIE // TELEMETRY", so don't blank it). Setting `badge_style.badge_ima
 fully transparent PNG works: the renderer finds no bounding box, scales the empty image
 and composites nothing. That is what `--no-badge` does; for a live call, add a
 transparent PNG to `assets_dir` and point `badge_style.badge_image` at it.
+
+## Backdrops, round 3: the far future (`backdrops/`)
+
+Round 2 kept the family recipe but read as present-day rooms; the owner said they "don't look very
+futuristic", next to Sallie's starship bridge and Poppie's neon city. Round 3 keeps every rule of
+the recipe (dark room at eye level, one lit feature on the right carrying the motion, a still dark
+left third for the HUD, plain wall behind his head, a quiet top right for the logo, empty,
+1536x1024) and moves the world firmly into science fiction. Same command as before, prompt
+`"$SCENE $FUTURE3_BASE"`. All five use `backdrop.video`: each `bookie-bg-<slug>.json` names the still
+(first frame and fallback) and its 10 s loop (1-2.3 MB).
+
+**FUTURE3_BASE:**
+
+> Wide 3:2 EMPTY BACKDROP PLATE for a video-call avatar: a far-future SCIENCE-FICTION interior, the domain of a calm, precise AI bookkeeper, with the production design of a high-end sci-fi film: seamless curved composite panels, recessed light-lines, holographic light, glass and brushed brass. Unmistakably the future, never a present-day room. Photoreal cinematic render, shot at seated eye level, straight on, in calm one-point perspective. LOW-KEY lighting: the room itself is almost black, in deep shadow; nearly all the light comes from the scene's one bright feature on the right; most of the frame is very dark. Palette: near-black and deep navy (#0b1120), warm gold and amber light, brushed brass, and only a few small touches of KnowAll green (#22C55E). Calm, quiet, warm and trustworthy, never cold or menacing. COMPOSITION: the LEFT THIRD of the frame is a plain, smooth, dark curved wall panel in deep shadow, nearly black, with no lights, no windows, no consoles, no objects and no detail. The CENTRE third, where a character will stand in front, is calm, dim and plain from top to bottom, with no bright objects. The bright, detailed part of the scene sits in the RIGHT third, starting no further left than about 70% of the width. The top quarter of the frame, including the top-right corner, is plain dark ceiling or wall. Gentle shallow depth of field. Any holograms are made only of light and show only abstract bars, smooth curves, rings and dots: no glyphs, letters, numbers or symbols. NO people, NO robots, NO characters, NO statues, NO furniture in the foreground, no readable text, letters, numbers, labels, signs, screens with writing or logos anywhere, no watermark.
+
+| # | Slug | Motion | SCENE |
+|---|---|---|---|
+| 1 | `orbital-deck` | Earth turns below the viewport (flow loop), its city lights and the stars twinkle, a shuttle crosses the stars, the holo panels float and flicker | Scene: the finance deck of an orbital space station. On the RIGHT, from about 70% of the width to the right edge, a large curved viewport in a slim brass frame, its top edge about one-third down from the top of the image. Through it, Earth from orbit at night: the dark curve of the planet fills the lower part of the viewport, covered in a fine web of warm gold city lights, with a thin glowing blue-gold atmosphere line along its horizon and black space with a few stars above. Just in front of the viewport float two or three faint translucent holographic ledger panels in soft gold, showing only abstract rounded bars and one smooth curve. A thin gold light-line runs along the base of the curved wall. |
+| 2 | `neon-counting-house` | seven flying craft cross the window with light trails, light climbs the holographic ledger columns, the city twinkles | Scene: a counting-house on a high floor of a megacity tower of the far future, at night. On the RIGHT, from about 70% of the width to the right edge, a tall window, its top edge at about 40% of the height, so the whole upper part of the right side above it, including the top-right corner, is plain dark wall. Through it, slightly out of focus, a vast cyberpunk megacity in warm gold and amber light with a few green accents: towering arcologies with tiny crisp window lights, glowing sky-bridges, and a few small flying vehicles with bright gold and red running lights, under a deep navy sky with soft haze. No signs and no writing. Just inside the window stand three tall, slender holographic ledger columns of soft gold light, made of thin stacked horizontal light bars, translucent. The room is dark. |
+| 3 | `holo-vault` | light runs round the rings of the door, the holographic coins float and flicker, data motes drift, the green light breathes | Scene: a sci-fi data vault chamber. At the far RIGHT edge of the frame, a great circular data-vault door seen straight on and closed, cut off by the right edge so that only its left half is visible, starting at about 74% of the width; its circle spans from about 38% to 92% of the height. The door is dark glass and brushed brass, with concentric rings of thin glowing warm gold light-lines tracing its rim and a few segmented arcs of light, and a small soft green light at its edge. In front of it, a few small translucent gold holographic coins and thin ring shapes float in a slow arc, made only of light. The whole upper third of the right side, above the door, is plain dark wall. A thin gold light-line runs along the floor. |
+| 4 | `starship-bridge` | the nebula drifts (flow loop), stars twinkle, a ship crosses the viewport, the console charts pulse upwards | Scene: the quiet ledger bridge of a far-future starship, a sibling of a classic starship bridge. On the RIGHT, from about 70% of the width to the right edge, a tall faceted viewport in a dark composite frame with slim brass trim, its top edge at about 40% of the height, so the whole upper part of the right side above it, including the top-right corner, is plain dark panelling. Through it, deep space: a soft, glowing nebula of gold, amber and faint teal clouds, scattered with many crisp bright stars of varied sizes. Below the viewport, a low, sleek console with gold-trimmed edges whose glass surface glows faintly with abstract bar charts and curves only, no text. The rest of the bridge is dark curved panelling in deep shadow. |
+| 5 | `data-archive` | packets of gold light flow down the data streams and their floor reflections, the skyline twinkles, one craft crosses the far window | Scene: a far-future data archive of dark glass. On the RIGHT, from about 70% of the width to the right edge, a short corridor of dark glass panels recedes in perspective, and inside the glass run many thin vertical streams of glowing warm gold light, like flowing data, made of fine dots and short dashes of light, with a rare green one. At the far end of the corridor, a tall narrow window shows a futuristic night skyline of slender glowing towers. The top of the glass panels is about one-third down from the top of the image, with plain dark ceiling above. A dark polished floor reflects the gold streams faintly. |
+
+Two candidates were made per scene. Picks: orbital `a` (the `b` panels had rows of short lines
+that read as pseudo-text), vault `a`, archive `b` (its streams start clear of his ear cup). The
+first counting-house and bridge windows reached the top and put a busy city or bright nebula under
+the logo, so they were re-rolled with the window's top edge at 40% of the height (the prompts
+above).
+
+Loops (`scripts/backdrop_motion_loop.py`, which gained `--flow`, `--traffic` and `--bob` for these):
+
+```sh
+S=agent/assets/scripts/backdrop_motion_loop.py; B=agent/assets/backdrops
+python3 $S $B/bookie-bg-orbital-deck.png $B/bookie-bg-orbital-deck-loop.mp4 \
+  --clouds 0.76 0.50 0.995 0.69 --cloud-px 60 --twinkle 0.62 0.15 0.995 0.69 --traffic 0.62 0.14 0.995 0.40 2 --bob 0.575 0.37 0.765 0.65
+python3 $S $B/bookie-bg-neon-counting-house.png $B/bookie-bg-neon-counting-house-loop.mp4 \
+  --traffic 0.63 0.27 0.995 0.62 7 --flow 0.85 0.27 0.965 0.84 -1 --flow 0.75 0.55 0.815 0.84 -1 --twinkle 0.63 0.27 0.995 0.84
+python3 $S $B/bookie-bg-holo-vault.png $B/bookie-bg-holo-vault-loop.mp4 \
+  --glint 0.969 0.46 0.263 --glint-gain 0.8 --bob 0.665 0.26 0.80 0.62 --motes 0.66 0.20 0.99 0.80 --pulse 0.777 0.454
+python3 $S $B/bookie-bg-starship-bridge.png $B/bookie-bg-starship-bridge-loop.mp4 \
+  --clouds 0.665 0.19 0.995 0.58 --cloud-px 50 --twinkle 0.64 0.17 0.995 0.60 --traffic 0.64 0.17 0.995 0.58 1 --breathe 0.64 0.62 0.995 0.71 --flow 0.64 0.62 0.995 0.71 -1
+python3 $S $B/bookie-bg-data-archive.png $B/bookie-bg-data-archive-loop.mp4 \
+  --flow 0.75 0.10 1.0 1.0 1 --twinkle 0.685 0.30 0.745 0.65 --traffic 0.69 0.30 0.742 0.55 1
+```
+
+Craft enter and leave outside the window mask, so they need no cross-fade; flow packets move a
+whole number of wavelengths per loop; hologram float and flicker are whole cycles per loop. The
+script reports the seam (at most 1 level) and that the left third never changes (0).

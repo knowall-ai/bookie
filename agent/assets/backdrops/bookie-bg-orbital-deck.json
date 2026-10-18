@@ -1,0 +1,7 @@
+{
+  "bg": "backdrops/bookie-bg-orbital-deck.png",
+  "stars": false,
+  "rain": null,
+  "video": "backdrops/bookie-bg-orbital-deck-loop.mp4",
+  "video_fps": 10
+}

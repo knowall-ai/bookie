@@ -1,0 +1,7 @@
+{
+  "bg": "backdrops/bookie-bg-starship-bridge.png",
+  "stars": false,
+  "rain": null,
+  "video": "backdrops/bookie-bg-starship-bridge-loop.mp4",
+  "video_fps": 10
+}
