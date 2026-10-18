@@ -121,6 +121,30 @@ test.describe('accounts inbox', () => {
     await expect(row(page, /AGB-2291/)).toHaveAttribute('data-verdict', 'in-books');
   });
 
+  test('a new supplier is added only after its own confirmation, without bank details', async ({
+    page,
+  }) => {
+    await page.goto(`${WRITE_ORG}/purchases/accounts-inbox/demo-mail-new-supplier/att-1`);
+    const add = page.getByTestId('add-supplier');
+    test.skip(
+      (await add.count()) === 0,
+      'Already added earlier on this dev server (demo state persists until restart).'
+    );
+    const panel = page.getByTestId('supplier-panel');
+    await expect(panel).toContainText('New supplier');
+    await expect(panel).toContainText('Wingtip Office Supplies Ltd');
+    await expect(panel).toContainText('(from the PDF)');
+    await expect(panel).not.toContainText('41009999');
+    await add.click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toContainText('Add this supplier?');
+    await expect(dialog).toContainText('no bank details');
+    await dialog.getByTestId('confirm-action').click();
+    await expect(page.getByText('Added Wingtip Office Supplies Ltd as a supplier')).toBeVisible();
+    await expect(panel).toContainText('Supplier: Wingtip Office Supplies Ltd');
+    await expect(page.getByTestId('editor-contact')).toHaveValue(/.+/);
+  });
+
   test('Settings shows the accounts mailbox', async ({ page }) => {
     await page.goto('/portal/settings');
     await expect(page.getByTestId('accounts-mailbox-input')).toHaveValue(

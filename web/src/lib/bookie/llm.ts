@@ -112,7 +112,8 @@ export async function respondJson(
         format: { type: 'json_schema', name: schema.name, schema: schema.schema, strict: true },
       },
       store: false,
-      max_output_tokens: 8000,
+      // Room for long invoices (up to 200 lines) without truncating the JSON.
+      max_output_tokens: 16000,
     }),
     cache: 'no-store',
   });

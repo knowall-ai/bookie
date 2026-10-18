@@ -283,7 +283,9 @@ export function findExistingBill(query: BillQuery, bills: Invoice[]): BillMatch 
       (b) =>
         Math.abs(b.total - (query.total ?? NaN)) < 0.005 &&
         b.date === query.date &&
-        (!query.currency || !b.currency || b.currency === query.currency)
+        // The weaker match needs the same, known currency on both sides.
+        !!query.currency &&
+        b.currency === query.currency
     );
     if (byAmount)
       return {
@@ -336,28 +338,26 @@ const phoneKey = (v: string | undefined) => (v ?? '').replace(/\D/g, '').slice(-
 export function supplierDiff(contact: Contact, evidence: SupplierEvidence): FieldDiff[] {
   const diffs: FieldDiff[] = [];
   const address = evidence.address?.value;
-  const proposedAddress = formatAddress(address ?? undefined);
-  if (
-    address &&
-    proposedAddress &&
-    squash(proposedAddress) !== squash(formatAddress(contact.address))
-  ) {
-    // The printed address replaces the old one as a whole; parts it doesn't print are cleared.
+  if (address && Object.values(address).some(Boolean)) {
+    const old = contact.address ?? {};
+    const printed = (v: string | null | undefined) => v?.trim() || undefined;
+    // A printed street line replaces both street lines; any other part the document
+    // doesn't print keeps the record's value (never cleared because it wasn't printed).
+    const newStreet = !!printed(address.line1);
     const value: Address = {
-      line1: address.line1 ?? '',
-      line2: address.line2 ?? '',
-      city: address.city ?? '',
-      region: address.region ?? '',
-      postalCode: address.postalCode ?? '',
-      country: address.country ?? '',
+      line1: printed(address.line1) ?? old.line1 ?? '',
+      line2: newStreet
+        ? (printed(address.line2) ?? '')
+        : (printed(address.line2) ?? old.line2 ?? ''),
+      city: printed(address.city) ?? old.city ?? '',
+      region: printed(address.region) ?? old.region ?? '',
+      postalCode: printed(address.postalCode) ?? old.postalCode ?? '',
+      country: printed(address.country) ?? old.country ?? '',
     };
-    diffs.push({
-      field: 'address',
-      label: 'Address',
-      current: formatAddress(contact.address),
-      proposed: proposedAddress,
-      value,
-    });
+    const proposed = formatAddress(value);
+    const current = formatAddress(contact.address);
+    if (proposed && squash(proposed) !== squash(current))
+      diffs.push({ field: 'address', label: 'Address', current, proposed, value });
   }
   const email = evidence.email?.value?.trim();
   if (email && email.toLowerCase() !== (contact.email ?? '').trim().toLowerCase())

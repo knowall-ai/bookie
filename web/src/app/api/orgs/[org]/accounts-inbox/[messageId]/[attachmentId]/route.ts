@@ -2,7 +2,7 @@ import { getAuthContext } from '@/lib/auth/context';
 import { getConnector } from '@/lib/connectors/registry';
 import { isConnectorError } from '@/lib/connectors/types';
 import { fileHeaders } from '@/lib/portal/attachments-proxy';
-import { accountsMailbox, documentsOf, messageTrust } from '@/lib/accounts-inbox/review';
+import { accountsMailbox, reviewOne } from '@/lib/accounts-inbox/review';
 import { isMailboxError } from '@/lib/mail/graph';
 
 export const dynamic = 'force-dynamic';
@@ -31,10 +31,11 @@ export async function GET(
     if (!setup.ok) return json('No accounts mailbox is set up.', 404);
     const id = decodeURIComponent(messageId);
     const attId = decodeURIComponent(attachmentId);
-    const { message, trust } = await messageTrust(auth, setup.reader, connector, id);
-    if (trust.level === 'suspicious')
+    // The full verdict, so an email that is suspicious because of its bank details is refused too.
+    const item = await reviewOne(auth, setup.reader, connector, id, attId);
+    if (!item) return json('Not found.', 404);
+    if (item.verdict.kind === 'suspicious')
       return json('Bookie does not open attachments from suspicious emails.', 403);
-    if (!documentsOf(message).some((d) => d.id === attId)) return json('Not found.', 404);
     const file = await setup.reader.attachment(id, attId);
     return new Response(file.bytes, { headers: fileHeaders(file, download) });
   } catch (error) {

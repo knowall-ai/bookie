@@ -179,6 +179,8 @@ export function lookalikeOf(domain: string, known: readonly string[]): string | 
   const mine = registrableParts(domain);
   const mineReg = registrableDomain(domain);
   if (!mine.name) return undefined;
+  // A domain we already know (a contact's or our own) is itself, not a lookalike of another.
+  if (known.some((k) => registrableDomain(k) === mineReg)) return undefined;
   for (const candidate of known) {
     const real = registrableParts(candidate);
     if (!real.name || registrableDomain(candidate) === mineReg) continue;

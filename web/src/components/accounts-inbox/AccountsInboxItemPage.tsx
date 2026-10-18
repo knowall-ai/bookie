@@ -248,6 +248,8 @@ export async function AccountsInboxItemPage({
           )}
         </div>
         <DocumentEditor
+          // Start again with the supplier preselected once it has been added or matched.
+          key={matched?.id ?? 'no-supplier'}
           heading="Proposed draft bill"
           currency={data.baseCurrency}
           source={source}

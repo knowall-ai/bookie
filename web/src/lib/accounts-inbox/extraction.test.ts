@@ -171,6 +171,38 @@ describe('proposedBill', () => {
     expect(p.notes.map((n) => n.field)).toEqual(['taxRate', 'account']);
   });
 
+  it('leaves out a line with no price it can copy, never pricing it at 0', () => {
+    const p = proposedBill(
+      invoice({
+        lines: [
+          {
+            description: 'Delivery',
+            quantity: null,
+            unitPrice: null,
+            net: 15,
+            vatRate: null,
+            vat: null,
+          },
+          { description: 'Boxes', quantity: 4, unitPrice: null, net: 40, vatRate: null, vat: null },
+          {
+            description: 'Setup',
+            quantity: 1,
+            unitPrice: null,
+            net: null,
+            vatRate: null,
+            vat: null,
+          },
+        ],
+      }),
+      undefined
+    );
+    expect(p.initial.lineItems).toEqual([{ description: 'Delivery', quantity: 1, unitAmount: 15 }]);
+    expect(p.notes.filter((n) => n.field.startsWith('lines.')).map((n) => n.field)).toEqual([
+      'lines.1',
+      'lines.2',
+    ]);
+  });
+
   it('asks about tax when the document does not say', () => {
     const p = proposedBill(invoice({ amountsAre: null }), undefined);
     expect(p.initial.contactId).toBe('');

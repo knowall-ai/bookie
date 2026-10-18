@@ -131,6 +131,12 @@ describe('findExistingBill', () => {
     expect(m?.reason).toMatch(/total 120.00 in the books, 130.00 on the document/);
   });
 
+  it('needs a known, equal currency for the total + date match', () => {
+    const q = { ...query, invoiceNumber: 'X-1' };
+    expect(findExistingBill({ ...q, currency: null }, [bill({})])).toBeUndefined();
+    expect(findExistingBill({ ...q, currency: 'EUR' }, [bill({})])).toBeUndefined();
+  });
+
   it("doesn't match another supplier's bill", () => {
     expect(
       findExistingBill(query, [bill({ contact: { id: 'b', name: 'Other' } })])
@@ -176,6 +182,49 @@ describe('supplierDiff', () => {
     });
     // The printed address replaces the old one whole.
     expect(diffs[0].value).toMatchObject({ line1: 'Unit 7 Riverside Park', line2: '' });
+  });
+
+  it("keeps the record's country, region and postcode when the document doesn't print them", () => {
+    const diffs = supplierDiff(
+      record,
+      ev({
+        address: {
+          line1: 'Unit 7 Riverside Park',
+          line2: null,
+          city: 'Bristol',
+          region: null,
+          postalCode: null,
+          country: null,
+        },
+      })
+    );
+    expect(diffs[0].value).toEqual({
+      line1: 'Unit 7 Riverside Park',
+      line2: '',
+      city: 'Bristol',
+      region: '',
+      postalCode: 'BS4 4QT',
+      country: 'United Kingdom',
+    });
+    expect(diffs[0].proposed).toBe('Unit 7 Riverside Park, Bristol, BS4 4QT, United Kingdom');
+  });
+
+  it('proposes nothing when the printed parts already match the record', () => {
+    expect(
+      supplierDiff(
+        record,
+        ev({
+          address: {
+            line1: '5 Harbour Road',
+            line2: null,
+            city: null,
+            region: null,
+            postalCode: null,
+            country: null,
+          },
+        })
+      )
+    ).toEqual([]);
   });
 
   it('treats the same phone in international format as unchanged', () => {

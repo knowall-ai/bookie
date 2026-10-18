@@ -21,15 +21,24 @@ const LINE_AMOUNTS: Record<NonNullable<Extraction['amountsAre']>, LineAmountType
 
 export function proposedBill(ex: Extraction, contactId: string | undefined): ProposedBill {
   const notes: ReviewNote[] = [];
-  const lineItems: LineItemInput[] = ex.lines.map((line, i) => {
-    if (line.quantity !== null && line.unitPrice !== null)
-      return { description: line.description, quantity: line.quantity, unitAmount: line.unitPrice };
-    if (line.net !== null) {
-      // A line printed as one amount is one of that amount.
-      return { description: line.description, quantity: line.quantity ?? 1, unitAmount: line.net };
+  const lineItems: LineItemInput[] = [];
+  ex.lines.forEach((line, i) => {
+    if (line.quantity !== null && line.unitPrice !== null) {
+      lineItems.push({
+        description: line.description,
+        quantity: line.quantity,
+        unitAmount: line.unitPrice,
+      });
+    } else if (line.net !== null && (line.quantity === null || line.quantity === 1)) {
+      // A line printed as a single amount: one of that amount, exactly as printed.
+      lineItems.push({ description: line.description, quantity: 1, unitAmount: line.net });
+    } else {
+      // No price that can be copied as printed: leave the line out rather than invent one.
+      notes.push({
+        field: `lines.${i}`,
+        reason: `"${line.description || `line ${i + 1}`}" has no unit price printed: add it by hand`,
+      });
     }
-    notes.push({ field: `lines.${i}`, reason: 'no price printed for this line' });
-    return { description: line.description, quantity: line.quantity ?? 1, unitAmount: 0 };
   });
   if (ex.amountsAre === null)
     notes.push({

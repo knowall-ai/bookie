@@ -63,7 +63,7 @@ Bookie never reads a suspicious email's attachment (no extraction, no preview) a
 file it.
 | *Already in the books* | Matched to an existing bill for the same supplier by invoice number
 (ignoring case, spaces, punctuation and leading zeros; the bill's number or reference), or by
-total and date. Links to the bill. Same supplier and number with a different total, date or
+total and date in the same, known currency. Links to the bill. Same supplier and number with a different total, date or
 currency shows as *Different in the books*: check it, never add a second bill.
 | *New* | Not in the books. Bookie proposes a draft bill from the document. *Ready to file* when
 the email is authenticated from a known contact's domain and every required field was read with
@@ -90,7 +90,8 @@ The model copies fields exactly as printed and leaves anything it can't read as 
 * marks *needs review* for a missing or uncertain supplier, invoice number, date, currency or total;
 * checks the lines against the net, and net + VAT against the total, and flags a difference without
   changing either side;
-* never chooses a tax rate or account: the person picks them in the editor.
+* never chooses a tax rate or account: the person picks them in the editor;
+* leaves out a line whose unit price isn't printed (rather than pricing it at 0) and says so.
 
 What was read is cached in memory for ten minutes, keyed by tenant, user, mailbox and attachment, so
 moving between the list and a document doesn't read it twice. Nothing is written to disk.
@@ -112,7 +113,10 @@ It shows why it matched. If several contacts match, or none does, it says so and
   supplier* asks for confirmation and then updates only the ticked fields through the connector
   (Xero `POST Contacts`; Business Central `PATCH vendors` with `addressLine1/2`, `city`, `state`,
   `postalCode`, `country`, `email`, `phoneNumber`, `taxRegistrationNumber`). Nothing is applied
-  automatically.
+  automatically. A printed street line replaces both street lines; any other part of the address
+  the invoice doesn't print (country, say) keeps the record's value. In Xero the contact's other
+  addresses and phone numbers (street address, mobile) are kept: Bookie changes the postal address
+  and the default phone only.
 * *Bank details are never proposed or applied from an invoice.* A changed or new bank account on
   an invoice is the classic invoice-fraud signal. Bookie compares the invoice's bank details with
   the record (Xero `BankAccountDetails`); a difference, or bank details when the record has none,

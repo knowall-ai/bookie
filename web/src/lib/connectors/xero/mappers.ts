@@ -296,6 +296,29 @@ function rank(order: string[], value: string) {
   return i === -1 ? order.length : i;
 }
 
+/**
+ * Xero replaces a contact's whole Addresses and Phones collections on update. Bookie edits
+ * one address (POBOX) and one phone (DEFAULT), so keep the others (street address,
+ * mobile, fax...) as they are.
+ */
+export function keepOtherXeroEntries(
+  body: Record<string, unknown>,
+  existing: Pick<XeroContact, 'Addresses' | 'Phones'> | undefined
+): Record<string, unknown> {
+  const out = { ...body };
+  if (Array.isArray(body.Addresses))
+    out.Addresses = [
+      ...(existing?.Addresses ?? []).filter((a) => a.AddressType !== 'POBOX'),
+      ...body.Addresses,
+    ];
+  if (Array.isArray(body.Phones))
+    out.Phones = [
+      ...(existing?.Phones ?? []).filter((p) => p.PhoneType !== 'DEFAULT'),
+      ...body.Phones,
+    ];
+  return out;
+}
+
 export function toXeroContact(input: ContactInput, id?: string): Record<string, unknown> {
   return {
     ...(id ? { ContactID: id } : {}),

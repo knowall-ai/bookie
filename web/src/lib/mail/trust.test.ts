@@ -108,6 +108,14 @@ describe('lookalike domains', () => {
     expect(lookalikeOf('adatum.com', known)).toBeUndefined();
   });
 
+  it('never flags a domain we already know as a lookalike of another known one', () => {
+    const known = ['contoso.co.uk', 'contoso.com', 'boots.example', 'boost.example'];
+    expect(lookalikeOf('contoso.com', known)).toBeUndefined();
+    expect(lookalikeOf('mail.contoso.co.uk', known)).toBeUndefined();
+    expect(lookalikeOf('boost.example', known)).toBeUndefined();
+    expect(lookalikeOf('b00ts.example', known)).toBe('boots.example');
+  });
+
   it('computes edit distance with transpositions', () => {
     expect(editDistance('contoso', 'cnotoso')).toBe(1);
     expect(editDistance('abc', 'abc')).toBe(0);

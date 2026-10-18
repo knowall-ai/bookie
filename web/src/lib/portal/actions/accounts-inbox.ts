@@ -48,6 +48,7 @@ function refuseUnlessNew(item: InboxItem): string | undefined {
       ? 'This invoice is already in the books.'
       : 'A bill with this supplier and number is already in the books with different details. Check it rather than adding a second one.';
   if (v.kind === 'not-invoice') return "This document isn't an invoice.";
+  if (v.kind === 'unread') return `Bookie couldn't read this document: ${v.reason}`;
   return undefined;
 }
 

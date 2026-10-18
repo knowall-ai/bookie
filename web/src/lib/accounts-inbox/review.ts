@@ -341,8 +341,9 @@ async function pool<T, R>(items: T[], size: number, run: (item: T) => Promise<R>
   return out;
 }
 
-function ownDomainsFor(auth: AuthContext, reader: MailboxReader): string[] {
-  return [domainOf(reader.mailbox), domainOf(auth.user.email)].filter((d): d is string => !!d);
+function ownDomainsFor(reader: MailboxReader): string[] {
+  // Only the mailbox's own domain: a guest's (an accountant's firm) isn't the organisation's.
+  return [domainOf(reader.mailbox)].filter((d): d is string => !!d);
 }
 
 /** The last `weeks` weeks of the mailbox: one item per PDF or image attachment. */
@@ -359,7 +360,7 @@ export async function reviewMailbox(
     (m) => m.from?.emailAddress?.address?.toLowerCase() !== mailbox
   );
   const books = booksLookup(connector);
-  const own = ownDomainsFor(auth, reader);
+  const own = ownDomainsFor(reader);
   const jobs: { message: MailMessage; doc: ReturnType<typeof documentsOf>[number] }[] = [];
   const trust = new Map<string, TrustVerdict>();
   for (const message of messages) {
@@ -385,18 +386,6 @@ export async function reviewOne(
   const doc = documentsOf(message).find((d) => d.id === attachmentId);
   if (!doc) return undefined;
   const books = booksLookup(connector);
-  const trust = await trustOf(message, books, ownDomainsFor(auth, reader));
+  const trust = await trustOf(message, books, ownDomainsFor(reader));
   return reviewAttachment(auth, reader, books, message, doc, trust);
-}
-
-/** Just the "is it genuine?" verdict for one email (the file preview refuses suspicious mail). */
-export async function messageTrust(
-  auth: AuthContext,
-  reader: MailboxReader,
-  connector: AccountingConnector,
-  messageId: string
-): Promise<{ message: MailMessage; trust: TrustVerdict }> {
-  const message = await reader.message(messageId);
-  const trust = await trustOf(message, booksLookup(connector), ownDomainsFor(auth, reader));
-  return { message, trust };
 }
