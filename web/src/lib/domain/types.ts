@@ -541,8 +541,40 @@ export interface BankAccount {
   /** Balance per the latest bank statement, when available. */
   statementBalance?: number;
   statementDate?: IsoDate;
+  /**
+   * Date of the latest statement line the bank feed brought in, exactly as the
+   * source reports it. Undefined when the source can't say (Xero's API, BC):
+   * never the time Bookie read the books.
+   */
+  feedDate?: IsoDate;
   unreconciledCount?: number;
   type?: 'bank' | 'credit-card' | 'paypal' | 'other';
+}
+
+/** A bank account's closing balance at the end of `date`. */
+export interface BalancePoint {
+  date: IsoDate;
+  balance: number;
+}
+
+/** One account's balance over recent days or weeks, from the source's own figures. */
+export interface BalanceHistory {
+  /** Oldest first. Only dates the source gave a balance for: nothing is interpolated. */
+  points: BalancePoint[];
+  /** Currency of the balances (Xero gives foreign-currency accounts' balances in base currency). */
+  currency: string;
+  /** Daily closing balances, or weekly ones where the source only gives those. */
+  interval: 'day' | 'week';
+}
+
+/** Balance histories for all of an organisation's bank accounts, read in one go. */
+export interface BankBalanceHistories {
+  /** When Bookie read these from the source (ISO timestamp), so a cached read says so. */
+  readAt: string;
+  /** By bank account id. An account that's missing has no history Bookie can show. */
+  accounts: Record<string, BalanceHistory>;
+  /** Why some or all accounts have no history, shown instead of a chart. */
+  note?: string;
 }
 
 /** A new bank account, as on Xero's "Add bank account". */

@@ -327,6 +327,7 @@ const FIGURE_KEYS = new Set([
   'total',
   'balance',
   'statementBalance',
+  'feedDate',
   'unreconciledCount',
   'rate',
   'receivable',

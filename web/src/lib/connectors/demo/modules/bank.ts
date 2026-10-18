@@ -6,6 +6,13 @@ import { demoId, matches, notFound, paginate } from '../index';
 import { demoTransfers } from './transfers';
 import { chart } from './accounts';
 import { DEMO_CURRENCIES } from './currencies';
+import {
+  historyWindow,
+  movementsAfter,
+  reconstructDaily,
+  type Movement,
+} from '../../balance-history';
+import type { BankBalanceHistories } from '@/lib/domain/types';
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -118,6 +125,31 @@ function withSource(data: DemoData, t: BankTransaction): BankTransaction {
   };
 }
 
+/**
+ * Fictional balance histories, walked back from each demo account's balance
+ * through its demo register, so the chart agrees with the transactions listed.
+ */
+export function demoBalanceHistories(data: DemoData, to: string): BankBalanceHistories {
+  const { from } = historyWindow(to);
+  const accounts: BankBalanceHistories['accounts'] = {};
+  for (const account of data.bankAccounts) {
+    if (account.balance === undefined) continue;
+    const movements: Movement[] = data.bankTransactions
+      .filter((t) => t.bankAccountId === account.id && t.status === 'authorised')
+      .map((t) => ({
+        date: t.date,
+        amount: t.type === 'receive' || t.type === 'transfer-in' ? t.amount : -t.amount,
+      }));
+    const closing = account.balance - movementsAfter(movements, to);
+    accounts[account.id] = {
+      points: reconstructDaily(closing, movements, from, to),
+      currency: account.currency,
+      interval: 'day',
+    };
+  }
+  return { readAt: new Date().toISOString(), accounts };
+}
+
 export function demoBank(data: DemoData): BankModule {
   // Seed once per demo org, up front, so the dashboard's bank balances agree with this module.
   demoSlot(data, 'bank-seeded', () => {
@@ -159,6 +191,10 @@ export function demoBank(data: DemoData): BankModule {
       const t = ready().bankTransactions.find((x) => x.id === id) ?? notFound('Transaction');
       return structuredClone(withSource(ready(), t));
     },
+    async balanceHistory() {
+      return demoBalanceHistories(ready(), new Date().toISOString().slice(0, 10));
+    },
+    feedNote: 'No bank feed is connected to this demo account.',
     filters: { direction: true, reconciled: true, contact: true },
     limitations:
       'Demo books: this register lists spend and receive money, transfers and payments. Like Xero, there are no bank statement lines or running balance here.',

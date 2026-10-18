@@ -109,7 +109,9 @@ export class BcClient {
     path: string,
     query: BcRequest['query'] = {},
     maxPages = 10,
-    api?: string
+    api?: string,
+    /** Throw rather than return a list cut short at `maxPages`. */
+    complete = false
   ): Promise<T[]> {
     const first = await this.request<ODataList<T>>(path, { query, api });
     const items = [...first.value];
@@ -133,6 +135,13 @@ export class BcClient {
       const page = (await response.json()) as ODataList<T>;
       items.push(...page.value);
       next = page['@odata.nextLink'];
+    }
+    if (complete && next) {
+      throw new ConnectorError(
+        `Business Central has more than ${maxPages} pages of ${path}.`,
+        413,
+        'business-central'
+      );
     }
     return items;
   }

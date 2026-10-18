@@ -44,6 +44,8 @@ Generated from the specs on 17 October 2026. Status reflects the `main` branch p
 
 * *Webhooks* (invoice, contact and other events) are configured in the Xero developer portal, not described in these specs. In progress.
 * *Reports/BankStatement* is documented by Xero but not in the OpenAPI spec. It answers 401 to Bookie's connection, so bank statement lines and a running balance are not available. The account register says so.
+* *Balance history* (the chart on each bank account card) has no endpoint. Bookie reconstructs four weeks of daily closing balances from one `GET /Reports/BankSummary` for the window (opening and closing per account) and one page each of `GET /BankTransactions` and `GET /Payments` for the window, and keeps an account's daily series only if it walks back exactly to Bank Summary's opening balance. Accounts that don't tie out (a manual journal to a bank account, more than 1,000 items) and foreign-currency accounts get weekly points from three more Bank Summary calls instead. Four to seven calls for all accounts, cached five minutes per tenant and organisation. See link:BANK_BALANCE_HISTORY.adoc[Bank balance history].
+* *Bank feed freshness* (when the feed last brought in a statement line) isn't in the Accounting API: statement lines are only in the Bank Feeds API, which is for banks to write them, and the restricted Finance API. Bank cards say "Feed status not available" for Xero rather than showing when Bookie read the books.
 * *Account Transactions* and *General Ledger* reports have no API endpoint (404). Bookie builds Account Transactions and the Journal Report from `GET /Journals`, which covers posted transactions on the accrual basis.
 * Xero's *Short-term cash flow* projection has no API. Bookie's Reporting › Cash flow forecast builds its own from the Bank Summary balances, unpaid invoices and bills by due date (overdue ones kept apart), the user's planned items (sealed in the tenant's settings), and, only when switched on, an average of spend and receive money from `GET /BankTransactions` (invoice and bill payments excluded).
 * *Bank reconciliation* has no API. Bookie shows each transaction's reconciled flag and filters on it; reconciling happens in Xero.
@@ -73,7 +75,7 @@ Base URL: `https://api.xero.com/api.xro/2.0`
 |POST |`/BatchPayments/{BatchPaymentID}` |In progress |Batch payments builder.
 |GET |`/BatchPayments/{BatchPaymentID}/History` |In progress |History and notes builder.
 |PUT |`/BatchPayments/{BatchPaymentID}/History` |In progress |History and notes builder.
-|GET |`/BankTransactions` |Implemented |Account transactions register: date, spent/received, reconciled, contact and reference filters.
+|GET |`/BankTransactions` |Implemented |Account transactions register: date, spent/received, reconciled, contact and reference filters. Bank balance history.
 |PUT |`/BankTransactions` |Implemented |Spend money and receive money.
 |POST |`/BankTransactions` |Missing |Bulk update-or-create; not needed for the UI.
 |GET |`/BankTransactions/{BankTransactionID}` |Implemented |Transaction detail with line coding.
@@ -200,7 +202,7 @@ Base URL: `https://api.xero.com/api.xro/2.0`
 |DELETE |`/Overpayments/{OverpaymentID}/Allocations/{AllocationID}` |In progress |Overpayments/prepayments allocations builder.
 |GET |`/Overpayments/{OverpaymentID}/History` |In progress |History and notes builder.
 |PUT |`/Overpayments/{OverpaymentID}/History` |In progress |History and notes builder.
-|GET |`/Payments` |Implemented |Payments list and the account register.
+|GET |`/Payments` |Implemented |Payments list, the account register and bank balance history.
 |PUT |`/Payments` |Implemented |Record a payment (confirmed).
 |POST |`/Payments` |Partly |Payments are created with `PUT /Payments`.
 |GET |`/Payments/{PaymentID}` |Implemented |Payment detail in the account register.
@@ -269,7 +271,7 @@ Base URL: `https://api.xero.com/api.xro/2.0`
 |GET |`/Reports/AgedPayablesByContact` |Partly |Aged payables summary is built from outstanding bills; the per-contact report is not called.
 |GET |`/Reports/AgedReceivablesByContact` |Partly |Aged receivables summary is built from outstanding invoices; the per-contact report is not called.
 |GET |`/Reports/BalanceSheet` |Implemented |Balance sheet, with comparisons.
-|GET |`/Reports/BankSummary` |Implemented |Bank summary, bank balances.
+|GET |`/Reports/BankSummary` |Implemented |Bank summary, bank balances, balance history on the bank cards (opening and closing per account).
 |GET |`/Reports/{ReportID}` |N/A: not UK |Fetches one of those published reports (see above).
 |GET |`/Reports/BudgetSummary` |Missing |Deprioritised (low usage).
 |GET |`/Reports/ExecutiveSummary` |Implemented |Executive summary.

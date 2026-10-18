@@ -51,3 +51,35 @@ test.describe('Add bank account', () => {
     await expect(page.getByLabel('PayPal email address')).toBeVisible();
   });
 });
+
+const ORG = '/portal/demo.contoso';
+
+test.describe('Bank account cards', () => {
+  for (const [where, path] of [
+    ['dashboard', ORG],
+    ['Accounting, Bank accounts', `${ORG}/accounting/bank`],
+  ] as const) {
+    test(`show balance history and feed freshness on the ${where}`, async ({ page }) => {
+      await page.goto(path);
+      const card = page.getByTestId('bank-account-card').first();
+      await expect(card.getByTestId('balance-chart')).toBeVisible();
+      await expect(card.locator('.recharts-area-curve')).toBeVisible();
+      await expect(card.getByText('Last 4 weeks', { exact: true })).toBeVisible();
+      await expect(card.getByTestId('bank-feed')).toContainText('Bank feed: last statement line');
+      await expect(card.getByTestId('read-live')).toHaveText(
+        'Read live from the demo books just now'
+      );
+      // Screen readers get the history as a sentence.
+      await expect(card.getByText(/^Balance over the last 4 weeks: /)).toBeAttached();
+
+      // Hovering the chart shows a day's balance.
+      const box = (await card.getByTestId('balance-chart').boundingBox())!;
+      await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
+      await expect(card.locator('.recharts-tooltip-wrapper')).toContainText('£');
+
+      // The chart is part of the link to the account's transactions.
+      await card.getByTestId('balance-chart').click();
+      await expect(page).toHaveURL(/\/accounting\/bank\/acc-09\d$/);
+    });
+  }
+});

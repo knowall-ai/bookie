@@ -38,6 +38,8 @@ export default async function Home({ params }: { params: Promise<{ org: string }
   const auth = await getAuthContext();
   const firstName = auth?.user.name.split(/\s+/)[0];
 
+  // Bank balance histories, read once for every card and streamed in after the dashboard.
+  const histories = connector.bank?.balanceHistory?.().catch(() => undefined);
   const [details, dashboard] = await Promise.allSettled([
     connector.organisation(),
     connector.dashboard(),
@@ -115,6 +117,9 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                             ? `${base}/accounting/bank/${encodeURIComponent(account.id)}`
                             : undefined
                         }
+                        histories={histories}
+                        source={org.kind === 'demo' ? 'the demo books' : sourceName(org)}
+                        feedNote={connector.bank?.feedNote}
                       />
                     ))}
                   </div>

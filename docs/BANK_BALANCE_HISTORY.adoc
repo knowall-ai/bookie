@@ -1,0 +1,66 @@
+= Bank balance history and feed freshness
+:toc: left
+:icons: font
+
+Each bank account card (Home and *Accounting → Bank accounts*) shows the account's balance over the
+last four weeks, as Xero's dashboard does, and says plainly how fresh its figures are. The whole
+card, chart included, opens the account's transactions.
+
+Bookie never interpolates or invents a point. A history is built only from figures the source
+gives, and where the source can't give one the card says so instead of drawing a chart.
+
+== Where the history comes from
+
+The contract is the optional `BankModule.balanceHistory()` in `web/src/lib/connectors/types.ts`.
+It returns every account's history in one read (`BankBalanceHistories`), so a page makes one call
+however many cards it shows. The cards stream it in after the balances. The maths is shared in
+`web/src/lib/connectors/balance-history.ts`: start from a closing balance the source reports and
+walk back a day at a time, taking off each day's movements, summing in whole cents.
+
+[cols="1,4",options="header"]
+|===
+|Source |History
+
+|Xero
+|Daily closing balances reconstructed from the Bank Summary closing balance and the window's bank
+transactions and payments, kept only when they walk back exactly to Bank Summary's opening
+balance. Otherwise (manual journals to a bank account, more than 1,000 items in four weeks), and
+for foreign-currency accounts, weekly points straight from Bank Summary, in base currency as Xero
+reports them. See link:XERO_COVERAGE.adoc[Xero API coverage] for the calls.
+
+|Business Central with the Bookie BC extension
+|Daily closing balances from the extension's `bankAccountBalances` (Balance, the sum of all the
+account's bank ledger entries) and `bankAccountLedgerEntries` posted after the window opens,
+future-dated postings taken out of today's balance. In the account's own currency. A ledger
+longer than ten pages isn't cut short: the card shows no history instead.
+
+|Business Central without the extension
+|None. API v2.0 publishes neither bank account ledger entries nor the G/L account a bank account
+posts to, so the card says "Balance history isn't available from Business Central".
+
+|Demo organisations
+|Fictional: walked back from each demo account's balance through its demo register.
+|===
+
+Histories are cached for five minutes. The cache key starts with the Entra tenant id from the
+verified sign-in, then the connection (Xero) or environment and company (BC). A history older than
+a minute shows the time it was read ("read at 14:05") so a cached chart never passes for live.
+
+== Freshness
+
+* *Bank feed:* `BankAccount.feedDate` is the date of the latest statement line the bank feed
+  brought in, only when the source reports it ("Bank feed: last statement line 9 Oct 2026").
+  Neither Xero's Accounting API nor Business Central's says when a feed last ran, so for both the
+  card says "Feed status not available", with the reason (`BankModule.feedNote`) as a tooltip.
+  The time the page loaded is never shown as a sync time.
+* *Last statement:* the statement balance and date, where the source has one. In Business Central
+  that's the last statement posted in a bank reconciliation (Bookie BC extension).
+* *Read live:* every card ends with "Read live from Xero just now" (or Business Central): Bookie
+  stores no accounting data and reads the books on every visit.
+
+== Accessibility
+
+The chart is decorative for assistive technology. Each card carries a sentence instead ("Balance
+over the last 4 weeks: £1,000.00 on 20 Sept 2026 to £1,150.00 on 18 Oct 2026, lowest ...,
+highest ..."), referenced from the card's link with `aria-describedby`. Hovering the chart shows
+the day's date and balance.

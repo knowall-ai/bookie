@@ -11,7 +11,9 @@ import 'server-only';
  * caches the answer for 10 minutes; a 404 means "not installed".
  */
 import type {
+  BalanceHistory,
   BankAccount,
+  BankBalanceHistories,
   BankTransaction,
   InvoiceType,
   IsoDate,
@@ -23,6 +25,14 @@ import type {
 import { ConnectorError } from '../types';
 import { odataString, type BcClient, type ODataList } from './client';
 import { decodeBcEnum } from './modules/accounts';
+import {
+  cachedHistories,
+  historyWindow,
+  movementsAfter,
+  reconstructDaily,
+  type Movement,
+} from '../balance-history';
+import { todayIso } from '@/lib/domain/dates';
 
 /** Route after `/api/` for the extension's pages (APIPublisher/APIGroup/APIVersion). */
 export const BOOKIE_API = 'knowallBookie/bookie/v1.0';
@@ -298,6 +308,81 @@ export async function extensionBankTransactions(
     pageSize,
     hasMore: rows.length > pageSize,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Bank: balance history from the bank account ledger                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Daily closing balances per bank account id. A Bank Account's Balance is the
+ * sum of all its bank ledger entries (any posting date), so the balance at the
+ * end of `to` is that Balance less entries posted after `to`, and each earlier
+ * day follows by taking that day's entries off. Exact by construction, in the
+ * account's own currency.
+ */
+export function bcBalanceHistories(
+  balances: BcBankAccountBalance[],
+  entries: Pick<BcBankLedgerEntry, 'bankAccountNumber' | 'postingDate' | 'amount'>[],
+  lcy: string,
+  from: IsoDate,
+  to: IsoDate
+): Record<string, BalanceHistory> {
+  const byNumber = new Map<string, Movement[]>();
+  for (const e of entries) {
+    const date = bcDate(e.postingDate);
+    if (!date) continue;
+    const list = byNumber.get(e.bankAccountNumber) ?? [];
+    list.push({ date, amount: e.amount });
+    byNumber.set(e.bankAccountNumber, list);
+  }
+  const histories: Record<string, BalanceHistory> = {};
+  for (const account of balances) {
+    if (account.blocked || account.balance === undefined) continue;
+    const currency = account.currencyCode || lcy;
+    if (!currency) continue;
+    const movements = byNumber.get(account.number) ?? [];
+    const closing = account.balance - movementsAfter(movements, to);
+    histories[account.id.toLowerCase()] = {
+      points: reconstructDaily(closing, movements, from, to),
+      currency,
+      interval: 'day',
+    };
+  }
+  return histories;
+}
+
+/** Ledger entries are read in full or not at all: up to 10 pages. */
+const HISTORY_MAX_PAGES = 10;
+
+export function extensionBalanceHistory(
+  client: BcClient,
+  lcy: () => Promise<string>
+): Promise<BankBalanceHistories> {
+  const key = `${client.tenantId}:${client.environment}:${client.companyId}:bank-history`;
+  return cachedHistories(key, async () => {
+    const to = todayIso();
+    const { from } = historyWindow(to);
+    const [balances, entries, currency] = await Promise.all([
+      client.all<BcBankAccountBalance>('bankAccountBalances', {}, 2, BOOKIE_API, true),
+      // Everything after `from`, future-dated postings included: they are in Balance too.
+      client.all<BcBankLedgerEntry>(
+        'bankAccountLedgerEntries',
+        {
+          $filter: `postingDate gt ${from}`,
+          $select: 'bankAccountNumber,postingDate,amount',
+        },
+        HISTORY_MAX_PAGES,
+        BOOKIE_API,
+        true
+      ),
+      lcy(),
+    ]);
+    return {
+      readAt: new Date().toISOString(),
+      accounts: bcBalanceHistories(balances, entries, currency, from, to),
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ */

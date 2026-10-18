@@ -19,6 +19,8 @@ export default async function Page({ params }: { params: Promise<{ org: string }
       </>
     );
   }
+  // One read of every account's history, shared by the cards and streamed in after them.
+  const histories = connector.bank.balanceHistory?.().catch(() => undefined);
   const accounts = await connector.bank.accounts();
   const canCreate = !!connector.bank.createTransaction;
   const canTransfer = !!connector.bank.createTransfer && accounts.length >= 2;
@@ -78,6 +80,9 @@ export default async function Page({ params }: { params: Promise<{ org: string }
               href={`${base}/accounting/bank/${encodeURIComponent(account.id)}`}
               newHref={canCreate ? newHref : undefined}
               sourceLabel={source}
+              source={org.kind === 'demo' ? 'the demo books' : sourceName(org)}
+              histories={histories}
+              feedNote={connector.bank?.feedNote}
             />
           ))}
         </div>
