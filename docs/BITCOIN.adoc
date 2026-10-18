@@ -5,7 +5,7 @@
 Bookie can show a Bitcoin wallet as a bank account whose statement is the blockchain. The wallet's
 extended public key (xpub) or output descriptor tells Bookie which addresses belong to it; Bookie reads
 their transactions live from an Electrum server and shows them under *Accounting › Bank accounts*,
-with GBP values from Kraken.
+valued in the organisation's own currency at the Kraken price at each transaction's own time.
 
 Bookie is *watch-only*: an xpub or descriptor can see a wallet but never spend from it. Bookie, and the
 Business Central extension below, refuse private keys (xprv, yprv, zprv and their testnet forms).
@@ -145,31 +145,43 @@ Per transaction Bookie shows:
   known. A receipt's fee was paid by the sender and shows "—" with that reason.
 
 A transaction the server reports at height 0 or below is in the mempool: it is shown as *Pending*,
-counted in the *Pending* balance, never in the confirmed balance, and has no GBP value.
+counted in the *Pending* balance, never in the confirmed balance, and has no value in fiat.
 
 *Stateless.* Bookie keeps no chain data. The only cache is in memory, for 60 seconds, keyed by the
 Entra tenant id, the organisation, the wallet and its descriptor's checksum (so a descriptor changed in
 Business Central is never served stale).
 
-== GBP values
+== Values in the organisation's currency ("worth at the time")
 
-GBP values come only from Kraken's public market data (pair XBTGBP), and every figure says which:
+Each figure is in the organisation's *base currency*, as its books report it (Business Central's local
+currency, Xero's base currency). Prices come only from Kraken's public market data, using the pair for
+that currency: `XBTGBP`, `XBTUSD`, `XBTEUR`, or any other pair Kraken lists. If Kraken has no pair for
+the currency, or the books don't say what the base currency is, the value is "—" with the reason. Bookie
+never converts through another currency.
 
-[cols="1,3"]
+Payments are usually worked out in sats at the moment of payment, so each transaction is valued at
+*its own time*:
+
+[cols="1,3", options="header"]
 |===
-| Situation | Rate used
+| Situation | Rate used, and its label
 
-| A confirmed transaction whose UTC day has closed and is within Kraken's daily history (about 720 days, `OHLC?interval=1440`) | *Kraken XBTGBP daily close* of that day
-| Today's transactions, or older than the daily history | *Kraken XBTGBP trade*: the first trade at or after the block time (`Trades?since=`), if one happened within six hours
-| The confirmed balance | *Kraken XBTGBP last trade*, with its time
-| A pending transaction | None: "—", it has no block time yet
-| Kraken unreachable or has no trade in the window | None: "—" with the reason
+| A confirmed transaction | The Kraken trade nearest the second its block was mined (`Trades?since=`, Kraken's full trade history): *Kraken XBTUSD at 14:32 UTC, 10 Oct 2026*
+| The trade can't be looked up (rate limit) or none was within six hours | The Kraken daily close of the block's UTC day, closed days only (`OHLC?interval=1440`, about 720 days), labelled *(fallback: the price at the block time wasn't available)*
+| The confirmed balance | *Kraken XBTUSD last trade at 09:15 UTC, ...*
+| A pending transaction | None: "—". Electrum doesn't report when a transaction was first seen, so there's no time to price it at.
+| Kraken unreachable, or no price at all | None: "—" with the reason
 |===
 
-Bookie never values an old amount at today's price. To stay within Kraken's public rate limits it
-looks up at most eight trades per page view; any others say "Not looked up yet" until the next view.
-Kraken prices are public data, not anyone's books, so they are cached in memory (daily candles for ten
-minutes, the latest trade for one minute, trade lookups for the life of the process).
+Bookie never values an old amount at today's price. To stay within Kraken's public rate limits it makes
+at most twelve trade lookups per page view. Other transactions on that page get the labelled daily-close
+fallback until they're looked up on a later view. Exact-time prices are cached for the life of the
+process, so a page fills in as it's revisited. Kraken prices are public data, not anyone's books.
+
+*These values are for information only.* They show what a transaction was worth at the time. They are
+not what Business Central posts: Business Central converts BTC at its own exchange rate, one per day.
+Wallet apps, Kraken and Business Central all use different rates, so the figures never match exactly.
+Matching a wallet to the books is therefore exact on the Bitcoin side only: txid and satoshis.
 
 == Reconciling against Business Central
 
@@ -224,6 +236,28 @@ refuses to post a batch it didn't draft, or one with lines for any other account
 The person drafting and posting needs Business Central permission to create and post general journal
 lines (for example `D365 JOURNALS, POST`) as well as `BOOKIE BTC READ` and `BOOKIE READ`.
 
+=== The fiat side
+
+Reconciling is exact on the Bitcoin side only: txid and satoshis. Bookie never matches on a fiat value
+and never uses a tolerance. The fiat figures can't agree exactly. A customer pays a USD invoice in sats
+worked out at the moment of payment, at their wallet's rate. Kraken's price at that minute is a little
+different. Business Central converts the BTC bank entry at its own exchange rate, which it keeps one
+per day. So, for a payment against an invoice:
+
+[cols="1,3", options="header"]
+|===
+| Figure | Source
+
+| The invoice amount | The invoice in Business Central
+| The payment's value in the books | The BTC amount × Business Central's exchange rate for the posting date (what BC posts)
+| The difference | An exchange gain or loss, posted as such by the accountant; never hidden or rounded away
+| What the payment was worth at the time | Kraken at the block time (or a rate the payment provider recorded), for information only
+|===
+
+Today the Reconcile tab shows the Bitcoin side, and the wallet's transaction list shows "worth at the
+time" values. Showing the invoice, the BC-rate value and the difference side by side for each payment
+is planned (phase 2b in issue #4). Like everything else, it will be shown, never posted automatically.
+
 === Bookie's reconcile tool and API
 
 The same reconcile, read-only, is available:
@@ -238,7 +272,7 @@ Both are read-only. Drafting and posting happen only in the portal, after the pe
 === Bookie the agent
 
 The Hermes agent has no portal session, so it looks wallets up itself with the `bitcoin` skill and
-`agent/hermes/scripts/btc-wallet.mjs` (`list`, `show <wallet> [--gbp]`, `reconcile [<wallet>]`, JSON
+`agent/hermes/scripts/btc-wallet.mjs` (`list`, `show <wallet> [--value]`, `reconcile [<wallet>]`, JSON
 output). The script reuses this code: it's bundled for Node from `web/scripts/agent-btc-wallet.ts`
 with `bun run build:agent-btc` in `web/`, so rebuild and commit it when `web/src/lib/bitcoin` changes.
 It reads Business Central with the agent's own service-to-service app. Give that app user
@@ -283,7 +317,7 @@ its prices are labelled "Demo price (fictional)". Production refuses demo mode.
 | `web/src/lib/bitcoin/descriptor.ts` | Parse keys and descriptors (SLIP-0132 prefixes, BIP380 checksum), derive scripts and addresses with `@scure/bip32` and `@scure/btc-signer`
 | `web/src/lib/bitcoin/electrum.ts` | Electrum JSON-RPC client over TLS or TCP, pipelined with a cap on requests in flight
 | `web/src/lib/bitcoin/scan.ts` | Gap-limit scan, transaction parsing, amounts, fees, confirmations
-| `web/src/lib/bitcoin/kraken.ts` | Kraken OHLC and trade parsing, rate selection, GBP values
+| `web/src/lib/bitcoin/kraken.ts` | Kraken OHLC and trade parsing, rate selection, values in the base currency
 | `web/src/lib/bitcoin/wallets.ts` | Wallets per organisation (Business Central or sealed settings), members-only changes, the scan cache
 | `web/src/lib/portal/actions/bitcoin.ts` | Server actions (zod-validated, org re-resolved with `orgContext()`)
 | `web/src/lib/bitcoin/reconcile.ts` | Matching rules and the journal lines for a transaction (pure)

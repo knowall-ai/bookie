@@ -74,7 +74,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: 'Can Bookie show a Bitcoin wallet, and is that safe?',
-    a: 'Yes, as a bank account, from the wallet’s extended public key (xpub) or output descriptor. An xpub can see a wallet but can never spend from it, and Bookie refuses private keys. For a Business Central company the xpub is kept on the bank account in your own Business Central. Bookie looks up the transactions through an Electrum server chosen by whoever runs your Bookie; that server sees which addresses are asked about, so we recommend your own node. GBP values come from Kraken, and each one says which Kraken price and time it used.',
+    a: 'Yes, as a bank account, from the wallet’s extended public key (xpub) or output descriptor. An xpub can see a wallet but can never spend from it, and Bookie refuses private keys. For a Business Central company the xpub is kept on the bank account in your own Business Central. Bookie looks up the transactions through an Electrum server chosen by whoever runs your Bookie; that server sees which addresses are asked about, so we recommend your own node. Values in your organisation’s base currency come from Kraken at each transaction’s own time, and each one says which Kraken price and time it used.',
   },
   {
     q: 'Is my Xero data used to train AI?',
@@ -202,10 +202,11 @@ export default function Landing() {
               <h3 className="text-ink text-sm font-semibold">Bitcoin wallets as bank accounts</h3>
               <p className="text-body mt-3 text-sm leading-relaxed">
                 Add a wallet’s xpub or output descriptor, single-key, Taproot or multisig, and it
-                appears under Bank accounts, read live from the blockchain, with GBP values from
-                Kraken labelled with their source and time. Watch-only: Bookie can see the wallet
-                but never spend from it. In Business Central the xpub sits on the bank account
-                itself.
+                appears under Bank accounts, read live from the blockchain. Each transaction shows
+                what it was worth at the time in your organisation’s own currency, from the Kraken
+                price at that moment, labelled with its source. Watch-only: Bookie can see the
+                wallet but never spend from it. In Business Central the xpub sits on the bank
+                account itself.
               </p>
               <p
                 className="text-body mt-3 text-sm leading-relaxed"

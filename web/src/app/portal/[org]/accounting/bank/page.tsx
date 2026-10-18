@@ -2,6 +2,7 @@ import { ArrowLeftRight, Landmark, List, Plus } from 'lucide-react';
 import { requireAuth, type AuthContext } from '@/lib/auth/context';
 import {
   BITCOIN_DOCS,
+  baseCurrencyOf,
   walletsForOrg,
   type OrgWallets,
   type WalletScope,
@@ -18,11 +19,13 @@ export const metadata = { title: 'Bank accounts' };
 function BitcoinWalletsSection({
   auth,
   scope,
+  currency,
   wallets,
   base,
 }: {
   auth: AuthContext;
   scope: WalletScope;
+  currency: string | undefined;
   wallets: OrgWallets;
   base: string;
 }) {
@@ -56,6 +59,7 @@ function BitcoinWalletsSection({
             key={wallet.id}
             auth={auth}
             scope={scope}
+            currency={currency}
             wallet={wallet}
             href={`${base}/accounting/bank/bitcoin/${encodeURIComponent(wallet.id)}`}
           />
@@ -75,9 +79,17 @@ export default async function Page({ params }: { params: Promise<{ org: string }
     console.error('[bookie] bitcoin wallets unavailable', error);
     return { wallets: [] };
   });
+  // Wallets are valued in the organisation's base currency, as its books report it.
+  const currency = wallets.wallets.length ? await baseCurrencyOf(connector) : undefined;
   const crumbs = [{ label: 'Accounting', href: `${base}/accounting` }];
   const walletsSection = (
-    <BitcoinWalletsSection auth={auth} scope={scope} wallets={wallets} base={base} />
+    <BitcoinWalletsSection
+      auth={auth}
+      scope={scope}
+      currency={currency}
+      wallets={wallets}
+      base={base}
+    />
   );
   if (!connector.bank) {
     return (

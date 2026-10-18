@@ -7,8 +7,9 @@
  *
  * What it does (all read-only):
  *   list                         wallets: BC bank accounts with a Bitcoin descriptor
- *   show <wallet> [--limit N] [--gbp]
- *                                balance, pending, transactions (and Kraken GBP with --gbp)
+ *   show <wallet> [--limit N] [--value]
+ *                                balance, pending, transactions (and, with --value, what each
+ *                                was worth at the time in the company's base currency, from Kraken)
  *   reconcile [<wallet>]         the same reconcile summary as the portal
  *   options: --company "<BC company name>" (default BC_COMPANY)
  *
@@ -25,7 +26,7 @@ import { join } from 'node:path';
 import { describeWallet, parseWalletInput, type ScriptType } from '../src/lib/bitcoin/descriptor';
 import { ElectrumClient, parseElectrumUrl } from '../src/lib/bitcoin/electrum';
 import { satsToBtc } from '../src/lib/bitcoin/format';
-import { gbpFor, latestRate, ratesForBlockTimes } from '../src/lib/bitcoin/kraken';
+import { ratesForBlockTimes, valueFor, valueNow } from '../src/lib/bitcoin/kraken';
 import { draftedTxids, reconcile, summariseReconcile, txDate } from '../src/lib/bitcoin/reconcile';
 import { scanWallet } from '../src/lib/bitcoin/scan';
 
@@ -125,7 +126,19 @@ async function openCompany(companyName: string) {
   if (!company) throw new Refusal(`No Business Central company called "${companyName}".`);
   const url = (route: string, path: string) =>
     `${api.root}/${route}/companies(${company.id})/${path}`;
-  return { api, url, company: company.displayName || company.name };
+  /** Company Information's currency, else the Bookie BC API extension's LCY code; undefined if neither says. */
+  const baseCurrency = async (): Promise<string | undefined> => {
+    const info = await api
+      .get<{ value: { currencyCode?: string }[] }>(url('v2.0', 'companyInformation'))
+      .catch(() => undefined);
+    const fromInfo = info?.value[0]?.currencyCode?.trim();
+    if (fromInfo) return fromInfo.toUpperCase();
+    const setup = await api
+      .get<{ value: { lcyCode?: string }[] }>(url(LEDGER_API, 'companySetup'))
+      .catch(() => undefined);
+    return setup?.value[0]?.lcyCode?.trim().toUpperCase() || undefined;
+  };
+  return { api, url, baseCurrency, company: company.displayName || company.name };
 }
 
 async function bcWallets(companyName: string) {
@@ -208,27 +221,31 @@ async function list(company: string) {
   };
 }
 
-async function show(company: string, wanted: string, limit: number, gbp: boolean) {
-  const { rows } = await bcWallets(company);
+async function show(company: string, wanted: string, limit: number, withValues: boolean) {
+  const { bc, rows } = await bcWallets(company);
   const [row] = pick(rows, wanted);
   const result = await scan(row);
   const shown = result.transactions.slice(0, limit);
   const times = shown.flatMap((t) => (t.blockTime ? [t.blockTime] : []));
-  const rates = gbp ? await ratesForBlockTimes(times) : undefined;
-  const balanceRate = gbp ? await latestRate().catch(() => undefined) : undefined;
+  // The company's base currency as Business Central reports it; never assumed.
+  const currency = withValues ? await bc.baseCurrency() : undefined;
+  const rates = withValues ? await ratesForBlockTimes(times, currency) : undefined;
   return {
     wallet: row.displayName,
     bankAccount: row.number,
     readAtBlock: result.tip.height,
+    ...(withValues
+      ? {
+          valuesIn: currency ?? "not available: Business Central didn't report the base currency",
+          valuesNote:
+            "Worth at the time, from Kraken, for information only: Business Central posts at its own daily rate, so these won't match the books exactly.",
+        }
+      : {}),
     balance: {
       confirmedBtc: btc(result.balance.confirmedSats),
       pendingBtc: btc(result.balance.pendingSats),
-      ...(gbp
-        ? {
-            confirmedGbp: balanceRate
-              ? gbpFor(result.balance.confirmedSats, balanceRate)
-              : { ok: false, reason: 'Kraken prices are unavailable.' },
-          }
+      ...(withValues
+        ? { confirmedValue: await valueNow(result.balance.confirmedSats, currency) }
         : {}),
     },
     transactions: shown.map((t) => {
@@ -240,12 +257,12 @@ async function show(company: string, wanted: string, limit: number, gbp: boolean
         confirmations: t.confirmations,
         amountBtc: btc(t.netSats),
         feeBtc: t.feeSats === undefined ? 'not available' : btc(t.feeSats),
-        ...(gbp
+        ...(withValues
           ? {
-              gbp: !t.blockTime
+              value: !t.blockTime
                 ? { ok: false, reason: 'Pending: no block time, so no rate.' }
                 : typeof rate === 'object'
-                  ? gbpFor(t.netSats, rate)
+                  ? valueFor(t.netSats, rate)
                   : { ok: false, reason: rate ?? 'Kraken prices are unavailable.' },
             }
           : {}),
@@ -363,15 +380,15 @@ async function main() {
   };
   const company = option('--company') ?? need('BC_COMPANY');
   const limit = Math.min(500, Math.max(1, Number(option('--limit') ?? 50) || 50));
-  const gbp = flag('--gbp');
+  const withValues = flag('--value');
   const [command, wallet] = args;
   let output: unknown;
   if (command === 'list') output = await list(company);
-  else if (command === 'show' && wallet) output = await show(company, wallet, limit, gbp);
+  else if (command === 'show' && wallet) output = await show(company, wallet, limit, withValues);
   else if (command === 'reconcile') output = await reconcileWallets(company, wallet);
   else {
     throw new Refusal(
-      'Usage: btc-wallet.mjs list | show <wallet> [--limit N] [--gbp] | reconcile [<wallet>]  [--company "<name>"]'
+      'Usage: btc-wallet.mjs list | show <wallet> [--limit N] [--value] | reconcile [<wallet>]  [--company "<name>"]'
     );
   }
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);

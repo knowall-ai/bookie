@@ -27,7 +27,7 @@ export const SITE_FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Can Bookie show a Bitcoin wallet, and is that safe?',
-    a: 'Yes, as a bank account, from the wallet’s extended public key (xpub) or output descriptor. An xpub can see a wallet but can never spend from it, and Bookie refuses private keys. For a Business Central company the xpub is kept on the bank account in your own Business Central. Bookie looks up the transactions through an Electrum server chosen by whoever runs your Bookie; that server sees which addresses are asked about, so we recommend your own node. GBP values come from Kraken, and each one says which Kraken price and time it used.',
+    a: 'Yes, as a bank account, from the wallet’s extended public key (xpub) or output descriptor. An xpub can see a wallet but can never spend from it, and Bookie refuses private keys. For a Business Central company the xpub is kept on the bank account in your own Business Central. Bookie looks up the transactions through an Electrum server chosen by whoever runs your Bookie; that server sees which addresses are asked about, so we recommend your own node. Values in your organisation’s base currency come from Kraken at each transaction’s own time, and each one says which Kraken price and time it used.',
   },
   {
     q: 'Is my Xero data used to train AI?',

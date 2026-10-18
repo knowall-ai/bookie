@@ -1,6 +1,6 @@
 ---
 name: bitcoin
-description: Look up a Bitcoin wallet that the books hold as a Business Central bank account, live from the blockchain, with $BTC_WALLET. Covers listing the wallets, the balance, pending and recent transactions, GBP values from Kraken, and the reconcile against the BTC bank account. Use for any question about a Bitcoin wallet, a txid, BTC received or sent, or whether the Bitcoin bank account agrees with the chain.
+description: Look up a Bitcoin wallet that the books hold as a Business Central bank account, live from the blockchain, with $BTC_WALLET. Covers listing the wallets, the balance, pending and recent transactions, what they were worth at the time in the organisation's base currency (from Kraken), and the reconcile against the BTC bank account. Use for any question about a Bitcoin wallet, a txid, BTC received or sent, or whether the Bitcoin bank account agrees with the chain.
 version: 0.1.0
 metadata:
   hermes:
@@ -34,7 +34,7 @@ server in `BOOKIE_ELECTRUM_URL` (TLS, certificate checked).
 |---|---|
 | Which wallets are there? | `node "$BTC_WALLET" list` |
 | Balance, pending, last transactions | `node "$BTC_WALLET" show <wallet>` (`--limit N`, default 50) |
-| The same with GBP values | `node "$BTC_WALLET" show <wallet> --gbp` |
+| The same with what each was worth at the time | `node "$BTC_WALLET" show <wallet> --value` |
 | Does the bank account agree with the chain? | `node "$BTC_WALLET" reconcile [<wallet>]` |
 
 `reconcile` matches each transaction to the bank account's posted entries by txid (External Document
@@ -63,10 +63,20 @@ When it answers `{"error": ...}`, say so plainly and stop:
   "not available" stays unavailable: the sender paid it, or an input couldn't be read. Never estimate.
 - **Pending is not settled.** A pending (unconfirmed) transaction isn't in the confirmed balance and
   isn't reconciled until it's mined. Say "pending", never "received" or "paid".
-- **GBP only from Kraken, with its source.** Give a GBP value only when the script returns one with
-  `--gbp`, and always with its label ("Kraken XBTGBP daily close, 11 Oct 2026" or "Kraken XBTGBP trade,
-  ..."). If it has `ok: false`, say there's no GBP value and why. Never multiply by today's price, never
-  use another source, and never convert to any other currency.
+- **Values only from Kraken, in the organisation's base currency, with their source.** Give a value
+  only when the script returns one with `--value`, in the currency it gives (`valuesIn`: the company's
+  base currency as Business Central reports it, such as GBP or USD), always with its label ("Kraken
+  XBTUSD at 14:32 UTC, 10 Oct 2026"; a "daily close ... (fallback ...)" label means the exact-time
+  price wasn't available, so say so). If a value has `ok: false`, or the base currency isn't
+  available, say there's no value and why. Never multiply by today's price, never use another source,
+  and never convert through another currency.
+- **Worth at the time is not what the books post.** The Kraken value is what the payment was worth at
+  that moment. Business Central converts at its own exchange rate, one per day, and wallets, Kraken and
+  Business Central all differ, so the figures never match exactly. Never present a Kraken value as the
+  amount in the books, and never call a difference an error: it's an exchange difference for the
+  accountant.
+- **Matching is on Bitcoin only.** A transaction matches the books by txid and exact satoshis, never by
+  a fiat value.
 - **Txids are fine to quote** when someone asks about a specific transaction; short form (first 10
   characters) in speech.
 - **Not tax advice.** Capital gains, pooling and valuation for the accounts are for the accountant

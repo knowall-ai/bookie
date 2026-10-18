@@ -9002,14 +9002,20 @@ function satsToBtc(sats) {
 }
 
 // src/lib/bitcoin/kraken.ts
-var KRAKEN_PAIR = "XBTGBP";
 var KRAKEN = "https://api.kraken.com/0/public";
 var DAY = 86400;
 var MAX_TRADE_GAP_SECONDS = 6 * 3600;
+var LOOKBACK_SECONDS = 15 * 60;
+function krakenPair(currency) {
+  const code = currency.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code) && code !== "BTC" && code !== "XBT" ? `XBT${code}` : undefined;
+}
 
 class KrakenError extends Error {
-  constructor(message) {
+  unknownPair;
+  constructor(message, unknownPair = false) {
     super(message);
+    this.unknownPair = unknownPair;
     this.name = "KrakenError";
   }
 }
@@ -9017,11 +9023,13 @@ function pairRows(json) {
   const body = json;
   if (!body || typeof body !== "object")
     throw new KrakenError("Kraken sent an unreadable response.");
-  if (body.error && body.error.length > 0)
-    throw new KrakenError(`Kraken: ${body.error.join(", ")}`);
+  if (body.error && body.error.length > 0) {
+    const unknown = body.error.some((e) => /Unknown asset pair/i.test(e));
+    throw new KrakenError(`Kraken: ${body.error.join(", ")}`, unknown);
+  }
   const entry = Object.entries(body.result ?? {}).find(([key]) => key !== "last");
   if (!entry || !Array.isArray(entry[1]))
-    throw new KrakenError("Kraken returned no XBTGBP data.");
+    throw new KrakenError("Kraken returned no price data.");
   return entry[1];
 }
 function positive(value) {
@@ -9052,50 +9060,61 @@ var dateLabel = (unix) => new Date(unix * 1000).toLocaleDateString("en-GB", {
   year: "numeric",
   timeZone: "UTC"
 });
-var timeLabel = (unix) => `${new Date(unix * 1000).toLocaleString("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
+var timeLabel = (unix) => `${new Date(unix * 1000).toLocaleTimeString("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
   timeZone: "UTC"
-})} UTC`;
-function dailyCloseRate(candles, blockTime, now) {
+})} UTC, ${dateLabel(unix)}`;
+function dailyCloseRate(candles, blockTime, now, currency) {
   const dayStart = blockTime - blockTime % DAY;
   const candle = candles.find((c) => c.time === dayStart);
   if (!candle || candle.time + DAY > now)
     return;
   return {
-    gbpPerBtc: candle.close,
+    perBtc: candle.close,
+    currency,
     source: "kraken-daily-close",
     rateTime: new Date((candle.time + DAY) * 1000).toISOString(),
-    label: `Kraken ${KRAKEN_PAIR} daily close, ${dateLabel(candle.time)}`
+    label: `Kraken ${krakenPair(currency)} daily close, ${dateLabel(candle.time)} (fallback: the price at the block time wasn't available)`
   };
 }
-function tradeRate(trades, blockTime) {
-  const trade = trades.find((t) => t.time >= blockTime);
-  if (!trade || trade.time - blockTime > MAX_TRADE_GAP_SECONDS)
+var tradeRateOf = (trade, currency, label) => ({
+  perBtc: trade.price,
+  currency,
+  source: "kraken-trade",
+  rateTime: new Date(Math.floor(trade.time * 1000)).toISOString(),
+  label
+});
+function nearestTradeRate(trades, at, currency) {
+  let best;
+  for (const t of trades) {
+    if (!best || Math.abs(t.time - at) < Math.abs(best.time - at))
+      best = t;
+  }
+  if (!best || Math.abs(best.time - at) > MAX_TRADE_GAP_SECONDS)
     return;
-  return {
-    gbpPerBtc: trade.price,
-    source: "kraken-trade",
-    rateTime: new Date(Math.floor(trade.time * 1000)).toISOString(),
-    label: `Kraken ${KRAKEN_PAIR} trade, ${timeLabel(trade.time)}`
-  };
+  return tradeRateOf(best, currency, `Kraken ${krakenPair(currency)} at ${timeLabel(best.time)}`);
 }
-function latestTradeRate(trades) {
+function latestTradeRate(trades, currency) {
   const trade = trades.at(-1);
   if (!trade)
     return;
+  return tradeRateOf(trade, currency, `Kraken ${krakenPair(currency)} last trade at ${timeLabel(trade.time)}`);
+}
+function valueFor(sats, rate) {
   return {
-    gbpPerBtc: trade.price,
-    source: "kraken-trade",
-    rateTime: new Date(Math.floor(trade.time * 1000)).toISOString(),
-    label: `Kraken ${KRAKEN_PAIR} last trade, ${timeLabel(trade.time)}`
+    ok: true,
+    amount: Math.round(sats / 1e8 * rate.perBtc * 100) / 100,
+    currency: rate.currency,
+    rate
   };
 }
-function gbpFor(sats, rate) {
-  return { ok: true, gbp: Math.round(sats / 1e8 * rate.gbpPerBtc * 100) / 100, rate };
+function noPairReason(currency) {
+  if (!currency)
+    return "The organisation's base currency isn't available, so there is no value.";
+  if (!krakenPair(currency))
+    return `There is no Kraken price for BTC in ${currency}.`;
+  return;
 }
 async function krakenJson(fetchImpl, path) {
   let response;
@@ -9112,35 +9131,46 @@ async function krakenJson(fetchImpl, path) {
     throw new KrakenError(`Kraken returned ${response.status}.`);
   return response.json();
 }
+var unknownPairReason = (currency) => `Kraken doesn't list ${krakenPair(currency)}, so there is no BTC price in ${currency}. Bookie doesn't convert through another currency.`;
 var OHLC_TTL_MS = 10 * 60000;
 var LATEST_TTL_MS = 60000;
-var MAX_TRADE_LOOKUPS = 8;
-var ohlcCache;
-var latestCache;
+var MAX_TRADE_LOOKUPS = 12;
+var ohlcCache = new Map;
+var latestCache = new Map;
 var tradeCache = new Map;
-function dailyCandles(fetchImpl, nowMs) {
-  if (ohlcCache && nowMs - ohlcCache.at < OHLC_TTL_MS)
-    return ohlcCache.value;
-  const value = krakenJson(fetchImpl, `OHLC?pair=${KRAKEN_PAIR}&interval=1440`).then(parseKrakenOhlc);
-  ohlcCache = { at: nowMs, value };
+function cached(map, key, ttl, nowMs, load) {
+  const hit = map.get(key);
+  if (hit && nowMs - hit.at < ttl)
+    return hit.value;
+  const value = load();
+  map.set(key, { at: nowMs, value });
   value.catch(() => {
-    if (ohlcCache?.value === value)
-      ohlcCache = undefined;
+    if (map.get(key)?.value === value)
+      map.delete(key);
   });
   return value;
 }
-async function latestRate(fetchImpl = fetch, nowMs = Date.now()) {
-  if (latestCache && nowMs - latestCache.at < LATEST_TTL_MS)
-    return latestCache.value;
-  const value = krakenJson(fetchImpl, `Trades?pair=${KRAKEN_PAIR}`).then((json) => latestTradeRate(parseKrakenTrades(json)));
-  latestCache = { at: nowMs, value };
-  value.catch(() => {
-    if (latestCache?.value === value)
-      latestCache = undefined;
-  });
-  return value;
+async function latestRate(currency, fetchImpl = fetch, nowMs = Date.now()) {
+  const pair = krakenPair(currency);
+  if (!pair)
+    return;
+  return cached(latestCache, pair, LATEST_TTL_MS, nowMs, () => krakenJson(fetchImpl, `Trades?pair=${pair}`).then((json) => latestTradeRate(parseKrakenTrades(json), currency.toUpperCase())));
 }
-async function ratesForBlockTimes(blockTimes, options = {}) {
+async function valueNow(sats, currency, fetchImpl = fetch) {
+  const missing = noPairReason(currency);
+  if (missing)
+    return { ok: false, reason: missing };
+  try {
+    const rate = await latestRate(currency, fetchImpl);
+    return rate ? valueFor(sats, rate) : { ok: false, reason: `Kraken returned no recent ${krakenPair(currency)} trade.` };
+  } catch (error) {
+    if (error instanceof KrakenError && error.unknownPair) {
+      return { ok: false, reason: unknownPairReason(currency.toUpperCase()) };
+    }
+    return { ok: false, reason: error.message || "Kraken prices are unavailable." };
+  }
+}
+async function ratesForBlockTimes(blockTimes, currency, options = {}) {
   const fetchImpl = options.fetchImpl ?? fetch;
   const nowMs = options.nowMs ?? Date.now();
   const now = Math.floor(nowMs / 1000);
@@ -9148,40 +9178,59 @@ async function ratesForBlockTimes(blockTimes, options = {}) {
   const unique = [...new Set(blockTimes)].sort((a, b) => b - a);
   if (unique.length === 0)
     return out;
-  let candles = [];
-  let ohlcError;
-  try {
-    candles = await dailyCandles(fetchImpl, nowMs);
-  } catch (error) {
-    ohlcError = error instanceof KrakenError ? error.message : "Kraken prices are unavailable.";
+  const missing = noPairReason(currency);
+  if (missing) {
+    for (const time of unique)
+      out.set(time, missing);
+    return out;
   }
+  const code = currency.trim().toUpperCase();
+  const pair = krakenPair(code);
+  const noTrade = `Kraken has no ${pair} trade within six hours of the block time.`;
+  let candles;
+  const fallback = async (time, why) => {
+    candles ??= cached(ohlcCache, pair, OHLC_TTL_MS, nowMs, () => krakenJson(fetchImpl, `OHLC?pair=${pair}&interval=1440`).then(parseKrakenOhlc)).catch((error) => error instanceof KrakenError && error.unknownPair ? unknownPairReason(code) : error instanceof KrakenError ? error.message : "Kraken prices are unavailable.");
+    const list = await candles;
+    if (typeof list === "string")
+      return list;
+    return dailyCloseRate(list, time, now, code) ?? why;
+  };
   let lookups = 0;
   for (const time of unique) {
-    const close = dailyCloseRate(candles, time, now);
-    if (close) {
-      out.set(time, close);
+    const key = `${pair}:${time}`;
+    const hit = tradeCache.get(key);
+    if (hit) {
+      out.set(time, hit);
       continue;
     }
-    const cached = tradeCache.get(time);
-    if (cached !== undefined) {
-      out.set(time, cached ?? "Kraken has no XBTGBP trade within six hours of the block time.");
+    if (hit === null) {
+      out.set(time, await fallback(time, noTrade));
       continue;
     }
     if (lookups >= MAX_TRADE_LOOKUPS) {
-      out.set(time, "Not looked up yet: Kraken limits how fast Bookie may ask. Reload in a minute.");
+      out.set(time, await fallback(time, "Not looked up yet: Kraken limits how fast Bookie may ask. Reload in a minute."));
       continue;
     }
-    lookups++;
     try {
-      const trades = parseKrakenTrades(await krakenJson(fetchImpl, `Trades?pair=${KRAKEN_PAIR}&since=${time}`));
-      const rate = tradeRate(trades, time);
+      lookups++;
+      const trades = parseKrakenTrades(await krakenJson(fetchImpl, `Trades?pair=${pair}&since=${time - LOOKBACK_SECONDS}`));
+      if (!trades.some((t) => t.time >= time) && lookups < MAX_TRADE_LOOKUPS) {
+        lookups++;
+        trades.push(...parseKrakenTrades(await krakenJson(fetchImpl, `Trades?pair=${pair}&since=${time}`)));
+      }
+      const rate = nearestTradeRate(trades, time, code);
       if (rate || now - time > MAX_TRADE_GAP_SECONDS)
-        tradeCache.set(time, rate ?? null);
+        tradeCache.set(key, rate ?? null);
       if (tradeCache.size > 5000)
         tradeCache.clear();
-      out.set(time, rate ?? "Kraken has no XBTGBP trade within six hours of the block time.");
+      out.set(time, rate ?? await fallback(time, noTrade));
     } catch (error) {
-      out.set(time, ohlcError ?? (error instanceof KrakenError ? error.message : "Kraken prices are unavailable."));
+      if (error instanceof KrakenError && error.unknownPair) {
+        for (const t of unique)
+          out.set(t, unknownPairReason(code));
+        return out;
+      }
+      out.set(time, await fallback(time, error instanceof KrakenError ? error.message : "Kraken prices are unavailable."));
     }
   }
   return out;
@@ -9563,7 +9612,19 @@ async function openCompany(companyName) {
   if (!company)
     throw new Refusal(`No Business Central company called "${companyName}".`);
   const url = (route, path) => `${api.root}/${route}/companies(${company.id})/${path}`;
-  return { api, url, company: company.displayName || company.name };
+  const baseCurrency = async () => {
+    const info = await api.get(url("v2.0", "companyInformation")).catch(() => {
+      return;
+    });
+    const fromInfo = info?.value[0]?.currencyCode?.trim();
+    if (fromInfo)
+      return fromInfo.toUpperCase();
+    const setup = await api.get(url(LEDGER_API, "companySetup")).catch(() => {
+      return;
+    });
+    return setup?.value[0]?.lcyCode?.trim().toUpperCase() || undefined;
+  };
+  return { api, url, baseCurrency, company: company.displayName || company.name };
 }
 async function bcWallets(companyName) {
   const bc = await openCompany(companyName);
@@ -9629,26 +9690,26 @@ async function list(company) {
     }))
   };
 }
-async function show(company, wanted, limit, gbp) {
-  const { rows } = await bcWallets(company);
+async function show(company, wanted, limit, withValues) {
+  const { bc, rows } = await bcWallets(company);
   const [row] = pick(rows, wanted);
   const result = await scan(row);
   const shown = result.transactions.slice(0, limit);
   const times = shown.flatMap((t) => t.blockTime ? [t.blockTime] : []);
-  const rates = gbp ? await ratesForBlockTimes(times) : undefined;
-  const balanceRate = gbp ? await latestRate().catch(() => {
-    return;
-  }) : undefined;
+  const currency = withValues ? await bc.baseCurrency() : undefined;
+  const rates = withValues ? await ratesForBlockTimes(times, currency) : undefined;
   return {
     wallet: row.displayName,
     bankAccount: row.number,
     readAtBlock: result.tip.height,
+    ...withValues ? {
+      valuesIn: currency ?? "not available: Business Central didn't report the base currency",
+      valuesNote: "Worth at the time, from Kraken, for information only: Business Central posts at its own daily rate, so these won't match the books exactly."
+    } : {},
     balance: {
       confirmedBtc: btc2(result.balance.confirmedSats),
       pendingBtc: btc2(result.balance.pendingSats),
-      ...gbp ? {
-        confirmedGbp: balanceRate ? gbpFor(result.balance.confirmedSats, balanceRate) : { ok: false, reason: "Kraken prices are unavailable." }
-      } : {}
+      ...withValues ? { confirmedValue: await valueNow(result.balance.confirmedSats, currency) } : {}
     },
     transactions: shown.map((t) => {
       const rate = t.blockTime ? rates?.get(t.blockTime) : undefined;
@@ -9659,8 +9720,8 @@ async function show(company, wanted, limit, gbp) {
         confirmations: t.confirmations,
         amountBtc: btc2(t.netSats),
         feeBtc: t.feeSats === undefined ? "not available" : btc2(t.feeSats),
-        ...gbp ? {
-          gbp: !t.blockTime ? { ok: false, reason: "Pending: no block time, so no rate." } : typeof rate === "object" ? gbpFor(t.netSats, rate) : { ok: false, reason: rate ?? "Kraken prices are unavailable." }
+        ...withValues ? {
+          value: !t.blockTime ? { ok: false, reason: "Pending: no block time, so no rate." } : typeof rate === "object" ? valueFor(t.netSats, rate) : { ok: false, reason: rate ?? "Kraken prices are unavailable." }
         } : {}
       };
     }),
@@ -9741,17 +9802,17 @@ async function main() {
   };
   const company = option("--company") ?? need("BC_COMPANY");
   const limit = Math.min(500, Math.max(1, Number(option("--limit") ?? 50) || 50));
-  const gbp = flag("--gbp");
+  const withValues = flag("--value");
   const [command, wallet] = args;
   let output;
   if (command === "list")
     output = await list(company);
   else if (command === "show" && wallet)
-    output = await show(company, wallet, limit, gbp);
+    output = await show(company, wallet, limit, withValues);
   else if (command === "reconcile")
     output = await reconcileWallets(company, wallet);
   else {
-    throw new Refusal('Usage: btc-wallet.mjs list | show <wallet> [--limit N] [--gbp] | reconcile [<wallet>]  [--company "<name>"]');
+    throw new Refusal('Usage: btc-wallet.mjs list | show <wallet> [--limit N] [--value] | reconcile [<wallet>]  [--company "<name>"]');
   }
   process.stdout.write(`${JSON.stringify(output, null, 2)}
 `);

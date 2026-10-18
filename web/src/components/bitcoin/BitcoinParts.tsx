@@ -1,4 +1,4 @@
-import type { GbpValue } from '@/lib/bitcoin/kraken';
+import type { FiatValue } from '@/lib/bitcoin/kraken';
 import { formatBtc } from '@/lib/bitcoin/format';
 import { cn } from '@/lib/ui/cn';
 import { Money, NotAvailableValue } from '@/components/ui/Money';
@@ -24,15 +24,15 @@ export function BtcAmount({
 }
 
 /**
- * A GBP value with its source and rate time, or "—" with the reason. The label is
- * shown, not hidden in a tooltip: it is part of the figure.
+ * A value in the organisation's base currency with its source and rate time, or "—"
+ * with the reason. The label is shown, not hidden in a tooltip: it is part of the figure.
  */
-export function GbpValueView({
+export function FiatValueView({
   value,
   compact,
   className,
 }: {
-  value: GbpValue;
+  value: FiatValue;
   /** Put the label in a tooltip (tables); otherwise show it under the figure. */
   compact?: boolean;
   className?: string;
@@ -41,7 +41,7 @@ export function GbpValueView({
   return (
     <span className={cn('inline-flex flex-col items-end', className)}>
       <span title={compact ? value.rate.label : undefined} className={cn(compact && 'cursor-help')}>
-        <Money amount={value.gbp} currency="GBP" />
+        <Money amount={value.amount} currency={value.currency} />
       </span>
       {compact ? (
         <span className="sr-only">{value.rate.label}</span>
