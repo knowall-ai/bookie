@@ -17,6 +17,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "parity": "bun --conditions=react-server scripts/parity.ts",
+    "build:agent-btc": "bun build scripts/agent-btc-wallet.ts --target=node --format=esm --outfile ../agent/hermes/scripts/btc-wallet.mjs --banner '#!/usr/bin/env node\n// GENERATED from web/scripts/agent-btc-wallet.ts by `bun run build:agent-btc` (in web/). Do not edit.'",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {

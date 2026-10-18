@@ -1,4 +1,3 @@
-import 'server-only';
 import { createHash } from 'node:crypto';
 import net from 'node:net';
 import tls from 'node:tls';

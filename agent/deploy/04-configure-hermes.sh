@@ -83,6 +83,9 @@ declare -A SETTINGS=(
   [BILL_APPROVERS]="${BILL_APPROVERS:-}"
   [BC_COMPANIES]="${BC_COMPANY}${BC_COMPANY_2:+;${BC_COMPANY_2}}" [XERO_COMPANIES]="${XERO_COMPANIES}"
   [ORGANISATIONS]="${ORGANISATIONS}"
+  [BOOKIE_ELECTRUM_URL]="${BOOKIE_ELECTRUM_URL:-}"
+  [BOOKIE_ELECTRUM_CERT_SHA256]="${BOOKIE_ELECTRUM_CERT_SHA256:-}"
+  [BTC_WALLET]="${AGENT_REPO}/agent/hermes/scripts/btc-wallet.mjs"
 )
 for k in "${!SETTINGS[@]}"; do set_env_line "${ENV_FILE}" "${k}" "${SETTINGS[${k}]}"; done
 info "settings written: ${#SETTINGS[@]}"

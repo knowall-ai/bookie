@@ -15,7 +15,8 @@
  */
 import type { BtcJournalLine, BtcLedgerEntry } from '@/lib/connectors/types';
 import type { IsoDate } from '@/lib/domain/types';
-import type { ChainTransaction } from './scan';
+import { satsToBtc } from './format';
+import type { ChainTransaction, WalletScan } from './scan';
 
 export const DEFAULT_WINDOW_DAYS = 3;
 /** BC's External Document No. is Code[35]. */
@@ -222,6 +223,69 @@ export function journalLinesFor(
     },
     fee,
   ];
+}
+
+/* ------------------------------------------------------------------ */
+/* The summary (Bookie's tool, the portal API and the agent's script)  */
+/* ------------------------------------------------------------------ */
+
+const btc = (sats: number) => Number(satsToBtc(sats).replace(/,/g, ''));
+
+/**
+ * The reconcile in plain figures: counts, then only what needs attention. Amounts are
+ * BTC to 8 decimals, exactly as on chain and in the books; nothing is converted.
+ */
+export function summariseReconcile(input: {
+  wallet: string;
+  bankAccountNumber: string;
+  scan: Pick<WalletScan, 'tip' | 'balance'>;
+  result: ReconcileResult;
+  ledgerSats: number;
+  drafted?: string[];
+}) {
+  const { result, scan } = input;
+  const drafted = new Set(input.drafted ?? []);
+  const differs = result.matched.filter((m) => m.amountDiffers);
+  return {
+    wallet: input.wallet,
+    bankAccount: input.bankAccountNumber,
+    status: 'ok',
+    readAtBlock: scan.tip.height,
+    counts: {
+      matched: result.matched.length,
+      matchedButAmountsDiffer: differs.length,
+      onChainNotInBooks: result.chainOnly.length,
+      inBooksNotOnChain: result.ledgerOnly.length,
+      pending: result.pending.length,
+      draftedNotPosted: drafted.size,
+    },
+    balances: {
+      onChainConfirmedBtc: btc(scan.balance.confirmedSats),
+      inBooksBtc: btc(input.ledgerSats),
+      differenceBtc: btc(scan.balance.confirmedSats - input.ledgerSats),
+      note: 'In the books = the sum of posted entries on the bank account. Pending transactions are in neither.',
+    },
+    onChainNotInBooks: result.chainOnly.map((t) => ({
+      txid: t.txid,
+      date: t.date,
+      amountBtc: btc(t.netSats),
+      feeBtc: t.feeSats === undefined ? undefined : btc(t.feeSats),
+      drafted: drafted.has(t.txid),
+    })),
+    inBooksNotOnChain: result.ledgerOnly.map((e) => ({
+      postingDate: e.postingDate,
+      documentNumber: e.documentNumber,
+      externalDocumentNumber: e.externalDocumentNumber,
+      description: e.description,
+      amountBtc: btc(e.amountSats),
+    })),
+    amountsDiffer: differs.map((m) => ({
+      txid: m.tx.txid,
+      onChainBtc: btc(m.tx.netSats),
+      inBooksBtc: btc(m.ledgerSats),
+    })),
+    pending: result.pending.map((t) => ({ txid: t.txid, amountBtc: btc(t.netSats) })),
+  };
 }
 
 /** The txids a drafted batch covers, from its External Document Nos. */

@@ -1,14 +1,15 @@
 import 'server-only';
 import type { AuthContext } from '@/lib/auth/context';
-import type { AccountingConnector, BtcJournalDraft, BtcLedgerEntry } from '@/lib/connectors/types';
+import type { AccountingConnector, BtcJournalDraft } from '@/lib/connectors/types';
 import type { OrgRef } from '@/lib/domain/types';
 import { WalletError } from './errors';
-import { formatBtc, satsToBtc } from './format';
+import { formatBtc } from './format';
 import {
   DraftError,
   draftedTxids,
   journalLinesFor,
   reconcile,
+  summariseReconcile,
   type ReconcileResult,
 } from './reconcile';
 import type { WalletScan } from './scan';
@@ -159,59 +160,21 @@ export async function postReconcileJournal(
 /* The summary for Bookie (portal chat and voice, and the JSON API)    */
 /* ------------------------------------------------------------------ */
 
-const btc = (sats: number) => Number(satsToBtc(sats).replace(/,/g, ''));
-const entryView = (e: BtcLedgerEntry) => ({
-  postingDate: e.postingDate,
-  documentNumber: e.documentNumber,
-  externalDocumentNumber: e.externalDocumentNumber,
-  description: e.description,
-  amountBtc: btc(e.amountSats),
-});
-
 /**
- * The reconcile in plain figures: counts, then only what needs attention. Amounts are
- * BTC to 8 decimals, exactly as on chain and in the books; nothing is converted.
+ * The reconcile in plain figures (see `summariseReconcile`, shared with the agent's
+ * btc-wallet script). Amounts are BTC to 8 decimals; nothing is converted.
  */
 export function reconcileSummary(wallet: WalletSummary, view: ReconcileView) {
   if (view.status !== 'ok')
     return { wallet: wallet.name, status: 'unavailable', reason: view.reason };
-  const { result, scan } = view;
-  const drafted = new Set(view.drafted);
-  const differs = result.matched.filter((m) => m.amountDiffers);
-  return {
+  return summariseReconcile({
     wallet: wallet.name,
-    bankAccount: view.bankAccountNumber,
-    status: 'ok',
-    readAtBlock: scan.tip.height,
-    counts: {
-      matched: result.matched.length,
-      matchedButAmountsDiffer: differs.length,
-      onChainNotInBooks: result.chainOnly.length,
-      inBooksNotOnChain: result.ledgerOnly.length,
-      pending: result.pending.length,
-      draftedNotPosted: view.drafted.length,
-    },
-    balances: {
-      onChainConfirmedBtc: btc(scan.balance.confirmedSats),
-      inBooksBtc: btc(view.ledgerSats),
-      differenceBtc: btc(scan.balance.confirmedSats - view.ledgerSats),
-      note: 'In the books = the sum of posted entries on the bank account. Pending transactions are in neither.',
-    },
-    onChainNotInBooks: result.chainOnly.map((t) => ({
-      txid: t.txid,
-      date: t.date,
-      amountBtc: btc(t.netSats),
-      feeBtc: t.feeSats === undefined ? undefined : btc(t.feeSats),
-      drafted: drafted.has(t.txid),
-    })),
-    inBooksNotOnChain: result.ledgerOnly.map(entryView),
-    amountsDiffer: differs.map((m) => ({
-      txid: m.tx.txid,
-      onChainBtc: btc(m.tx.netSats),
-      inBooksBtc: btc(m.ledgerSats),
-    })),
-    pending: result.pending.map((t) => ({ txid: t.txid, amountBtc: btc(t.netSats) })),
-  };
+    bankAccountNumber: view.bankAccountNumber,
+    scan: view.scan,
+    result: view.result,
+    ledgerSats: view.ledgerSats,
+    drafted: view.drafted,
+  });
 }
 
 /**
