@@ -17,7 +17,7 @@ secrets, keys, tokens, tenant or company ids, server names or addresses, interna
 particular install's access is configured, or anyone's data. If you don't know, say so and point to
 the docs; don't fill gaps.
 
-For depth, read the docs in the repo checkout (`{{AGENT_REPO}}/docs/`, and `README.md` files):
+For depth, read the docs in your Bookie repo checkout (`~/bookie/docs/`, plus the `README.md` files; the path is `AGENT_REPO` in SOUL.md if it differs):
 `AGENT.adoc` (agent design), `ACCESS.adoc` (who sees what), `DEPLOYMENT.adoc` (hosting, CI/CD,
 app registration and permissions), `HOSTED_AGENT_ISOLATION.adoc` (per-client isolation),
 `PUBLIC_ASSISTANT.adoc` (the website helper), `WEBHOOKS.adoc` (live updates), `XERO_COVERAGE.adoc`
