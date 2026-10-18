@@ -20,6 +20,11 @@ abstract class SealedRecordStore implements ConfigStore {
   protected abstract write(name: string, sealed: string): Promise<void>;
   protected abstract remove(name: string): Promise<void>;
 
+  /** Local and in-memory stores have nothing to open in a browser. */
+  async locationUrl(): Promise<string | undefined> {
+    return undefined;
+  }
+
   async listConnections(): Promise<Connection[]> {
     const records = await this.readAll();
     const connections: Connection[] = [];
@@ -74,7 +79,10 @@ abstract class SealedRecordStore implements ConfigStore {
 const LIST_NAME = 'BookieConnections';
 const DATA_COLUMN = 'BookieData';
 const GRAPH = 'https://graph.microsoft.com/v1.0';
-const listLocations = new Map<string, { siteId: string; listId: string; webUrl?: string }>();
+const listLocations = new Map<
+  string,
+  { siteId: string; listId: string; webUrl?: string; listWebUrl?: string }
+>();
 
 interface GraphListItem {
   id: string;
@@ -116,7 +124,32 @@ export class SharePointConfigStore extends SealedRecordStore {
     return body as T;
   }
 
-  private async locate(create: boolean): Promise<{ siteId: string; listId: string } | null> {
+  /**
+   * The BookieConnections list's own SharePoint page, from Graph. `undefined`
+   * before the list exists or when Graph can't say: Settings then shows plain text.
+   */
+  async locationUrl(): Promise<string | undefined> {
+    try {
+      const location = await this.locate(false);
+      if (!location) return undefined;
+      if (!location.listWebUrl) {
+        const list = await this.graph<{ webUrl?: string }>(
+          `/sites/${location.siteId}/lists/${location.listId}?$select=webUrl`
+        );
+        const url = list.webUrl ? new URL(list.webUrl) : undefined;
+        if (url?.protocol !== 'https:') return undefined;
+        location.listWebUrl = url.href;
+      }
+      return location.listWebUrl;
+    } catch (error) {
+      console.error('[bookie] SharePoint list link unavailable', error);
+      return undefined;
+    }
+  }
+
+  private async locate(
+    create: boolean
+  ): Promise<{ siteId: string; listId: string; listWebUrl?: string } | null> {
     const known = listLocations.get(this.tenantId);
     if (known) return known;
     const site = await this.graph<{ id: string; webUrl: string }>('/sites/root?$select=id,webUrl');

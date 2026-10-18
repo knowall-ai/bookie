@@ -68,5 +68,8 @@ test.describe('account menu', () => {
     await page.getByRole('button', { name: 'Account menu' }).click();
     await page.getByRole('menuitem', { name: 'Settings' }).click();
     await expect(page).toHaveURL(/\/portal\/settings$/);
+    // The demo store lives in memory, so "Where your settings live" is plain text, not a link.
+    await expect(page.getByText('In memory (demo)')).toBeVisible();
+    await expect(page.getByTestId('settings-location-link')).toHaveCount(0);
   });
 });

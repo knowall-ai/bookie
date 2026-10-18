@@ -84,6 +84,8 @@ export const DEFAULT_SETTINGS: TenantSettings = {
 export interface ConfigStore {
   /** Where the data lives, shown in Settings so admins can find it. */
   readonly location: string;
+  /** A link that opens `location` (the SharePoint list), or `undefined` when there isn't one. */
+  locationUrl(): Promise<string | undefined>;
   listConnections(): Promise<Connection[]>;
   getConnection(id: string): Promise<Connection | undefined>;
   saveConnection(connection: Connection): Promise<void>;
