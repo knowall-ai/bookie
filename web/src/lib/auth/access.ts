@@ -47,9 +47,8 @@ export function accessEntryIndex(access: AccessSettings | undefined, who: Access
   }
   const email = normaliseEmail(who.email);
   if (!email) return -1;
-  return people.findIndex(
-    (p) => normaliseEmail(p.email) === email && (!p.userId || p.userId === userId)
-  );
+  // A linked entry would already have matched by id above, so only unlinked entries match by email.
+  return people.findIndex((p) => !p.userId && normaliseEmail(p.email) === email);
 }
 
 /** The access entry for this user: by Entra object id first, then by email. */

@@ -57,12 +57,21 @@ export function toDirectoryPerson(user: GraphUser): DirectoryPerson | undefined 
 /** The Graph `/users` search URL. Quotes and backslashes are dropped so the query can't break out of `$search`. */
 export function directorySearchUrl(query: string, top = 10): string {
   const q = query.replace(/["\\]/g, ' ').replace(/\s+/g, ' ').trim();
-  const params = new URLSearchParams({
-    $search: `"displayName:${q}" OR "mail:${q}"`,
-    $select: USER_SELECT,
-    $top: String(top),
-  });
-  return `${GRAPH}/users?${params}`;
+  // encodeURIComponent, not URLSearchParams: Graph wants `%20` for spaces (not `+`) and a literal `$`.
+  const search = encodeURIComponent(`"displayName:${q}" OR "mail:${q}"`);
+  return `${GRAPH}/users?$search=${search}&$select=${USER_SELECT}&$top=${top}`;
+}
+
+/** JSON body of a Graph answer, or `{}` when it isn't JSON. */
+async function readJson<T>(response: Response): Promise<Partial<T>> {
+  return (await response.json().catch(() => ({}))) as Partial<T>;
+}
+
+function reauthError(): DirectoryError {
+  return new DirectoryError(
+    'Your Microsoft sign-in has expired or isn’t valid any more. Try signing in again.',
+    401
+  );
 }
 
 async function graphToken(auth: AuthContext): Promise<string> {
@@ -108,12 +117,13 @@ export async function searchDirectory(
     console.error('[bookie] directory search failed', error);
     throw new DirectoryError('Microsoft 365 didn’t answer the search. Try again.');
   }
-  if (response.status === 401 || response.status === 403) throw consentError();
+  if (response.status === 401) throw reauthError();
+  if (response.status === 403) throw consentError();
   if (!response.ok) {
     console.error('[bookie] directory search failed', response.status);
     throw new DirectoryError('Microsoft 365 didn’t answer the search. Try again.');
   }
-  const body = (await response.json().catch(() => ({}))) as { value?: GraphUser[] };
+  const body = await readJson<{ value: GraphUser[] }>(response);
   return (body.value ?? []).flatMap((u) => toDirectoryPerson(u) ?? []);
 }
 
@@ -136,12 +146,13 @@ export async function getDirectoryPerson(
     throw new DirectoryError('Microsoft 365 didn’t answer. Try again.');
   }
   if (response.status === 404) return undefined;
-  if (response.status === 401 || response.status === 403) throw consentError();
+  if (response.status === 401) throw reauthError();
+  if (response.status === 403) throw consentError();
   if (!response.ok) {
     console.error('[bookie] directory lookup failed', response.status);
     throw new DirectoryError('Microsoft 365 didn’t answer. Try again.');
   }
-  return toDirectoryPerson((await response.json().catch(() => ({}))) as GraphUser);
+  return toDirectoryPerson(await readJson<GraphUser>(response));
 }
 
 /* ------------------------------------------------------------------ */
@@ -192,7 +203,7 @@ async function appAssignments(
     if (sp.status !== 403) console.warn('[bookie] service principal lookup failed', sp.status);
     return undefined;
   }
-  const principal = (await sp.json()) as { id?: string; appRoleAssignmentRequired?: boolean };
+  const principal = await readJson<{ id: string; appRoleAssignmentRequired: boolean }>(sp);
   if (!principal.id || typeof principal.appRoleAssignmentRequired !== 'boolean') return undefined;
   const result: AppAssignments = {
     required: principal.appRoleAssignmentRequired,
@@ -214,11 +225,13 @@ async function appAssignments(
       if (response.status !== 403) console.warn('[bookie] app assignments failed', response.status);
       return undefined;
     }
-    const body = (await response.json()) as {
-      value?: { principalId?: string; principalType?: string }[];
-      '@odata.nextLink'?: string;
-    };
-    for (const a of body.value ?? []) {
+    const body = await readJson<{
+      value: { principalId?: string; principalType?: string }[];
+      '@odata.nextLink': string;
+    }>(response);
+    // An answer without a list can't show who is assigned: don't read it as "nobody".
+    if (!Array.isArray(body.value)) return undefined;
+    for (const a of body.value) {
       if (!a.principalId) continue;
       if (a.principalType === 'User') result.users.add(a.principalId);
       else if (a.principalType === 'Group') result.groups.push(a.principalId);
@@ -246,7 +259,9 @@ async function memberGroups(
       }
     );
     if (!response.ok) return undefined;
-    found.push(...(((await response.json()) as { value?: string[] }).value ?? []));
+    const body = await readJson<{ value: string[] }>(response);
+    if (!Array.isArray(body.value)) return undefined;
+    found.push(...body.value);
   }
   return found;
 }

@@ -109,6 +109,15 @@ describe('toDirectoryPerson', () => {
 });
 
 describe('directorySearchUrl', () => {
+  it('builds the exact Graph URL: %20 for spaces and a literal $ in the parameter names', () => {
+    expect(directorySearchUrl('sam taylor')).toBe(
+      'https://graph.microsoft.com/v1.0/users' +
+        '?$search=%22displayName%3Asam%20taylor%22%20OR%20%22mail%3Asam%20taylor%22' +
+        '&$select=id,displayName,mail,userPrincipalName,userType&$top=10'
+    );
+    expect(directorySearchUrl('sam taylor')).not.toMatch(/\+|%24/);
+  });
+
   it('searches displayName and mail, with the fields and page size Bookie needs', () => {
     const url = new URL(directorySearchUrl('jo  lee'));
     expect(url.pathname).toBe('/v1.0/users');
@@ -153,6 +162,20 @@ describe('searchDirectory', () => {
     expect(error.message).toMatch(/User\.ReadBasic\.All/);
   });
 
+  it('asks to sign in again on 401, without blaming the permission', async () => {
+    fetchMock.mockResolvedValueOnce(json({ error: { code: 'InvalidAuthenticationToken' } }, 401));
+    const error = await searchDirectory(entra, 'pri').catch((e) => e);
+    expect(error).toBeInstanceOf(DirectoryError);
+    expect(error.status).toBe(401);
+    expect(error.message).toMatch(/signing in again/);
+    expect(error.message).not.toMatch(/User\.ReadBasic\.All/);
+  });
+
+  it('returns no one when Graph answers with something that is not JSON', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('<html>', { status: 200 }));
+    expect(await searchDirectory(entra, 'pri')).toEqual([]);
+  });
+
   it('fails with a plain message on other Graph errors', async () => {
     fetchMock.mockResolvedValueOnce(json({}, 500));
     await expect(searchDirectory(entra, 'pri')).rejects.toThrow(/didn’t answer/);
@@ -188,6 +211,11 @@ describe('getDirectoryPerson', () => {
   it('reports missing consent rather than "not found"', async () => {
     fetchMock.mockResolvedValueOnce(json({}, 403));
     await expect(getDirectoryPerson(entra, A)).rejects.toThrow(/administrator/);
+  });
+
+  it('asks to sign in again on 401', async () => {
+    fetchMock.mockResolvedValueOnce(json({}, 401));
+    await expect(getDirectoryPerson(entra, A)).rejects.toThrow(/signing in again/);
   });
 });
 
@@ -264,6 +292,18 @@ describe('signInStatuses', () => {
       .mockResolvedValueOnce(json({ value: [{ principalId: G1, principalType: 'Group' }] }))
       .mockResolvedValueOnce(json({}, 403));
     expect(await signInStatuses(entra, [B])).toEqual({});
+  });
+
+  it('treats an assignment answer that is not JSON as unknown, not as "nobody assigned"', async () => {
+    fetchMock.mockResolvedValueOnce(sp(true)).mockResolvedValueOnce(new Response('oops'));
+    expect(await signInStatuses(entra, [A])).toEqual({});
+    fetchMock
+      .mockResolvedValueOnce(sp(true))
+      .mockResolvedValueOnce(json({ value: [{ principalId: G1, principalType: 'Group' }] }))
+      .mockResolvedValueOnce(new Response('oops'));
+    expect(await signInStatuses(entra, [B])).toEqual({});
+    fetchMock.mockResolvedValueOnce(new Response('oops'));
+    expect(await signInStatuses(entra, [A])).toEqual({});
   });
 
   it('shows nothing when the permission is missing or Graph fails', async () => {

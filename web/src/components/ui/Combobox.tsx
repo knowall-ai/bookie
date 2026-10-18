@@ -82,14 +82,27 @@ export function Combobox<T>({
     return () => clearTimeout(timer);
   }, [trimmed, tooShort, debounceMs]);
 
+  // While onSelect runs (a server round-trip), further Enter presses and clicks are ignored.
+  // The ref guards synchronously; the state drives aria-busy and the spinner.
+  const busyRef = useRef(false);
+  const [busy, setBusy] = useState(false);
+
   const pick = async (item: T) => {
-    const clear = await onSelect(item);
-    if (clear) {
-      setQuery('');
-      setAnswer(null);
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const clear = await onSelect(item);
+      if (clear) {
+        setQuery('');
+        setAnswer(null);
+      }
+      setOpen(false);
+      setActive(-1);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
-    setOpen(false);
-    setActive(-1);
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -163,6 +176,7 @@ export function Combobox<T>({
           aria-autocomplete="list"
           aria-activedescendant={showPopup && active >= 0 ? `${id}-opt-${active}` : undefined}
           aria-describedby={`${id}-status`}
+          aria-busy={busy || undefined}
           autoComplete="off"
           spellCheck={false}
           disabled={disabled}
@@ -177,7 +191,7 @@ export function Combobox<T>({
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
         />
-        {state === 'loading' && !tooShort && (
+        {(busy || (state === 'loading' && !tooShort)) && (
           <Loader2
             aria-hidden="true"
             className="text-faint absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 animate-spin"

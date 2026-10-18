@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { Suspense, use, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { ExternalLink, Trash2, TriangleAlert, Users } from 'lucide-react';
 import {
@@ -36,16 +36,21 @@ export interface AccessPersonRow {
   email: string;
   name?: string;
   orgKeys: string[] | 'all';
-  /** From the app-assignment check; missing when Bookie couldn't tell. */
-  signIn?: SignInStatus;
 }
+
+/** App-assignment check results by Entra object id; a person missing from it gets no hint. */
+export type SignInStatuses = Promise<Record<string, SignInStatus>>;
 
 function rowKey(person: { userId?: string; email: string }) {
   return person.userId ?? person.email.toLowerCase();
 }
 
-/** The listed person can't sign in until an administrator assigns them to Bookie in Entra. */
-function SignInHint() {
+/**
+ * The listed person can't sign in until an administrator assigns them to Bookie in Entra.
+ * Reads the (streamed) check results, so it renders inside a Suspense boundary.
+ */
+function SignInHint({ statuses, userId }: { statuses: SignInStatuses; userId: string }) {
+  if (use(statuses)[userId] !== 'not-assigned') return null;
   return (
     <p
       className="border-warn/30 bg-warn/10 text-warn mt-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-sm"
@@ -90,10 +95,12 @@ function sameKeys(a: string[] | 'all', b: string[] | 'all') {
 function PersonCard({
   person,
   orgs,
+  signIn,
   onRemove,
 }: {
   person: AccessPersonRow;
   orgs: AccessOrgOption[];
+  signIn: SignInStatuses;
   onRemove: () => void;
 }) {
   const router = useRouter();
@@ -156,7 +163,11 @@ function PersonCard({
         </Button>
       </div>
 
-      {person.signIn === 'not-assigned' && <SignInHint />}
+      {person.userId && (
+        <Suspense fallback={null}>
+          <SignInHint statuses={signIn} userId={person.userId} />
+        </Suspense>
+      )}
 
       <fieldset className="mt-3" aria-describedby={`${id}-hint`}>
         <legend className="sr-only">Organisations {person.name || person.email} can open</legend>
@@ -216,12 +227,15 @@ export function PeopleAccess({
   people,
   membersSeeAll,
   orgs,
+  signIn,
 }: {
   /** The tenant's name ("Contoso"), or undefined when Microsoft 365 didn't say. */
   orgName?: string;
   people: AccessPersonRow[];
   membersSeeAll: boolean;
   orgs: AccessOrgOption[];
+  /** The app-assignment check, streamed from the server (never rejects). */
+  signIn: SignInStatuses;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -331,6 +345,7 @@ export function PeopleAccess({
                 key={`${rowKey(person)}:${JSON.stringify(person.orgKeys)}`}
                 person={person}
                 orgs={orgs}
+                signIn={signIn}
                 onRemove={() => setRemoving(person)}
               />
             ))}
