@@ -1,0 +1,22 @@
+# KnowAll AI plugin skills Bookie does NOT load (one name per line; # comments).
+# He keeps the company-knowledge skills; these duplicate his own tools or are
+# other agents' jobs. Read by scripts/link-marketplace-skills.sh.
+
+# His own `books` skill reads Xero and Business Central (portable paths, read-only rules).
+xero
+business-central
+# Allie, Sallie and Poppie's work (quotes, invoices, proposals, timesheets).
+quotes-and-invoices
+proposal
+eir-proposal
+eir-quote
+thyme
+timesheet-review
+time-suggestions
+knowall-daily-update
+# Presence owns calls and the avatar.
+teams-calls
+call-avatar
+# Not a bookkeeper's job.
+gen-image
+gen-video
