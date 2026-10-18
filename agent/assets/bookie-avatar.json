@@ -50,10 +50,10 @@
     "mouth_bar_glow": true
   },
   "backdrop": {
-    "bg": "backdrops/bookie-bg-lights-calm.png",
+    "bg": "backdrops/bookie-bg-holo-vault.png",
     "stars": false,
     "rain": null,
-    "video": "backdrops/bookie-bg-lights-calm-loop.mp4",
+    "video": "backdrops/bookie-bg-holo-vault-loop.mp4",
     "video_fps": 10
   },
   "badge_style": {
