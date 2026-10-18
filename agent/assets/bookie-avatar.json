@@ -54,7 +54,7 @@
     "stars": false,
     "rain": null,
     "video": "backdrops/bookie-bg-lights-calm-loop.mp4",
-    "video_fps": 5
+    "video_fps": 10
   },
   "badge_style": {
     "badge_image": "badge-none.png"
