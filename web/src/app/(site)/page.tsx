@@ -207,6 +207,15 @@ export default function Landing() {
                 but never spend from it. In Business Central the xpub sits on the bank account
                 itself.
               </p>
+              <p
+                className="text-body mt-3 text-sm leading-relaxed"
+                data-testid="site-bitcoin-reconcile"
+              >
+                Reconcile it against that Business Central bank account, held in BTC: Bookie matches
+                each transaction by its txid, then by exact amount, and drafts journal lines for
+                anything missing, with the network fee on its own line. Nothing posts until you
+                confirm.
+              </p>
             </div>
           </div>
           <ConnectorDemo />

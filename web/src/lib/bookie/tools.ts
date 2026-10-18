@@ -21,6 +21,8 @@ export interface ToolContext {
   plannedItems?: () => Promise<PlannedItem[]>;
   /** "Xero", "Business Central"...: used in "not available" reasons. */
   sourceName?: string;
+  /** Reconcile the org's Bitcoin wallets against their BTC bank accounts (read-only). */
+  bitcoinReconcile?: (wallet?: string) => Promise<unknown>;
 }
 
 interface Tool {
@@ -302,6 +304,18 @@ const TOOLS: Tool[] = [
       }
     },
   },
+  {
+    definition: fn(
+      'reconcile_bitcoin_wallets',
+      "Reconcile the organisation's Bitcoin wallets (read live from the blockchain) against the BTC bank account each one is in the books (Business Central). Returns per wallet: counts (matched by txid or exact amount within 3 days, on chain but not in the books, in the books but not on chain, pending, drafted but not posted), the confirmed on-chain balance against the sum of posted entries, and the items that need attention. Amounts are BTC to 8 decimals, exactly as on chain and in the books; never convert them. Pending transactions are unconfirmed and not settled. Read-only: drafting and posting journal lines happens in the portal, after the person confirms.",
+      { wallet: { type: 'string', description: 'Optional: one wallet, by name' } }
+    ),
+    available: (c) => !!c.bitcoin?.ledger,
+    run: async (_c, a, ctx) =>
+      ctx.bitcoinReconcile
+        ? ctx.bitcoinReconcile(str(a.wallet))
+        : { error: 'Bitcoin wallets are not available here.' },
+  },
 ];
 
 export function toolsFor(connector: AccountingConnector | undefined): ToolDefinition[] {
@@ -420,6 +434,8 @@ export function toolStatus(name: string, rawArgs: string): string {
     case 'list_credit_notes':
     case 'get_credit_note':
       return 'Checking credit notes…';
+    case 'reconcile_bitcoin_wallets':
+      return 'Reconciling the Bitcoin wallets…';
     default:
       return 'Looking that up…';
   }

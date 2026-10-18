@@ -1,6 +1,10 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Bitcoin } from 'lucide-react';
-import { requireAuth } from '@/lib/auth/context';
+import { requireAuth, type AuthContext } from '@/lib/auth/context';
+import { loadReconcile, type ReconcileScope } from '@/lib/bitcoin/reconcile-service';
+import { cn } from '@/lib/ui/cn';
+import { ReconcilePanel } from '@/components/bitcoin/ReconcilePanel';
 import { WalletError } from '@/lib/bitcoin/errors';
 import { shortTxid } from '@/lib/bitcoin/format';
 import {
@@ -104,7 +108,7 @@ export default async function Page({
   searchParams,
 }: {
   params: Promise<{ org: string; walletId: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; tab?: string }>;
 }) {
   const [{ org: orgParam, walletId: rawId }, query] = await Promise.all([params, searchParams]);
   const { base, org, connector } = await orgContext(orgParam);
@@ -164,11 +168,21 @@ export default async function Page({
   const { scan, source } = load;
   const page = Math.max(1, Math.floor(Number(query.page)) || 1);
   const slice = scan.transactions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const [rows, balanceGbp] = await Promise.all([
-    valueTransactions(slice, source),
-    valueBalance(scan.balance.confirmedSats, source),
-  ]);
   const listPath = `${base}/accounting/bank/bitcoin/${encodeURIComponent(wallet.id)}`;
+  // Reconcile against the BC bank account (or the demo's fictional one).
+  const canReconcile =
+    (org.kind === 'business-central' || org.kind === 'demo') &&
+    !!wallet.bcBankAccountNumber &&
+    !!connector.bitcoin?.ledger;
+  const tab = query.tab === 'reconcile' && canReconcile ? 'reconcile' : 'transactions';
+  // The Reconcile tab shows BTC only, so it doesn't ask Kraken for prices.
+  const [rows, balanceGbp] =
+    tab === 'reconcile'
+      ? [[], { ok: false as const, reason: '' }]
+      : await Promise.all([
+          valueTransactions(slice, source),
+          valueBalance(scan.balance.confirmedSats, source),
+        ]);
 
   return (
     <>
@@ -192,59 +206,132 @@ export default async function Page({
         </SourceNote>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3" data-testid="wallet-summary">
-        <div className="card px-5 py-4">
-          <p className="text-faint text-xs font-semibold tracking-wide uppercase">
-            Confirmed balance
-          </p>
-          <p className="text-ink mt-1 text-xl font-semibold">
-            <BtcAmount sats={scan.balance.confirmedSats} />
-          </p>
-        </div>
-        <div className="card px-5 py-4">
-          <p className="text-faint text-xs font-semibold tracking-wide uppercase">Pending</p>
-          <p className="text-ink mt-1 text-xl font-semibold">
-            <BtcAmount sats={scan.balance.pendingSats} sign />
-          </p>
-          <p className="text-faint text-xs">Unconfirmed: not settled until mined</p>
-        </div>
-        <div className="card px-5 py-4">
-          <p className="text-faint text-xs font-semibold tracking-wide uppercase">
-            Confirmed balance in GBP
-          </p>
-          <p className="text-ink mt-1 text-xl font-semibold">
-            <GbpValueView value={balanceGbp} className="items-start" />
-          </p>
-        </div>
-      </div>
+      {canReconcile && <WalletTabs listPath={listPath} current={tab} />}
+      {tab === 'reconcile' && canReconcile ? (
+        <ReconcileTab
+          auth={auth}
+          scope={{ org, connector }}
+          orgKey={org.key}
+          walletId={wallet.id}
+        />
+      ) : (
+        <>
+          <div className="mb-6 grid gap-4 sm:grid-cols-3" data-testid="wallet-summary">
+            <div className="card px-5 py-4">
+              <p className="text-faint text-xs font-semibold tracking-wide uppercase">
+                Confirmed balance
+              </p>
+              <p className="text-ink mt-1 text-xl font-semibold">
+                <BtcAmount sats={scan.balance.confirmedSats} />
+              </p>
+            </div>
+            <div className="card px-5 py-4">
+              <p className="text-faint text-xs font-semibold tracking-wide uppercase">Pending</p>
+              <p className="text-ink mt-1 text-xl font-semibold">
+                <BtcAmount sats={scan.balance.pendingSats} sign />
+              </p>
+              <p className="text-faint text-xs">Unconfirmed: not settled until mined</p>
+            </div>
+            <div className="card px-5 py-4">
+              <p className="text-faint text-xs font-semibold tracking-wide uppercase">
+                Confirmed balance in GBP
+              </p>
+              <p className="text-ink mt-1 text-xl font-semibold">
+                <GbpValueView value={balanceGbp} className="items-start" />
+              </p>
+            </div>
+          </div>
 
-      <SourceNote>
-        {source === 'demo'
-          ? 'Demo organisation: the transactions and prices are fictional.'
-          : 'GBP values come from Kraken (XBTGBP): the daily close of the UTC day the block was mined, or the first Kraken trade after the block time when that day has not closed or is older than Kraken’s daily history. Each figure says which. Pending transactions have no value until they are mined.'}
-      </SourceNote>
+          <SourceNote>
+            {source === 'demo'
+              ? 'Demo organisation: the transactions and prices are fictional.'
+              : 'GBP values come from Kraken (XBTGBP): the daily close of the UTC day the block was mined, or the first Kraken trade after the block time when that day has not closed or is older than Kraken’s daily history. Each figure says which. Pending transactions have no value until they are mined.'}
+          </SourceNote>
 
-      <p className="text-muted mb-3 text-sm" aria-live="polite">
-        {scan.transactions.length} {scan.transactions.length === 1 ? 'transaction' : 'transactions'}{' '}
-        · {scan.used.receive} receive and {scan.used.change} change addresses used
-      </p>
-      <DataTable
-        columns={columns}
-        rows={rows}
-        rowKey={(t) => t.txid}
-        empty={
-          <EmptyState
-            icon={<Bitcoin className="h-6 w-6" />}
-            title="No transactions yet"
-            body="Bookie looked at the first 20 unused addresses on each chain and found no history."
+          <p className="text-muted mb-3 text-sm" aria-live="polite">
+            {scan.transactions.length}{' '}
+            {scan.transactions.length === 1 ? 'transaction' : 'transactions'} · {scan.used.receive}{' '}
+            receive and {scan.used.change} change addresses used
+          </p>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            rowKey={(t) => t.txid}
+            empty={
+              <EmptyState
+                icon={<Bitcoin className="h-6 w-6" />}
+                title="No transactions yet"
+                body="Bookie looked at the first 20 unused addresses on each chain and found no history."
+              />
+            }
           />
-        }
-      />
-      <Pagination
-        page={page}
-        hasMore={scan.transactions.length > page * PAGE_SIZE}
-        basePath={listPath}
-      />
+          <Pagination
+            page={page}
+            hasMore={scan.transactions.length > page * PAGE_SIZE}
+            basePath={listPath}
+          />
+        </>
+      )}
     </>
+  );
+}
+
+function WalletTabs({
+  listPath,
+  current,
+}: {
+  listPath: string;
+  current: 'transactions' | 'reconcile';
+}) {
+  const tabs = [
+    { value: 'transactions', label: 'Transactions', href: listPath },
+    { value: 'reconcile', label: 'Reconcile', href: `${listPath}?tab=reconcile` },
+  ] as const;
+  return (
+    <div role="tablist" className="border-line mb-6 flex gap-1 border-b">
+      {tabs.map((t) => (
+        <Link
+          key={t.value}
+          role="tab"
+          aria-selected={current === t.value}
+          href={t.href}
+          className={cn(
+            '-mb-px border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors',
+            current === t.value
+              ? 'border-brand text-ink font-semibold'
+              : 'text-muted hover:text-ink border-transparent'
+          )}
+        >
+          {t.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+async function ReconcileTab({
+  auth,
+  scope,
+  orgKey,
+  walletId,
+}: {
+  auth: AuthContext;
+  scope: ReconcileScope;
+  orgKey: string;
+  walletId: string;
+}) {
+  const [{ view }, accounts] = await Promise.all([
+    loadReconcile(auth, scope, walletId),
+    scope.connector.accounts?.list().catch(() => []) ?? Promise.resolve([]),
+  ]);
+  return (
+    <ReconcilePanel
+      view={view}
+      orgKey={orgKey}
+      walletId={walletId}
+      accounts={accounts
+        .filter((a) => !a.isBank && a.status !== 'archived')
+        .map((a) => ({ code: a.code, name: a.name }))}
+    />
   );
 }

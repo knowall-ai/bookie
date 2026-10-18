@@ -17,3 +17,37 @@ export const addWalletSchema = z.object({
 });
 
 export type AddWalletInput = z.output<typeof addWalletSchema>;
+
+const orgKey = addWalletSchema.shape.orgKey;
+/** A sealed wallet's UUID, the demo wallet, or `bc~{bank account id}`. */
+const walletId = z
+  .string()
+  .max(80)
+  .regex(/^[\w~-]+$/, 'Unknown wallet.');
+const accountCode = z
+  .string()
+  .trim()
+  .min(1, 'Choose an account.')
+  .max(20)
+  .regex(/^[\w./ -]+$/, 'Unknown account.');
+
+export const draftJournalSchema = z.object({
+  orgKey,
+  walletId,
+  txids: z
+    .array(z.string().regex(/^[0-9a-f]{64}$/, 'Unknown transaction.'))
+    .min(1, 'Choose at least one transaction.')
+    .max(200, 'Draft up to 200 transactions at a time.')
+    .transform((ids) => [...new Set(ids)]),
+  counterAccount: accountCode,
+  feeAccount: accountCode.optional(),
+});
+
+export const postJournalSchema = z.object({
+  orgKey,
+  walletId,
+  batchId: z
+    .string()
+    .max(80)
+    .regex(/^[\w-]+$/, 'Unknown journal batch.'),
+});

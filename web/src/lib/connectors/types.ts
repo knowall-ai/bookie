@@ -305,8 +305,55 @@ export type SourceBitcoinWallets =
   /** The extension that holds wallets isn't installed (or the user lacks its permission set). */
   | { status: 'unavailable'; reason: string };
 
+/** A posted bank ledger entry on a BTC bank account, in satoshis. */
+export interface BtcLedgerEntry {
+  id: string;
+  entryNumber?: number;
+  postingDate: IsoDate;
+  documentNumber?: string;
+  externalDocumentNumber?: string;
+  description?: string;
+  /** Positive = money in. Exact: the source's BTC amount × 10^8. */
+  amountSats: number;
+  /** Not yet applied in a bank reconciliation in the source. */
+  open?: boolean;
+}
+
+export type BtcLedger =
+  { status: 'ok'; entries: BtcLedgerEntry[] } | { status: 'unavailable'; reason: string };
+
+/** One general-journal line Bookie drafts for an on-chain transaction. */
+export interface BtcJournalLine {
+  /** The BTC bank account; the line's amount is in its currency. */
+  bankAccountNumber: string;
+  postingDate: IsoDate;
+  documentNumber: string;
+  /** The txid's first 35 characters (BC's External Document No. holds 35). */
+  externalDocumentNumber: string;
+  description: string;
+  /** Positive = money in, in satoshis. */
+  amountSats: number;
+  /** The G/L account on the other side. */
+  balancingAccountNumber: string;
+}
+
+/** A journal batch of Bookie's BTC lines, drafted and not yet posted. */
+export interface BtcJournalDraft {
+  batchId: string;
+  batchCode: string;
+  lines: BtcJournalLine[];
+}
+
 export interface BitcoinWalletsModule {
   wallets(): Promise<SourceBitcoinWallets>;
+  /** Posted bank ledger entries of one BTC bank account. */
+  ledger?(bankAccountNumber: string): Promise<BtcLedger>;
+  /** Bookie's unposted BTC journal batches for a bank account. */
+  drafts?(bankAccountNumber: string): Promise<BtcJournalDraft[]>;
+  /** Create a new journal batch holding these lines (not posted). */
+  draftJournal?(lines: BtcJournalLine[]): Promise<BtcJournalDraft>;
+  /** Post one of Bookie's drafted batches for this bank account (after confirmation). */
+  postJournal?(bankAccountNumber: string, batchId: string): Promise<void>;
 }
 
 /** The text the Bookie agent puts on bills it drafts from captured documents. */
