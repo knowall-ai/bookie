@@ -26,7 +26,7 @@ agent/
 │   ├── SOUL.md                     # identity and rules ({{AGENT_UPN}} etc. rendered by step 04)
 │   ├── voice_persona.md            # how he speaks on calls (rendered to ~/.hermes/voice_persona.md)
 │   └── scripts/                    # skill farm, skills sync, name check, bill-capture gate, Xero attach, accounts@ subscription
-├── skills/                         # books, month-end-review, cash-advice, portal, bill-capture
+├── skills/                         # books, month-end-review, cash-advice, portal, bill-capture, bitcoin
 ├── config/
 │   ├── hermes/config.yaml.template # brain, memory, skills dirs, MCP servers, webhook routes, plugins
 │   ├── hermes/env.example          # every ~/.hermes/.env variable, no values

@@ -23,6 +23,7 @@ Every portal screenshot comes from **Microsoft's CRONUS sample company** in a Bu
 | `ask-bookie.webp` | Ask Bookie panel with his real answer to "Who owes us the most, and how late are they?" |
 | `landing.webp` | The public website hero at getbook.ie |
 | `bitcoin-wallet.webp` | A Bitcoin wallet as a bank account. The one exception to CRONUS: it is the **demo organisation's fictional wallet** (`BOOKIE_DEV_AUTH=demo`), because a real wallet would publish its transactions; every transaction id, amount and price in it is made up and labelled so |
+| `bitcoin-reconcile.webp` | The same demo wallet's Reconcile tab against the demo organisation's fictional BTC bank account: matched by txid or amount, on chain but not in the books (with drafting), in the books but not on chain, pending |
 
 ## Regenerating
 

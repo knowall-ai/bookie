@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       context.connector,
       parsed.data.name,
       parsed.data.arguments,
-      bookieToolContext(context.auth, context.org)
+      bookieToolContext(context.auth, context.org, context.connector)
     ),
   });
 }

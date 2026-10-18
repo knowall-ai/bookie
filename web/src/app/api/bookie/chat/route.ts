@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       ? [{ role: 'user', content: 'What should I know about these books today?' }]
       : messages.slice(-20).map((m) => ({ role: m.role, content: m.content }));
   const tools = toolsFor(connector);
-  const toolContext = bookieToolContext(auth, org);
+  const toolContext = bookieToolContext(auth, org, connector);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

@@ -50,7 +50,7 @@ memory:
 # Search order: ~/.hermes/skills (implicit, kept empty), then these, most specific first.
 # DUPLICATE NAMES ARE A HARD ERROR in Hermes ("Ambiguous skill name ... Refusing to guess"), so the
 # union of these dirs must hold each name once. agent/hermes/scripts/check-skill-names.sh enforces it.
-#   1. Bookie's own skills: books, month-end-review, cash-advice, portal
+#   1. Bookie's own skills: books, month-end-review, cash-advice, portal, bitcoin, ...
 #   2. Presence: the shared media/M365 plane (teams, email, call, todo, ...). Never copy one here.
 #   3. The knowall-ai marketplace pack as a de-duplicated symlink farm (link-marketplace-skills.sh),
 #      which brings the xero and business-central skills and drops any name 1 or 2 already own.

@@ -1,4 +1,6 @@
-import 'server-only';
+// No `import 'server-only'` here on purpose: the agent's btc-wallet script bundles this
+// file for plain Node. The node:net and node:tls imports already keep it out of any
+// browser bundle.
 import { createHash } from 'node:crypto';
 import net from 'node:net';
 import tls from 'node:tls';

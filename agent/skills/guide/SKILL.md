@@ -20,9 +20,8 @@ sure it exists yet rather than guess, and point them to the docs on GitHub
 
 ## Where to sign in
 
-- **Website:** https://bookie.knowall.ai. That's a temporary address: the **getbook.ie** domain is
-  already bought and is waiting on the registrar. When it's live the portal moves to getbook.ie and
-  bookie.knowall.ai keeps working, so links don't break. Mention this when giving someone the link.
+- **Website:** https://bookie.knowall.ai (getbook.ie will point to the same site once its domain is
+  connected; until then, use bookie.knowall.ai).
 - **Sign in:** the **Sign in** button at the top right, then **Sign in with Microsoft** with their
   work Microsoft 365 account. The portal is at https://bookie.knowall.ai/portal.
 - **Guests** (for example an outside accountant invited as a guest of the organisation): use the
@@ -81,6 +80,14 @@ Central posts at its own daily exchange rate, so the two never match exactly.
   one.
 - **Privacy:** lookups go through the Electrum server the Bookie installation is set up with; the
   portal warns when that server isn't the operator's own, because it learns the wallet's addresses.
+- **Reconciling (Business Central):** the wallet's page has a **Reconcile** tab. It matches each
+  transaction to the BTC bank account's posted entries by txid (External Document No. or
+  description), then by the exact amount within three days. It lists what's on chain but not in the
+  books, what's in the books but not on chain, and what's pending. People choose transactions and
+  accounts, then **Draft journal lines** (the fee is drafted on its own line), then **Post**; both
+  steps ask them to confirm. Posting needs BTC exchange rates in Business Central. I can run the
+  same reconcile myself, read-only (the `bitcoin` skill here, `reconcile_bitcoin_wallets` in the
+  portal), and report the counts and what needs attention. I never draft or post these myself.
 - **Not covered:** capital gains and pooling calculations are for the accountant (SOUL rule 5).
 
 The setup guide is docs/BITCOIN.adoc in the Bookie repository.

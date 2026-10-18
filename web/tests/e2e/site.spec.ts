@@ -45,6 +45,7 @@ test.describe('public site', () => {
   test('announces watch-only Bitcoin wallets', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('site-bitcoin')).toContainText('never spend');
+    await expect(page.getByTestId('site-bitcoin-reconcile')).toContainText('by its txid');
     await page.getByText('Can Bookie show a Bitcoin wallet, and is that safe?').click();
     await expect(page.getByText(/An xpub can see a wallet but can never spend/)).toBeVisible();
   });

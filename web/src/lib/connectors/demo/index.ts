@@ -33,6 +33,7 @@ import { demoAttachments, demoCapture } from './modules/attachments';
 import { demoCurrencies, demoInBase, seedForeignCurrency } from './modules/currencies';
 import { demoUsers } from './modules/users';
 import { demoHistory } from './modules/history';
+import { demoBitcoin } from './modules/bitcoin';
 import { demoInvoiceExtras } from './modules/invoice-extras';
 import { seedForecastFixtures } from './modules/forecast';
 
@@ -414,5 +415,6 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
     capture: demoCapture(data, org.key),
     users: demoUsers(),
     history: demoHistory(data),
+    bitcoin: demoBitcoin(data),
   };
 }

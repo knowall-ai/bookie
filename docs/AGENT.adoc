@@ -123,3 +123,11 @@ nothing financial enters Reverie.
 See `agent/README.md`, "Open questions". The main ones: Hermes key names to verify on first install;
 Presence routing of a shared-mailbox notification; gpt-live-1 quota; licensed access to the private
 Presence and skill repositories for self-hosted customers; Xero outside AU/NZ/UK/US.
+
+*Bitcoin wallets.* The agent reaches the portal only through links, so it reads Bitcoin wallets itself:
+the `bitcoin` skill runs `agent/hermes/scripts/btc-wallet.mjs`, which is the portal's own wallet code
+bundled for Node. It reads Business Central with the agent's app (`BOOKIE BTC READ`, and `BOOKIE READ`
+for reconcile) and the chain through `BOOKIE_ELECTRUM_URL` over TLS. It's read-only; drafting and
+posting stay in the portal, confirmed by a person. With `BOOKIE_ELECTRUM_URL` set at install, the
+weekly reconcile includes the wallets. Organisations whose wallets are sealed in the portal's settings
+(not Business Central) aren't reachable by the agent; see `docs/BITCOIN.adoc`.

@@ -211,6 +211,15 @@ export default function Landing() {
                 organisations it’s stored encrypted in your own Microsoft 365, because Xero can’t
                 hold it.
               </p>
+              <p
+                className="text-body mt-3 text-sm leading-relaxed"
+                data-testid="site-bitcoin-reconcile"
+              >
+                Reconcile it against that Business Central bank account, held in BTC: Bookie matches
+                each transaction by its txid, then by exact amount, and drafts journal lines for
+                anything missing, with the network fee on its own line. Nothing posts until you
+                confirm.
+              </p>
             </div>
           </div>
           <ConnectorDemo />

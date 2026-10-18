@@ -61,7 +61,7 @@ Real pages, read live through Bookie's own connector code from **Microsoft's CRO
 
 - **Multi-currency:** documents and payments in any currency the organisation uses. Totals across documents are kept per currency ("£8,340.00 + €1,200.00"), never converted at a guessed rate; a document's own base-currency total uses the source's rate for it.
 - **Live feed:** a Live panel on Home shows invoices, bills and contacts changing as it happens, from Xero and Business Central webhooks.
-- **Bitcoin wallets:** add a wallet's xpub or output descriptor (single-key, Taproot or multisig) and it appears under Bank accounts, read live from an Electrum server, valued in the organisation's base currency (GBP, USD, EUR...) at the Kraken price at each transaction's own time, labelled with its source. Watch-only: Bookie never holds a key that can spend. See [docs/BITCOIN.adoc](docs/BITCOIN.adoc).
+- **Bitcoin wallets:** add a wallet's xpub or output descriptor (single-key, Taproot or multisig) and it appears under Bank accounts, read live from an Electrum server, valued in the organisation's base currency (GBP, USD, EUR...) at the Kraken price at each transaction's own time, labelled with its source, and reconciled against its Business Central bank account in BTC (exact on txid and sats; draft journal lines, post after you confirm). Watch-only: Bookie never holds a key that can spend. See [docs/BITCOIN.adoc](docs/BITCOIN.adoc).
 
 **Xero or Business Central, same screens.** Each organisation can live in either system. Turn each connector on or off in Settings.
 

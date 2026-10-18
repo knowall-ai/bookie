@@ -202,6 +202,114 @@ not what Business Central posts: Business Central converts BTC at its own exchan
 Wallet apps, Kraken and Business Central all use different rates, so the figures never match exactly.
 Matching a wallet to the books is therefore exact on the Bitcoin side only: txid and satoshis.
 
+== Reconciling against Business Central
+
+A wallet in a Business Central company is its BTC bank account, so its page has a *Reconcile* tab
+that compares the chain with that account's posted bank ledger entries. Bookie needs both extensions:
+*Bookie Bitcoin* (which bank accounts are wallets) and the *Bookie BC API* extension (`bc-extension/`,
+for the bank account ledger entries, which API v2.0 doesn't publish). The bank account's currency must
+be `BTC`: an account in another currency can't be compared with chain amounts, and the tab says so.
+
+=== Matching
+
+. *By txid.* A ledger entry whose *External Document No.* is the start of the txid (Business Central
+  keeps 35 characters and upper-cases them), or whose *Description* contains the full txid. Every
+  entry for the same txid is grouped. If their total isn't the chain amount, the match is flagged
+  *Amounts differ*.
+. *By exact amount*, to the satoshi, posted within three days of the block's UTC date, nearest date
+  first. Each entry is used once. Reversed entries (and their reversals) are left out.
+. What's left falls into *On chain, not in the books* (confirmed transactions) and *In the books, not
+  on chain*.
+
+Pending transactions are listed separately. Bookie never matches them by amount and never drafts them,
+because they haven't settled. The tab also compares the confirmed chain balance with the sum of the
+posted entries on the bank account (*In the books*), and shows the difference.
+
+=== Drafting and posting journal lines
+
+For transactions that are on chain but not in the books, choose the transactions, the account for the
+other side (often a suspense or clearing account you re-code later) and, for payments out, the account
+for network fees. Then choose *Draft journal lines* and confirm. For each transaction, Bookie creates
+lines on a new general journal batch of its own (code `BTC…`):
+
+[cols="1,3", options="header"]
+|===
+| Transaction | Lines (all on the BTC bank account, amount in BTC)
+
+| Money in | One line for the amount, balanced against the counter account
+| Money out | The payment (amount less fee) against the counter account, and the fee as its own line against the fee account
+| Moved within the wallet | The fee only, against the fee account
+| Money out, fee not known (an input couldn't be read) | One line for the whole amount, described "fee not separated"
+|===
+
+Every line has the txid's first 35 characters as *External Document No.*, `BTC <txid>` as its
+*Description* (so the next reconcile matches it by txid), the block's UTC date as *Posting Date*, and
+`BTC-<first 12 characters of the txid>` as *Document No.*. Business Central takes the currency from the
+bank account and converts to your local currency at its own *Currency Exchange Rates* for BTC when it
+posts. Bookie doesn't set or guess a rate, so enter BTC rates in Business Central first.
+
+Drafted lines aren't posted. They appear under *Drafted, not posted* on the Reconcile tab and as a draft
+under *Manual journals*. *Post* asks for confirmation, then posts that one batch and removes it.
+
+Before it posts, Bookie reads the chain and the books again. If a transaction in the batch has been
+recorded since it was drafted (by hand, or by another draft), the batch shows *Already in the books*
+with no Post button. Posting it is refused (409), so nothing is counted twice; delete that draft batch
+in Business Central. A batch counts as Bookie's only if its code starts `BTC`, its name is *Bookie
+Bitcoin reconcile*, and every line is on this wallet's bank account. Bookie lists and posts nothing
+else, so an accountant's own `BTC...` batch is left alone. If Business Central refuses the posting (for
+example, an account that doesn't allow direct posting), it posts nothing. Bookie then tries to remove the
+draft batch and says so; check Business Central for it, and draft the lines again once that's fixed.
+
+The person drafting and posting needs Business Central permission to create and post general journal
+lines (for example `D365 JOURNALS, POST`) as well as `BOOKIE BTC READ` and `BOOKIE READ`.
+
+=== The fiat side
+
+Reconciling is exact on the Bitcoin side only: txid and satoshis. Bookie never matches on a fiat value
+and never uses a tolerance. The fiat figures can't agree exactly. A customer pays a USD invoice in sats
+worked out at the moment of payment, at their wallet's rate. Kraken's price at that minute is a little
+different. Business Central converts the BTC bank entry at its own exchange rate, which it keeps one
+per day. So, for a payment against an invoice:
+
+[cols="1,3", options="header"]
+|===
+| Figure | Source
+
+| The invoice amount | The invoice in Business Central
+| The payment's value in the books | The BTC amount × Business Central's exchange rate for the posting date (what BC posts)
+| The difference | An exchange gain or loss, posted as such by the accountant; never hidden or rounded away
+| What the payment was worth at the time | Kraken at the block time (or a rate the payment provider recorded), for information only
+|===
+
+Today the Reconcile tab shows the Bitcoin side, and the wallet's transaction list shows "worth at the
+time" values. Showing the invoice, the BC-rate value and the difference side by side for each payment
+is planned (phase 2b in issue #4). Like everything else, it will be shown, never posted automatically.
+
+=== Bookie's reconcile tool and API
+
+The same reconcile, read-only, is available:
+
+* to *Bookie in the portal* (chat and voice): the `reconcile_bitcoin_wallets` tool returns counts, the
+  balance difference, and the items that need attention, in exact BTC;
+* as JSON at `GET /api/orgs/{orgKey}/bitcoin/reconcile` (optionally `?wallet=<id or name>`), as the
+  signed-in user, with the organisation re-checked like every portal page.
+
+Both are read-only. Drafting and posting happen only in the portal, after the person confirms.
+
+=== Bookie the agent
+
+The Hermes agent has no portal session, so it looks wallets up itself with the `bitcoin` skill and
+`agent/hermes/scripts/btc-wallet.mjs` (`list`, `show <wallet> [--value]`, `reconcile [<wallet>]`, JSON
+output). The script reuses this code: it's bundled for Node from `web/scripts/agent-btc-wallet.ts`
+with `bun run build:agent-btc` in `web/`, so rebuild and commit it when `web/src/lib/bitcoin` changes.
+It reads Business Central with the agent's own service-to-service app. Give that app user
+`BOOKIE BTC READ`, plus `BOOKIE READ` for reconcile; never EDIT. It reads the chain through
+`BOOKIE_ELECTRUM_URL` from the agent's `config.env`, written to `~/.hermes/.env` by
+`agent/deploy/04-configure-hermes.sh`. The agent accepts only `ssl://`, with the certificate checked,
+or pinned with `BOOKIE_ELECTRUM_CERT_SHA256`. It never prints a descriptor or an address. When
+`BOOKIE_ELECTRUM_URL` is set at install time, the scheduled weekly reconcile also reconciles the
+Bitcoin wallets.
+
 == The Electrum server
 
 [cols="1,3"]
@@ -236,13 +344,19 @@ its prices are labelled "Demo price (fictional)". Production refuses demo mode.
 | `web/src/lib/bitcoin/descriptor.ts` | Parse keys and descriptors (SLIP-0132 prefixes, BIP380 checksum), derive scripts and addresses with `@scure/bip32` and `@scure/btc-signer`
 | `web/src/lib/bitcoin/electrum.ts` | Electrum JSON-RPC client over TLS or TCP, pipelined with a cap on requests in flight
 | `web/src/lib/bitcoin/scan.ts` | Gap-limit scan, transaction parsing, amounts, fees, confirmations
-| `web/src/lib/bitcoin/kraken.ts` | Kraken OHLC and trade parsing, rate selection, GBP values
+| `web/src/lib/bitcoin/kraken.ts` | Kraken OHLC and trade parsing, rate selection, values in the base currency
 | `web/src/lib/bitcoin/wallets.ts` | Wallets per organisation (Business Central or sealed settings), members-only changes, the scan cache
 | `web/src/lib/portal/actions/bitcoin.ts` | Server actions (zod-validated, org re-resolved with `orgContext()`)
+| `web/src/lib/bitcoin/reconcile.ts` | Matching rules and the journal lines for a transaction (pure)
+| `web/src/lib/bitcoin/reconcile-service.ts` | The Reconcile tab, drafting, posting, and the summary for Bookie's tool and the API
+| `web/src/lib/portal/actions/bitcoin-reconcile.ts` | Draft and post server actions
+| `web/src/app/api/orgs/[org]/bitcoin/reconcile/route.ts` | The read-only JSON API
 |===
 
 Tests: `descriptor.test.ts` checks the BIP84, BIP86 and BIP49 test vectors and a Bitcoin Core
 multisig vector; `scan.test.ts` runs the scanner against a fake Electrum server on localhost;
 `kraken.test.ts` parses Kraken responses and rate rules; `bitcoin.test.ts` (BC module) and
-`wallets.test.ts` cover where wallets come from; `tests/e2e/bitcoin.spec.ts` covers the demo wallet
-and adding and removing one. The repository holds no real xpubs, addresses or amounts.
+`wallets.test.ts` cover where wallets come from; `reconcile.test.ts`, `reconcile-service.test.ts` and
+`bitcoin-reconcile.test.ts` (BC module) cover matching, journal lines, drafting and the posting guard;
+`tests/e2e/bitcoin.spec.ts` covers the demo wallet and adding and removing one, and
+`tests/e2e/bitcoin-reconcile.spec.ts` drafts and posts on the demo organisation. The repository holds no real xpubs, addresses or amounts.
