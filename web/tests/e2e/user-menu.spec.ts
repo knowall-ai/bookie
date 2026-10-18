@@ -54,6 +54,11 @@ test.describe('account menu', () => {
     await button.focus();
     await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeFocused();
+
+    // Tab leaves the menu for the next control and closes it, without dropping focus.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('menu', { name: 'Account' })).toBeHidden();
+    expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('BODY');
   });
 
   test('shows the chevron and opens the menu on a phone @mobile', async ({ page }) => {

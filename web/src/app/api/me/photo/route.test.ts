@@ -36,9 +36,17 @@ describe('GET /api/me/photo', () => {
 
   it('is 404 when there is no photo, so the top bar keeps the initials', async () => {
     getAuthContext.mockResolvedValue({ mode: 'demo' });
-    fetchProfilePhoto.mockResolvedValue(null);
+    fetchProfilePhoto.mockResolvedValue('none');
     const response = await GET();
     expect(response.status).toBe(404);
     expect(response.headers.get('cache-control')).toBe('private, max-age=3600');
+  });
+
+  it('does not cache a temporary Graph failure as "no photo"', async () => {
+    getAuthContext.mockResolvedValue({ mode: 'entra' });
+    fetchProfilePhoto.mockResolvedValue('unavailable');
+    const response = await GET();
+    expect(response.status).toBe(503);
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 });

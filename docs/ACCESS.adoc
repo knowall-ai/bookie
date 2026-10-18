@@ -25,7 +25,7 @@ can't open Settings; they're asked to contact an administrator instead.
 Bookie looks the type up with Microsoft Graph (`GET /me?$select=userType,mail,userPrincipalName`)
 using the sign-in token, and keeps it with the person's email in the encrypted session cookie.
 Older Entra accounts can have a blank `userType`; Microsoft treats those as members, and so does
-Bookie, unless the user principal name is a B2B guest's (`...#EXT#@...`). If Graph can't say (the
+Bookie, unless the user principal name is missing or is a B2B guest's (`...#EXT#@...`). If Graph can't say (the
 call fails, or the type is `Guest` or anything else), the person is treated as a guest. Sessions
 from before this feature sign in again.
 
