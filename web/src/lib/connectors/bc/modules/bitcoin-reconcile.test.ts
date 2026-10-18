@@ -188,7 +188,7 @@ describe('bcBitcoin reconcile', () => {
       return original(path, req);
     });
     await expect(bcBitcoin(client).postJournal!('BTC-01', BATCH)).rejects.toThrow(
-      /Bookie removed the draft batch/
+      /Bookie tried to remove the draft batch/
     );
   });
 });

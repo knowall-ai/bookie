@@ -195,18 +195,6 @@ export function journalLinesFor(
       },
     ];
   }
-  if (tx.feeSats === undefined && tx.direction === 'self') {
-    // Moved within the wallet: whatever left it went on the fee.
-    if (!accounts.feeAccount) throw new DraftError('Choose an account for network fees.');
-    return [
-      {
-        ...base,
-        description: `BTC fee ${tx.txid}`,
-        amountSats: tx.netSats,
-        balancingAccountNumber: accounts.feeAccount,
-      },
-    ];
-  }
   if (tx.feeSats === undefined) {
     // A send whose fee isn't the wallet's alone (others funded inputs) or isn't known.
     return [

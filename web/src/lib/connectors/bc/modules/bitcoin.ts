@@ -261,7 +261,7 @@ export function bcBitcoin(client: BcClient): BitcoinWalletsModule {
         // postAndRemoveBatch deletes a batch BC refused to post: say so, so nobody looks for it.
         if (error instanceof ConnectorError) {
           throw new ConnectorError(
-            `${error.message} Business Central didn't post it, and Bookie removed the draft batch; draft the lines again once that's fixed.`,
+            `${error.message} Business Central didn't post it. Bookie tried to remove the draft batch: check Business Central for it, then draft the lines again once that's fixed.`,
             error.status,
             'business-central'
           );

@@ -183,12 +183,15 @@ describe('journalLinesFor', () => {
     expect(lines[0].description).toMatch(/fee not separated/);
   });
 
-  it('puts a move within the wallet with an unknown fee on the fee account', () => {
+  it('never books a guessed fee for a jointly funded move within the wallet', () => {
+    // Others funded some inputs, so the -700 isn't known to be the wallet's fee.
     const lines = journalLinesFor(
-      withDate(tx({ txid: id('8'), netSats: -700, direction: 'self' })),
+      withDate(tx({ txid: id('8'), netSats: -700, direction: 'self', sharedInputs: true })),
       accounts
     );
-    expect(lines.map((l) => [l.amountSats, l.balancingAccountNumber])).toEqual([[-700, '8430']]);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ amountSats: -700, balancingAccountNumber: '2190' });
+    expect(lines[0].description).toMatch(/fee not separated/);
   });
 
   it('drafts only the fee for a move within the wallet', () => {
