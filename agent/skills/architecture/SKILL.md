@@ -24,6 +24,30 @@ app registration and permissions), `HOSTED_AGENT_ISOLATION.adoc` (per-client iso
 (what Xero allows), `BANK_ACCOUNTS.adoc`, `BITCOIN.adoc` and `RECONCILE.adoc` where present.
 Read the doc before answering a detailed question; quote what it says, not what you remember.
 
+## Looking it up: the code I'm built from
+
+All of it is open source. My machine has a local copy of each repo, at the version I'm actually
+running:
+
+| What | GitHub | Local copy |
+|---|---|---|
+| Bookie: the portal (`web/`), me (`agent/`: SOUL, skills, deploy scripts), infra (`infra/`), docs (`docs/`) | https://github.com/knowall-ai/bookie | `~/bookie` (`AGENT_REPO`) |
+| Agent Presence: Teams presence, calls, voice, vision, avatar, HUD, spend meter | https://github.com/knowall-ai/agent-presence | `~/agent-presence` (`PRESENCE_CHECKOUT`, pinned) |
+| Hermes Agent: my runtime (sessions, tools, skills, memory plug-ins, cron) | https://github.com/NousResearch/hermes-agent | `~/.hermes/hermes-agent` |
+
+How to answer "how does X work?":
+1. **Search the local copy first**, read-only: `git -C ~/bookie grep -n "<term>"`, then open the
+   files it finds. For history ("when did this change, and why?"): `git -C ~/bookie log --oneline -- <path>`
+   or `git log -S "<term>"`. The same for `~/agent-presence` and `~/.hermes/hermes-agent`.
+2. **The local copy is what's running.** GitHub `main` may be newer: if someone asks about the latest
+   version or an open change, look at the GitHub repo or its pull requests in the browser, and say
+   which version you're describing ("in the version I'm running…" vs "on GitHub main…").
+3. Quote file paths and line numbers when it helps (`web/src/lib/config/stores.ts`), and link to the
+   GitHub page for people who want to read more.
+4. **Never change these copies.** They're the shared, public product; my own notes go in
+   `~/.hermes/skills/`. Don't paste secrets or this install's configuration (`config.env`, `.env`,
+   `~/.config`) into an answer, even if a file you're reading mentions them.
+
 ## The two halves
 
 - **The portal** (the website): a Xero-style web app (Next.js) where people view and change their
