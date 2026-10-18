@@ -12,7 +12,7 @@ metadata:
 # Bitcoin wallets
 
 A Business Central bank account can hold a Bitcoin wallet's public descriptor (an xpub, ypub, zpub or
-output descriptor, entered on the bank account card with the Bookie Bitcoin extension). The account is
+output descriptor, entered on the bank account card with the Bookie BC extension). The account is
 the wallet in the books; the blockchain is its statement. Everything here is **read-only**: Bookie
 never drafts or posts journal lines for a wallet. People do that in the portal, where every write asks
 them to confirm (`portal` skill: Accounting › Bank accounts › the wallet › Reconcile).
@@ -48,7 +48,7 @@ When it answers `{"error": ...}`, say so plainly and stop:
 | Error | What to say |
 |---|---|
 | `BOOKIE_ELECTRUM_URL is not set` | No Electrum server is configured for Bookie, so he can't read wallets. |
-| Bookie Bitcoin extension is not installed | The organisation hasn't installed it; setup is in the portal's docs (docs/BITCOIN.adoc). |
+| Bookie BC extension is not installed | The organisation hasn't installed it; setup is in the portal's docs (docs/BITCOIN.adoc). |
 | no BOOKIE BTC READ permission set | Bookie's Business Central app needs the `BOOKIE BTC READ` permission set (and `BOOKIE READ` for reconcile). Tell the accountant. |
 | The descriptor can't be used | The descriptor on that bank account card is wrong; someone with `BOOKIE BTC EDIT` should correct it in Business Central. |
 

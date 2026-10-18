@@ -1,17 +1,24 @@
 # Bookie BC extension
 
-An optional Microsoft Dynamics 365 Business Central extension that adds the custom API `api/knowallBookie/bookie/v1.0`. It fills the gaps in BC's standard API v2.0 that Bookie runs into, so Bookie can show exact figures instead of "not available from Business Central".
+The one, optional Microsoft Dynamics 365 Business Central extension for Bookie. Every Bookie feature that needs Business Central objects lives in it, each in its own folder under `src/`:
+
+- **core** (`src/core/`): the custom API `api/knowallBookie/bookie/v1.0`. It fills the gaps in BC's standard API v2.0 that Bookie runs into, so Bookie can show exact figures instead of "not available from Business Central".
+- **bitcoin** (`src/bitcoin/`): a watch-only Bitcoin wallet descriptor per bank account, published at `api/bookie/bitcoin/v1.0/bitcoinWallets` (see [docs/BITCOIN.adoc](../docs/BITCOIN.adoc)).
 
 Bookie works without it. When it is installed, Bookie detects it (one `companySetup` call per tenant, environment and company, cached for 10 minutes) and uses it. If it is uninstalled, Bookie falls back to API v2.0 within 10 minutes.
 
-|                 |                                                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| App             | `Bookie BC API Extension` by `KnowAll`, id `76f5224b-85e0-4956-af6b-07f140665e4f`                                               |
-| Targets         | BC 27.0 or later (platform and application 27.0, runtime 16.0), cloud                                                           |
-| Object ids      | 50200 to 50249 (Thyme uses 50100 to 50199 and Bookie Bitcoin 50250 to 50299, so all can be installed)                            |
-| API route       | `https://api.businesscentral.dynamics.com/v2.0/{tenant}/{environment}/api/knowallBookie/bookie/v1.0/companies({companyId})/...` |
-| Permission sets | `BOOKIE READ`, `BOOKIE WRITE`                                                                                                   |
-| Stores data?    | No. The only table is temporary; every page reads BC's own tables.                                                              |
+|                 |                                                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| App             | `Bookie` by `KnowAll`, id `76f5224b-85e0-4956-af6b-07f140665e4f`, version 1.2.0.0 (before 1.2 it was called "Bookie BC API Extension"; same id, so it upgrades in place)                    |
+| Targets         | BC 27.0 or later (platform and application 27.0, runtime 16.0), cloud                                                                                                                      |
+| Object ids      | 50200 to 50299: core 50200 to 50249, bitcoin 50250 to 50299 (Thyme uses 50100 to 50199, so both can be installed)                                                                          |
+| API routes      | `https://api.businesscentral.dynamics.com/v2.0/{tenant}/{environment}/api/knowallBookie/bookie/v1.0/companies({companyId})/...` (core) and `.../api/bookie/bitcoin/v1.0/...` (bitcoin) |
+| Permission sets | `BOOKIE READ`, `BOOKIE WRITE` (core); `BOOKIE BTC READ`, `BOOKIE BTC EDIT` (bitcoin)                                                                                                       |
+| Stores data?    | Core: no, its only table is temporary and every page reads BC's own tables. Bitcoin: one table, `Bookie BTC Wallet`, holding each wallet's public descriptor and script type.               |
+
+**Upgrading from the separate "Bookie Bitcoin" app.** Bitcoin briefly shipped as its own app, `Bookie Bitcoin` 1.1.0.0, installed only in our own Sandbox. Uninstall and unpublish it, with **Delete Extension Data** (its table holds no data yet), before installing `Bookie` 1.2.0.0. The two apps contain the same object ids, so they can't be installed side by side.
+
+**Adding a feature.** Add a folder under `src/` (for example `src/bankreconcile/`), use free ids from 50200 to 50299, and add a row to the layout table below. Don't start another extension: there is one project root (this folder, one `app.json`). No folder inside it has an `app.json` of its own, because the AL compiler compiles every `.al` file under the project root.
 
 ## What Bookie gets from it
 
@@ -59,11 +66,13 @@ Locally (Linux or macOS, no Docker):
 
 ```bash
 dotnet tool install --global Microsoft.Dynamics.BusinessCentral.Development.Tools --version 18.1.43.24897
-bc-extension/scripts/build.sh
-# -> bc-extension/output/KnowAll_Bookie BC API Extension_1.0.0.0.app
+bc-extension/build.sh                    # symbols from Microsoft's public feed
+SYMBOLS=sandbox bc-extension/build.sh    # symbols from your Sandbox (az login)
+ALC_DLL=/path/to/alc.dll bc-extension/build.sh   # any other AL compiler
+# -> bc-extension/output/KnowAll_Bookie_1.2.0.0.app
 ```
 
-The script downloads BC 27 symbols from Microsoft's public MSSymbols NuGet feed into `bc-extension/.alpackages`. It can also use the AL Language VS Code extension's compiler (`AL_COMPILER=vscode`, needs the .NET 10 runtime). In VS Code, open `bc-extension/`, run "AL: Download Symbols" against the Sandbox, and build with Ctrl+Shift+B.
+By default the script downloads BC 27 symbols from Microsoft's public MSSymbols NuGet feed into `bc-extension/.alpackages`. `SYMBOLS=sandbox` downloads them from your own environment's dev endpoint instead. It uses the Azure CLI's tenant (`BC_TENANT_ID`), `BC_ENVIRONMENT` (default `Sandbox`) and `BC_RUNTIME` (default `27.0.0.0`), and never writes the tenant to the repo. Any AL compiler works through `ALC_DLL` (for example the AL Language VS Code extension's `bin/alc.dll`, run with `DOTNET`). In VS Code, open `bc-extension/`, run "AL: Download Symbols" against the Sandbox, and build with Ctrl+Shift+B.
 
 ## Install
 
@@ -74,7 +83,7 @@ You need a BC user with the `EXTEN. MGT. - ADMIN` permission set (or `SUPER`) in
 1. Get the `.app`: open the latest green **BC extension** workflow run on GitHub, download the `bookie-bc-extension` artifact and unzip it (or build it locally as above).
 2. Open the Sandbox environment in Business Central, search for **Extension Management**, choose **Manage > Upload Extension**.
 3. Choose the `.app` file, set **Deploy to** to **Current version**, accept the terms, choose **Deploy**.
-4. Choose **Manage > Deployment Status** and wait for the upload to show **Completed**. **Bookie BC API Extension** by KnowAll now appears in Installed Extensions.
+4. Choose **Manage > Deployment Status** and wait for the upload to show **Completed**. **Bookie** by KnowAll now appears in Installed Extensions (an earlier "Bookie BC API Extension" is upgraded in place).
 5. Assign permissions (see [Permissions](#permissions)) to yourself in CRONUS.
 6. For "Record a payment": search for **Payment Registration Setup** and set a journal template and batch (for example `CASHRCPT` / a batch with a number series) and the balancing bank account. Do this once with the user field blank for a company default, or per user.
 7. Check the API answers (the response is your company setup, not 404):
@@ -94,9 +103,9 @@ Only after the same version has been checked in the Sandbox.
 3. Assign the permission sets in each Production company Bookie should use.
 4. If people will record payments from Bookie, set up **Payment Registration Setup** in each company.
 
-**Updates:** raise `version` in `app.json` (BC refuses an upload with the same or a lower version), build, then repeat the Sandbox and Production steps. The extension has no stored tables, so upgrades need no data migration.
+**Updates:** raise `version` in `app.json` (BC refuses an upload with the same or a lower version), build, then repeat the Sandbox and Production steps. Only the bitcoin feature stores data (`Bookie BTC Wallet`); keep its fields when you upgrade, or add an upgrade codeunit if they ever change.
 
-**Removing it:** Extension Management > select **Bookie BC API Extension** > **Uninstall** (and **Unpublish** to remove it fully). Bookie goes back to API v2.0 behaviour within 10 minutes.
+**Removing it:** Extension Management > select **Bookie** > **Uninstall** (and **Unpublish** to remove it fully). Bookie goes back to API v2.0 behaviour within 10 minutes.
 
 **Automating it later:** Thyme publishes its extension from GitHub Actions with BcContainerHelper's `Publish-PerTenantExtensionApps` and an Entra app registered in the BC admin center (`thyme-bc-extension/.github/workflows/deploy-sandbox.yml`). The same approach works here once an Entra app with `API.ReadWrite.All` and the `EXTEN. MGT. - ADMIN` permission set exists; it is deliberately not set up.
 
@@ -106,8 +115,12 @@ Only after the same version has been checked in the Sandbox.
 | -------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BOOKIE READ`  | Everyone who uses Bookie with this company      | Run the read-only Bookie API pages and read the tables they show (bank accounts and ledgers, customer and vendor ledgers and detailed entries, posted invoice headers, financial reports, G/L setup, accounting periods, company information) |
 | `BOOKIE WRITE` | People who record customer payments from Bookie | Everything in `BOOKIE READ`, the payment registration page, reading Payment Registration Setup (and creating the user's copy of the default), and `D365 JOURNALS, POST` to post the payment                                                   |
+| `BOOKIE BTC READ` | People who should see the organisation's Bitcoin wallets, and the Bookie agent's app user | The `bitcoinWallets` API page and read access to `Bookie BTC Wallet` (the descriptors). Shows the *Bitcoin Wallet* group on the Bank Account Card read-only |
+| `BOOKIE BTC EDIT` | People who enter or change a wallet's descriptor | Everything in `BOOKIE BTC READ`, plus insert, modify and delete on `Bookie BTC Wallet`. Nothing on Bank Account itself |
 
 These add to the user's normal BC permissions (for example `D365 BUS FULL ACCESS`), which Bookie needs anyway for API v2.0. Without `BOOKIE READ`, BC answers 403 and Bookie behaves as if the extension weren't installed.
+
+`BOOKIE READ` deliberately does **not** include `BOOKIE BTC READ`. A wallet descriptor can't spend, but it reveals every address and balance of the wallet, so seeing wallets is a separate, deliberate grant. Give both to people who use Bitcoin wallets in Bookie; reconciling a wallet needs both.
 
 To assign them:
 
@@ -116,11 +129,21 @@ To assign them:
 
 ## Layout
 
-| Path                                                 | What                                          |
-| ---------------------------------------------------- | --------------------------------------------- |
-| `app.json`                                           | Manifest                                      |
-| `src/api/`                                           | API pages 50200 to 50209                      |
-| `src/codeunit/BookiePaymentRegistration.Codeunit.al` | Payment registration logic (codeunit 50200)   |
-| `src/table/BookiePaymentRegistration.Table.al`       | Temporary request/result table (50200)        |
-| `src/permissionset/`                                 | `BOOKIE READ` (50200), `BOOKIE WRITE` (50201) |
-| `scripts/build.sh`                                   | Compile on Linux or macOS                     |
+One project root (`bc-extension/`, one `app.json`), with one folder per feature under `src/`:
+
+| Path                                                         | What                                                            |
+| ------------------------------------------------------------ | --------------------------------------------------------------- |
+| `app.json`                                                   | Manifest: one app, ids 50200 to 50299                           |
+| `build.sh`                                                   | Compile on Linux or macOS                                       |
+| `src/core/api/`                                              | Core API pages 50200 to 50209                                   |
+| `src/core/codeunit/BookiePaymentRegistration.Codeunit.al`    | Payment registration logic (codeunit 50200)                     |
+| `src/core/table/BookiePaymentRegistration.Table.al`          | Temporary request/result table (50200)                          |
+| `src/core/permissionset/`                                    | `BOOKIE READ` (50200), `BOOKIE WRITE` (50201)                   |
+| `src/bitcoin/table/BookieBTCWallet.Table.al`                 | The wallet per bank account: descriptor and script type (50250) |
+| `src/bitcoin/pageextension/BookieBTCBankAccountCard.PageExt.al` | The Bitcoin Wallet group on the Bank Account Card (50250)   |
+| `src/bitcoin/api/BookieBitcoinWalletsAPI.Page.al`            | The `bitcoinWallets` API page (50250)                           |
+| `src/bitcoin/codeunit/BookieBTCWalletEvents.Codeunit.al`     | Deletes a wallet with its bank account (50250)                  |
+| `src/bitcoin/enum/BookieBTCScriptType.Enum.al`               | Script type (50250)                                             |
+| `src/bitcoin/permissionset/`                                 | `BOOKIE BTC READ` (50250), `BOOKIE BTC EDIT` (50251)            |
+
+Ids are per object type, so check what's taken before picking one: `grep -rhoE '^(page|table|codeunit|enum|permissionset|pageextension|tableextension) [0-9]+' src | sort`. Today core uses 50200 to 50209 and bitcoin 50250 to 50251; keep a new feature's objects together in an unused block.

@@ -17,7 +17,7 @@ Business Central extension below, refuse private keys (xprv, yprv, zprv and thei
 | Organisation | Where you enter the wallet
 
 | Business Central
-| On the *bank account* in Business Central, with the *Bookie Bitcoin* extension (below). Every bank
+| On the *bank account* in Business Central, with the *Bookie* BC extension (below). Every bank
   account with a descriptor is a wallet in Bookie; there is no Bookie setting for it. The descriptor
   stays in your own Business Central and Bookie reads it live, like the rest of your books.
 
@@ -30,15 +30,16 @@ Business Central extension below, refuse private keys (xprv, yprv, zprv and thei
 Either way, the descriptor never reaches the browser: pages show the wallet's name, script type and
 bank account number only.
 
-== Business Central: the Bookie Bitcoin extension
+== Business Central: the Bookie BC extension
 
-A small per-tenant extension, `bc-extension-bitcoin/` in this repository, separate from the Bookie BC
-API extension so either can be installed alone.
+Bitcoin wallets are part of the one *Bookie* Business Central extension, `bc-extension/` in this
+repository: the Bitcoin objects are under `bc-extension/src/bitcoin/`, next to the core API pages in
+`bc-extension/src/core/`. There is no separate Bitcoin extension.
 
 [cols="1,3"]
 |===
-| App | `Bookie Bitcoin` by `KnowAll`, id `b43701b1-70d6-43d4-9d83-3a9a6dc6a208`, version 1.1.0.0 (the first published version), BC 27.0 or later, cloud
-| Object ids | 50250 to 50299 (the Bookie BC API extension uses 50200 to 50249 and Thyme 50100 to 50199, so all three can be installed together)
+| App | `Bookie` by `KnowAll`, id `76f5224b-85e0-4956-af6b-07f140665e4f`, version 1.2.0.0 or later, BC 27.0 or later, cloud
+| Object ids | The app owns 50200 to 50299; the Bitcoin objects are 50250 to 50299 (Thyme uses 50100 to 50199, so both can be installed)
 | Table | *Bookie BTC Wallet*: one row per bank account (`Bank Account No.`) with `Bitcoin Wallet Descriptor` (Text[1024]) and `Bitcoin Script Type` (Automatic, WPKH, SHWPKH, TR, WSHMulti, PKH). It is a table of its own, not fields on Bank Account, so reading it takes `BOOKIE BTC READ`: Bank Account rights alone (personalisation, Edit in Excel, OData, reports) never reach the descriptor. Entering a private key is refused. Deleting the bank account deletes its wallet row.
 | Page extension | *Bank Account Card*: a *Bitcoin Wallet* group that reads and writes that table, shown only to users who can read it (`BOOKIE BTC READ` or `EDIT`), editable only with `BOOKIE BTC EDIT`. Clearing the descriptor removes the wallet.
 | API page | `api/bookie/bitcoin/v1.0/companies({id})/bitcoinWallets`, read-only: `bankAccountId` (the same SystemId as API v2.0 bankAccounts), no., name, currency code, descriptor, script type
@@ -48,35 +49,17 @@ API extension so either can be installed alone.
 When Bookie gets a 404 from the API page it says the extension isn't installed; a 403 means the
 signed-in user hasn't got `BOOKIE BTC READ`. Either way the Bank accounts page says so and links here.
 
-=== Build
+=== Build and publish
 
-CI (`.github/workflows/bc-extension.yml`) compiles it with the other extension on every PR that
-touches either folder (CodeCop, PerTenantExtensionCop and UICop, warnings as errors) and uploads it
-as the `bookie-bitcoin-bc-extension` artifact. Locally:
+Building, publishing and updating the extension are in `bc-extension/README.md`: `bc-extension/build.sh`
+produces `bc-extension/output/KnowAll_Bookie_<version>.app`, and CI uploads the same file as the
+`bookie-bc-extension` artifact. Uninstalling the extension with *Delete Extension Data* removes the
+wallet descriptors along with everything else it holds.
 
-[source,bash]
-----
-dotnet tool install --global Microsoft.Dynamics.BusinessCentral.Development.Tools --version 18.1.43.24897
-bc-extension-bitcoin/build.sh                  # symbols from the public feed, `al` tool
-SYMBOLS=sandbox bc-extension-bitcoin/build.sh  # symbols from your Sandbox (az login), `al` tool
-ALC_DLL=~/.vscode/extensions/ms-dynamics-smb.al-*/bin/alc.dll bc-extension-bitcoin/build.sh  # another alc
-# -> bc-extension-bitcoin/output/KnowAll_Bookie Bitcoin_1.1.0.0.app
-----
-
-Or open `bc-extension-bitcoin/` in VS Code with the AL Language extension, run *AL: Download
-Symbols* against a sandbox and build with Ctrl+Shift+B. AL-Go for GitHub works too: point a project
-at `bc-extension-bitcoin`.
-
-=== Publish
-
-You need `EXTEN. MGT. - ADMIN` (or `SUPER`). Sandbox first, then Production with the same `.app`.
-
-. In Business Central, search *Extension Management*, choose *Manage › Upload Extension*.
-. Choose the `.app`, *Deploy to: Current version*, accept, *Deploy*.
-. *Manage › Deployment Status* shows *Completed*; *Bookie Bitcoin* appears under Installed Extensions.
-
-To update, raise `version` in `bc-extension-bitcoin/app.json` and upload again. Uninstalling with
-*Delete Extension Data* removes the descriptors from your bank accounts.
+*Upgrading from the separate "Bookie Bitcoin" app (1.1.0.0).* That app was only ever installed in our
+own Sandbox. Uninstall and unpublish *Bookie Bitcoin* first, with *Delete Extension Data* (its wallet
+table holds no data yet), then install *Bookie* 1.2.0.0. The two apps contain the same Bitcoin object
+ids, so they can't be installed together.
 
 === Assign the permission sets
 
@@ -205,9 +188,9 @@ Matching a wallet to the books is therefore exact on the Bitcoin side only: txid
 == Reconciling against Business Central
 
 A wallet in a Business Central company is its BTC bank account, so its page has a *Reconcile* tab
-that compares the chain with that account's posted bank ledger entries. Bookie needs both extensions:
-*Bookie Bitcoin* (which bank accounts are wallets) and the *Bookie BC API* extension (`bc-extension/`,
-for the bank account ledger entries, which API v2.0 doesn't publish). The bank account's currency must
+that compares the chain with that account's posted bank ledger entries. The Bookie BC extension provides
+both: which bank accounts are wallets, and the bank account ledger entries, which API v2.0 doesn't
+publish. The user needs `BOOKIE READ` as well as `BOOKIE BTC READ`. The bank account's currency must
 be `BTC`: an account in another currency can't be compared with chain amounts, and the tab says so.
 
 === Matching
@@ -339,7 +322,7 @@ its prices are labelled "Demo price (fictional)". Production refuses demo mode.
 |===
 | File | What
 
-| `bc-extension-bitcoin/` | The Bookie Bitcoin BC extension
+| `bc-extension/src/bitcoin/` | The Bitcoin objects in the Bookie BC extension
 | `web/src/lib/connectors/bc/modules/bitcoin.ts` | Reads `bitcoinWallets` from Business Central (404: not installed; 403: no permission)
 | `web/src/lib/bitcoin/descriptor.ts` | Parse keys and descriptors (SLIP-0132 prefixes, BIP380 checksum), derive scripts and addresses with `@scure/bip32` and `@scure/btc-signer`
 | `web/src/lib/bitcoin/electrum.ts` | Electrum JSON-RPC client over TLS or TCP, pipelined with a cap on requests in flight

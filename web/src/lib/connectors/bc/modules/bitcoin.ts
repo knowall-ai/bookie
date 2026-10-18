@@ -15,8 +15,8 @@ import { decodeBcEnum } from './accounts';
 import { postAndRemoveBatch, type BcJournal } from './journals';
 
 /**
- * Bitcoin wallets in Business Central: the Bookie Bitcoin extension
- * (`bc-extension-bitcoin/`) adds a descriptor and script type to each Bank Account
+ * Bitcoin wallets in Business Central: the Bookie BC extension
+ * (`bc-extension/src/bitcoin/`) adds a descriptor and script type to each Bank Account
  * and publishes the ones that have a descriptor at `api/bookie/bitcoin/v1.0/bitcoinWallets`.
  *
  * Reconciling reads the BTC bank account's posted ledger entries through the Bookie
@@ -26,11 +26,11 @@ import { postAndRemoveBatch, type BcJournal } from './journals';
 export const BITCOIN_API = 'bookie/bitcoin/v1.0';
 
 export const BC_BITCOIN_NOT_INSTALLED =
-  'The Bookie Bitcoin extension isn’t installed in this Business Central environment, so Bookie can’t see which bank accounts are Bitcoin wallets.';
+  'The Bookie BC extension (version 1.2 or later) isn’t installed in this Business Central environment, so Bookie can’t see which bank accounts are Bitcoin wallets.';
 export const BC_BITCOIN_NO_PERMISSION =
   'You don’t have the BOOKIE BTC READ permission set in this Business Central company, so Bookie can’t read its Bitcoin wallets.';
 export const BC_LEDGER_NEEDS_EXTENSION =
-  'Reconciling needs the bank account’s ledger entries, which Business Central’s standard API doesn’t publish. Install the Bookie BC API extension (bc-extension/) as well.';
+  'Reconciling needs the bank account’s ledger entries, which Business Central’s standard API doesn’t publish. Install the Bookie BC extension (bc-extension/).';
 
 /** Journal batch codes Bookie uses for BTC lines (Code[10]). */
 export const BTC_BATCH_PREFIX = 'BTC';

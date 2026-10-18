@@ -1,10 +1,10 @@
 {
   "id": "76f5224b-85e0-4956-af6b-07f140665e4f",
-  "name": "Bookie BC API Extension",
+  "name": "Bookie",
   "publisher": "KnowAll",
-  "version": "1.0.0.0",
-  "brief": "Read-only API endpoints that let Bookie show exact balances, amounts due and payments from Business Central",
-  "description": "Adds the custom API api/knowallBookie/bookie/v1.0 for the Bookie accounting portal (getbook.ie): bank balances and bank ledger entries, customer and vendor ledger entries with remaining amounts, posted payments, financial report lines, company setup, and customer payment registration.",
+  "version": "1.2.0.0",
+  "brief": "The Business Central extension for the Bookie accounting portal: exact balances, amounts due and payments, and Bitcoin wallets as bank accounts",
+  "description": "One extension for the Bookie accounting portal (getbook.ie). Core: the custom API api/knowallBookie/bookie/v1.0 with bank balances and bank ledger entries, customer and vendor ledger entries with remaining amounts, posted payments, financial report lines, company setup, and customer payment registration. Bitcoin: a watch-only wallet descriptor per bank account, kept in its own table and readable only with BOOKIE BTC READ, published at api/bookie/bitcoin/v1.0/bitcoinWallets.",
   "privacyStatement": "https://getbook.ie/privacy",
   "EULA": "https://getbook.ie/terms",
   "help": "https://github.com/knowall-ai/bookie/tree/main/bc-extension",
@@ -18,7 +18,7 @@
   "idRanges": [
     {
       "from": 50200,
-      "to": 50249
+      "to": 50299
     }
   ],
   "resourceExposurePolicy": {

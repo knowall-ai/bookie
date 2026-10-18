@@ -9658,7 +9658,7 @@ async function bcWallets(companyName) {
   } catch (error) {
     const status = error.status;
     if (status === 404) {
-      throw new Refusal("The Bookie Bitcoin extension is not installed in this Business Central environment.");
+      throw new Refusal("The Bookie BC extension (version 1.2 or later) is not installed in this Business Central environment.");
     }
     if (status === 403) {
       throw new Refusal("My Business Central app has no BOOKIE BTC READ permission set.");
@@ -9768,7 +9768,7 @@ async function reconcileWallets(company, wanted) {
       const filter = encodeURIComponent(`bankAccountNumber eq '${row.number.replace(/'/g, "''")}'`);
       const ledger = (await bc.api.all(bc.url(LEDGER_API, `bankAccountLedgerEntries?$filter=${filter}`)).catch((error) => {
         if (error.status === 404) {
-          throw new Refusal("Reconciling needs the Bookie BC API extension as well.");
+          throw new Refusal("Reconciling needs the Bookie BC extension (bc-extension/).");
         }
         throw error;
       })).filter((e) => !e.reversed).map((e) => ({

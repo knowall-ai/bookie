@@ -96,8 +96,8 @@ export function BitcoinWallets({
           </p>
           <p className="text-faint mt-1 text-xs" data-testid="bitcoin-bc-note">
             Business Central companies keep the wallet on the bank account in Business Central
-            itself (the Bookie Bitcoin extension), so they aren’t listed here. Add wallets here for
-            other organisations.
+            itself (the Bookie BC extension), so they aren’t listed here. Add wallets here for other
+            organisations.
           </p>
         </div>
       </div>

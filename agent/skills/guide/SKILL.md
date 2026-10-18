@@ -72,7 +72,7 @@ Central posts at its own daily exchange rate, so the two never match exactly.
 
 - **How to add one:** for a **Business Central** company, put the wallet's xpub, ypub, zpub or output
   descriptor on the bank account card in Business Central (the *Bitcoin Wallet* group, from the
-  Bookie Bitcoin extension; it needs the **BOOKIE BTC EDIT** permission set, and **BOOKIE BTC READ**
+  Bookie BC extension; it needs the **BOOKIE BTC EDIT** permission set, and **BOOKIE BTC READ**
   to see wallets). Set the bank account's currency to BTC. For other organisations, a member adds it
   in the portal under **Settings › Bitcoin wallets**.
 - **Is it safe?** An xpub or descriptor can see the wallet but never spend from it. Bookie refuses
