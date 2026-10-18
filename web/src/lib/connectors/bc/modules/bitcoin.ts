@@ -58,7 +58,10 @@ const SCRIPT_TYPES: Record<string, SourceBitcoinWallet['scriptType']> = {
 /** BC enum name → script type; `Automatic` (or anything else) → undefined. */
 export function fromBcBitcoinWallet(raw: BcBitcoinWallet): SourceBitcoinWallet | undefined {
   const descriptor = raw.bitcoinWalletDescriptor?.trim();
-  if (!descriptor) return undefined;
+  // No descriptor, or no bank account behind it any more (an empty GUID): not a wallet.
+  if (!descriptor || !raw.bankAccountId || /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(raw.bankAccountId)) {
+    return undefined;
+  }
   return {
     bankAccountId: raw.bankAccountId,
     bankAccountNumber: raw.number,
