@@ -6,11 +6,10 @@
 # `hermes config show` on the first install.
 
 # ---- Brain ---------------------------------------------------------------------------------
-# gpt-6.1-sol on Bookie's own ChatGPT Business seat (bookie@knowall.ai in the T-Minus-15 Team workspace),
-# as Poppie: provider openai-codex, signed in once per VM with `hermes auth add openai-codex` (device code;
-# the credential lives in ~/.hermes/auth.json). No per-token bill. Seat order (Ben, 2026-10-18), by
-# `hermes auth priority openai-codex`: 0 = the agent's own seat, 1 = a second seat (a second
-# `hermes auth add openai-codex`, approved signed in as Ben), then the Azure fallback below.
+# The main model on the agent's own ChatGPT Business seat: provider openai-codex, signed in once per VM
+# with `hermes auth add openai-codex` (device code; the credential lives in ~/.hermes/auth.json). No
+# per-token bill. More seats can be added the same way and ordered with
+# `hermes auth priority openai-codex` (0 = the agent's own seat first); the Azure fallback below comes last.
 model:
   provider: openai-codex
   default: "{{MODEL_MAIN}}"
