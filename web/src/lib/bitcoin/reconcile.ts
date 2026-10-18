@@ -170,7 +170,7 @@ export function btcDocumentNumber(txid: string): string {
  * - money out: the payment (amount less fee) against the counter account, and the
  *   fee as its own line against the fee account;
  * - moved within the wallet: only the fee.
- * A send whose fee isn't known (an input couldn't be read) is drafted as one line for
+ * A send whose fee isn't the wallet's alone (others funded some inputs) is drafted as one line for
  * the whole amount, and its description says the fee isn't separated.
  */
 export function journalLinesFor(
@@ -195,7 +195,20 @@ export function journalLinesFor(
       },
     ];
   }
+  if (tx.feeSats === undefined && tx.direction === 'self') {
+    // Moved within the wallet: whatever left it went on the fee.
+    if (!accounts.feeAccount) throw new DraftError('Choose an account for network fees.');
+    return [
+      {
+        ...base,
+        description: `BTC fee ${tx.txid}`,
+        amountSats: tx.netSats,
+        balancingAccountNumber: accounts.feeAccount,
+      },
+    ];
+  }
   if (tx.feeSats === undefined) {
+    // A send whose fee isn't the wallet's alone (others funded inputs) or isn't known.
     return [
       {
         ...base,
@@ -241,10 +254,12 @@ export function summariseReconcile(input: {
   scan: Pick<WalletScan, 'tip' | 'balance'>;
   result: ReconcileResult;
   ledgerSats: number;
-  drafted?: string[];
+  /** Txids on unposted drafts, or 'not available' when the drafts couldn't be read. */
+  drafted?: string[] | 'not available';
 }) {
   const { result, scan } = input;
-  const drafted = new Set(input.drafted ?? []);
+  const draftsKnown = input.drafted !== 'not available';
+  const drafted = new Set(draftsKnown ? ((input.drafted as string[] | undefined) ?? []) : []);
   const differs = result.matched.filter((m) => m.amountDiffers);
   return {
     wallet: input.wallet,
@@ -257,20 +272,20 @@ export function summariseReconcile(input: {
       onChainNotInBooks: result.chainOnly.length,
       inBooksNotOnChain: result.ledgerOnly.length,
       pending: result.pending.length,
-      draftedNotPosted: drafted.size,
+      draftedNotPosted: draftsKnown ? drafted.size : ('not available' as const),
     },
     balances: {
       onChainConfirmedBtc: btc(scan.balance.confirmedSats),
       inBooksBtc: btc(input.ledgerSats),
       differenceBtc: btc(scan.balance.confirmedSats - input.ledgerSats),
-      note: 'In the books = the sum of posted entries on the bank account. Pending transactions are in neither.',
+      note: 'In the books = the sum of posted entries on the bank account. The chain figure is confirmed only; a pending transaction the books already have is in the books figure but not yet the chain one.',
     },
     onChainNotInBooks: result.chainOnly.map((t) => ({
       txid: t.txid,
       date: t.date,
       amountBtc: btc(t.netSats),
       feeBtc: t.feeSats === undefined ? undefined : btc(t.feeSats),
-      drafted: drafted.has(t.txid),
+      drafted: draftsKnown ? drafted.has(t.txid) : ('not available' as const),
     })),
     inBooksNotOnChain: result.ledgerOnly.map((e) => ({
       postingDate: e.postingDate,

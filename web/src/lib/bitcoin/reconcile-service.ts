@@ -34,6 +34,8 @@ export type ReconcileView =
       drafts: BtcJournalDraft[];
       /** Txids already on one of Bookie's unposted batches. */
       drafted: string[];
+      /** Drafted batches with a transaction the books already have: never to be posted. */
+      alreadyInBooks: string[];
       /** Sum of the posted bank ledger entries (the account's balance in BTC). */
       ledgerSats: number;
       bankAccountNumber: string;
@@ -74,6 +76,12 @@ export async function loadReconcile(
   const result = reconcile(load.scan.transactions, ledger.entries);
   const txids = load.scan.transactions.map((t) => t.txid);
   const drafted = new Set(drafts.flatMap((d) => [...draftedTxids(d.lines, txids)]));
+  // A draft whose transaction has since been recorded (by hand, or another draft posted)
+  // would count it twice.
+  const inBooks = new Set(result.matched.map((m) => m.tx.txid));
+  const alreadyInBooks = drafts
+    .filter((d) => [...draftedTxids(d.lines, txids)].some((t) => inBooks.has(t)))
+    .map((d) => d.batchId);
   return {
     wallet,
     view: {
@@ -82,6 +90,7 @@ export async function loadReconcile(
       result,
       drafts,
       drafted: [...drafted],
+      alreadyInBooks,
       ledgerSats: ledger.entries.reduce((s, e) => s + e.amountSats, 0),
       bankAccountNumber: wallet.bcBankAccountNumber,
     },
@@ -148,12 +157,25 @@ export async function postReconcileJournal(
   walletId: string,
   batchId: string
 ): Promise<void> {
-  const { wallet } = await loadWallet(auth, scope, walletId);
   const post = scope.connector.bitcoin?.postJournal;
-  if (!wallet.bcBankAccountNumber || !post) {
-    throw new WalletError('This organisation can’t post journal lines.');
+  if (!post) throw new WalletError('This organisation can’t post journal lines.');
+  // Read the chain and the books again now, not from when the draft was made: a
+  // transaction recorded since (by hand, or by another draft) must not post twice.
+  const { view } = await loadReconcile(auth, scope, walletId);
+  if (view.status !== 'ok') throw new WalletError(view.reason);
+  if (!view.drafts.some((d) => d.batchId === batchId)) {
+    throw new WalletError(
+      'That journal batch isn’t one of Bookie’s drafts for this wallet any more. Reload the page.',
+      404
+    );
   }
-  await post(wallet.bcBankAccountNumber, batchId);
+  if (view.alreadyInBooks.includes(batchId)) {
+    throw new WalletError(
+      'Already in the books: a transaction in this batch has been recorded since it was drafted, so Bookie won’t post it. Delete the draft batch in Business Central.',
+      409
+    );
+  }
+  await post(view.bankAccountNumber, batchId);
 }
 
 /* ------------------------------------------------------------------ */

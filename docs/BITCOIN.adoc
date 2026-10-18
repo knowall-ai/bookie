@@ -249,8 +249,16 @@ bank account and converts to your local currency at its own *Currency Exchange R
 posts. Bookie doesn't set or guess a rate, so enter BTC rates in Business Central first.
 
 Drafted lines aren't posted. They appear under *Drafted, not posted* on the Reconcile tab and as a draft
-under *Manual journals*. *Post* asks for confirmation, then posts that one batch and removes it. Bookie
-refuses to post a batch it didn't draft, or one with lines for any other account.
+under *Manual journals*. *Post* asks for confirmation, then posts that one batch and removes it.
+
+Before it posts, Bookie reads the chain and the books again. If a transaction in the batch has been
+recorded since it was drafted (by hand, or by another draft), the batch shows *Already in the books*
+with no Post button. Posting it is refused (409), so nothing is counted twice; delete that draft batch
+in Business Central. A batch counts as Bookie's only if its code starts `BTC`, its name is *Bookie
+Bitcoin reconcile*, and every line is on this wallet's bank account. Bookie lists and posts nothing
+else, so an accountant's own `BTC...` batch is left alone. If Business Central refuses the posting (for
+example, an account that doesn't allow direct posting), it posts nothing. Bookie then removes the
+draft batch and says so, and you draft the lines again once that's fixed.
 
 The person drafting and posting needs Business Central permission to create and post general journal
 lines (for example `D365 JOURNALS, POST`) as well as `BOOKIE BTC READ` and `BOOKIE READ`.

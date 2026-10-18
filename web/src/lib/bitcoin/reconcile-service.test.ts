@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { AuthContext } from '@/lib/auth/context';
 import { DEMO_MEMBER } from '@/lib/auth/dev';
 import { createDemoConnector, DEMO_ORGS } from '@/lib/connectors/demo';
+import { demoData } from '@/lib/connectors/demo/data';
+import { demoSlot } from '@/lib/connectors/demo/modules/state';
+import type { BtcLedgerEntry } from '@/lib/connectors/types';
 import { demoTxid, DEMO_WALLET_ID } from './demo';
 import {
   draftReconcileJournal,
@@ -119,9 +122,39 @@ describe('reconcile on the demo organisation', () => {
     ).rejects.toBeInstanceOf(WalletError);
   });
 
+  it('won’t post a draft whose transaction has been recorded since, and says so', async () => {
+    const s = scope();
+    const draft = await draftReconcileJournal(auth, s, DEMO_WALLET_ID, {
+      txids: [demoTxid('receive-oct')],
+      counterAccount: '620',
+    });
+    // Meanwhile someone records the same receipt by hand, with its txid.
+    const ledger = demoSlot<{ ledger: BtcLedgerEntry[] }>(demoData('contoso'), 'bitcoin', () => {
+      throw new Error('demo state should exist');
+    }).ledger;
+    ledger.push({
+      id: 'by-hand',
+      postingDate: '2026-10-14',
+      externalDocumentNumber: demoTxid('receive-oct').slice(0, 35).toUpperCase(),
+      amountSats: 450_000,
+    });
+    const { view } = await loadReconcile(auth, s, DEMO_WALLET_ID);
+    if (view.status !== 'ok') throw new Error(view.reason);
+    expect(view.alreadyInBooks).toEqual([draft.batchId]);
+    const error = await postReconcileJournal(auth, s, DEMO_WALLET_ID, draft.batchId).catch(
+      (e: WalletError) => e
+    );
+    expect(error).toBeInstanceOf(WalletError);
+    expect((error as WalletError).status).toBe(409);
+    expect((error as WalletError).message).toMatch(/^Already in the books/);
+    // Nothing was posted twice.
+    expect(ledger.filter((e) => e.amountSats === 450_000)).toHaveLength(1);
+    ledger.splice(ledger.indexOf(ledger.find((e) => e.id === 'by-hand')!), 1);
+  });
+
   it('won’t post a batch it didn’t draft', async () => {
     await expect(
       postReconcileJournal(auth, scope(), DEMO_WALLET_ID, 'demo-btc-batch-999')
-    ).rejects.toThrow(/won’t post it/);
+    ).rejects.toThrow(/isn’t one of Bookie’s drafts/);
   });
 });

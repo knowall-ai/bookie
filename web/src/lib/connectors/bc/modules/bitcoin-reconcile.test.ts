@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ConnectorError } from '../../types';
 import type { BcClient } from '../client';
-import { bcBitcoin } from './bitcoin';
+import { bcBitcoin, isOwnBatch } from './bitcoin';
 
 /* Reconcile: ledger entries, drafting and posting, against a scripted fake BC. Fictional data. */
 
 const BATCH = '0f0f0f0f-1111-2222-3333-444444444444';
 
-function fakeBc(options: { extension?: boolean; batchCode?: string; lines?: object[] } = {}) {
+function fakeBc(
+  options: { extension?: boolean; batchCode?: string; batchName?: string; lines?: object[] } = {}
+) {
   const calls: { path: string; method: string; body?: unknown }[] = [];
   const request = vi.fn(
     async (path: string, req: { method?: string; body?: unknown; api?: string } = {}) => {
@@ -21,7 +23,11 @@ function fakeBc(options: { extension?: boolean; batchCode?: string; lines?: obje
         return { id: BATCH, code: (req.body as { code: string }).code };
       }
       if (path === `journals(${BATCH})` && !req.method) {
-        return { id: BATCH, code: options.batchCode ?? 'BTCABC1234' };
+        return {
+          id: BATCH,
+          code: options.batchCode ?? 'BTCABC1234',
+          displayName: options.batchName ?? 'Bookie Bitcoin reconcile',
+        };
       }
       return {};
     }
@@ -140,9 +146,49 @@ describe('bcBitcoin reconcile', () => {
       /won’t post/
     );
 
+    // An accountant's own batch that happens to start with BTC isn't Bookie's.
+    const theirs = fakeBc({ batchCode: 'BTCFEES', batchName: 'Bank fees', lines: [bankLine()] });
+    await expect(bcBitcoin(theirs.client).postJournal!('BTC-01', BATCH)).rejects.toThrow(
+      /won’t post/
+    );
+
     const notGuid = fakeBc();
     await expect(bcBitcoin(notGuid.client).postJournal!('BTC-01', '../journals')).rejects.toThrow(
       /Unknown/
+    );
+  });
+
+  it('lists as drafts only the batches it would also post', () => {
+    const own = { code: 'BTCABC1234', displayName: 'Bookie Bitcoin reconcile' };
+    expect(isOwnBatch(own, [bankLine()] as never, 'BTC-01')).toBe(true);
+    expect(isOwnBatch(own, [], 'BTC-01')).toBe(false);
+    expect(
+      isOwnBatch(own, [bankLine(), bankLine({ accountNumber: 'GBP-01' })] as never, 'BTC-01')
+    ).toBe(false);
+    expect(isOwnBatch({ ...own, displayName: 'Bank fees' }, [bankLine()] as never, 'BTC-01')).toBe(
+      false
+    );
+  });
+
+  it('says the draft was removed when Business Central refuses to post it', async () => {
+    const { client } = fakeBc({ lines: [bankLine()] });
+    const request = client.request as unknown as ReturnType<typeof vi.fn>;
+    const original = request.getMockImplementation() as (
+      path: string,
+      req: { method?: string }
+    ) => Promise<unknown>;
+    request.mockImplementation(async (path: string, req: { method?: string } = {}) => {
+      if (path.endsWith('Microsoft.NAV.post')) {
+        throw new ConnectorError(
+          'Account 9999 does not allow direct posting.',
+          400,
+          'business-central'
+        );
+      }
+      return original(path, req);
+    });
+    await expect(bcBitcoin(client).postJournal!('BTC-01', BATCH)).rejects.toThrow(
+      /Bookie removed the draft batch/
     );
   });
 });

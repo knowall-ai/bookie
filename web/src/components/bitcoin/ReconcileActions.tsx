@@ -27,6 +27,8 @@ export interface ChainOnlyRow {
 export interface DraftView {
   batchId: string;
   batchCode: string;
+  /** A transaction in it has been recorded since it was drafted: never posted. */
+  alreadyInBooks?: boolean;
   lines: {
     postingDate: string;
     description: string;
@@ -245,7 +247,12 @@ export function DraftBatches({
     start(async () => {
       const result = await postBitcoinJournalAction({ orgKey, walletId, batchId: draft.batchId });
       setPosting(null);
-      if (!result.ok) return void toast.error(result.error);
+      if (!result.ok) {
+        toast.error(result.error);
+        // The books may have changed (or BC removed a refused draft): show them as they are.
+        router.refresh();
+        return;
+      }
       toast.success(`Posted batch ${draft.batchCode}`);
       router.refresh();
     });
@@ -266,14 +273,22 @@ export function DraftBatches({
                   Batch {d.batchCode} · {d.lines.length} {d.lines.length === 1 ? 'line' : 'lines'} ·{' '}
                   <span className="num">{formatBtc(total, { sign: true })}</span>
                 </p>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={() => setPosting(d)}
-                  data-testid={`post-${d.batchCode}`}
-                >
-                  <Send className="h-4 w-4" /> Post
-                </Button>
+                {d.alreadyInBooks ? (
+                  <span data-testid={`in-books-${d.batchCode}`}>
+                    <Badge tone="red">
+                      Already in the books: delete this draft in Business Central
+                    </Badge>
+                  </span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setPosting(d)}
+                    data-testid={`post-${d.batchCode}`}
+                  >
+                    <Send className="h-4 w-4" /> Post
+                  </Button>
+                )}
               </div>
               <ul className="divide-line divide-y text-sm">
                 {d.lines.map((l, i) => (

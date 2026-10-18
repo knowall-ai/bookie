@@ -36,6 +36,12 @@ const BITCOIN_API = 'bookie/bitcoin/v1.0';
 
 class Refusal extends Error {}
 
+/** BC enum values come back with spaces as `_x0020_` ("Bank_x0020_Account"). */
+const decodeBcEnum = (value: string | undefined) =>
+  (value ?? '')
+    .replace(/_x([0-9A-F]{4})_/gi, (_, code: string) => String.fromCharCode(parseInt(code, 16)))
+    .trim();
+
 function loadEnv() {
   const file = join(homedir(), '.hermes', '.env');
   if (!existsSync(file)) return;
@@ -274,10 +280,16 @@ async function show(company: string, wanted: string, limit: number, withValues: 
 
 async function reconcileWallets(company: string, wanted: string | undefined) {
   const { bc, rows } = await bcWallets(company);
+  // Bookie's draft batches (BTC code and Bookie's batch name). If they can't be read, the
+  // drafted count is "not available", never 0.
   const journals = await bc.api
-    .all<{ id: string; code: string }>(bc.url('v2.0', 'journals?$select=id,code'))
-    .catch(() => []);
-  const btcBatches = journals.filter((j) => j.code.startsWith('BTC'));
+    .all<{ id: string; code: string; displayName?: string }>(
+      bc.url('v2.0', 'journals?$select=id,code,displayName')
+    )
+    .catch(() => undefined);
+  const btcBatches = journals?.filter(
+    (j) => j.code.startsWith('BTC') && j.displayName === 'Bookie Bitcoin reconcile'
+  );
   const results = [];
   for (const row of pick(rows, wanted)) {
     try {
@@ -315,20 +327,26 @@ async function reconcileWallets(company: string, wanted: string | undefined) {
           description: e.description || undefined,
           amountSats: Math.round(e.amount * 1e8),
         }));
-      const draftLines = (
-        await Promise.all(
-          btcBatches.map((b) =>
-            bc.api
-              .all<{ accountNumber?: string; externalDocumentNumber?: string }>(
-                bc.url('v2.0', `journals(${b.id})/journalLines`)
-              )
-              .catch(() => [])
+      type Line = { accountType?: string; accountNumber?: string; externalDocumentNumber?: string };
+      const batchLines = btcBatches
+        ? await Promise.all(
+            btcBatches.map((b) =>
+              bc.api
+                .all<Line>(bc.url('v2.0', `journals(${b.id})/journalLines`))
+                .catch(() => undefined)
+            )
           )
-        )
-      )
-        .flat()
-        .filter((l) => l.accountNumber === row.number)
-        .map((l) => ({ externalDocumentNumber: l.externalDocumentNumber ?? '' }));
+        : undefined;
+      const isThisBank = (l: Line) =>
+        decodeBcEnum(l.accountType) === 'Bank Account' && l.accountNumber === row.number;
+      const draftLines =
+        batchLines && batchLines.every(Boolean)
+          ? (batchLines as Line[][])
+              // A batch is Bookie's draft for this wallet only if every line is this bank's.
+              .filter((lines) => lines.length > 0 && lines.every(isThisBank))
+              .flat()
+              .map((l) => ({ externalDocumentNumber: l.externalDocumentNumber ?? '' }))
+          : undefined;
       const txids = chain.transactions.map((t) => t.txid);
       results.push(
         summariseReconcile({
@@ -337,20 +355,22 @@ async function reconcileWallets(company: string, wanted: string | undefined) {
           scan: chain,
           result: reconcile(chain.transactions, ledger),
           ledgerSats: ledger.reduce((s, e) => s + e.amountSats, 0),
-          drafted: [
-            ...draftedTxids(
-              draftLines.map((l) => ({
-                bankAccountNumber: row.number,
-                postingDate: '',
-                documentNumber: '',
-                externalDocumentNumber: l.externalDocumentNumber,
-                description: '',
-                amountSats: 0,
-                balancingAccountNumber: '',
-              })),
-              txids
-            ),
-          ],
+          drafted: draftLines
+            ? [
+                ...draftedTxids(
+                  draftLines.map((l) => ({
+                    bankAccountNumber: row.number,
+                    postingDate: '',
+                    documentNumber: '',
+                    externalDocumentNumber: l.externalDocumentNumber,
+                    description: '',
+                    amountSats: 0,
+                    balancingAccountNumber: '',
+                  })),
+                  txids
+                ),
+              ]
+            : 'not available',
         })
       );
     } catch (error) {

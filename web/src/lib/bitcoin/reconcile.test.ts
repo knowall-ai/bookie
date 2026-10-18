@@ -7,6 +7,7 @@ import {
   entryTxid,
   journalLinesFor,
   reconcile,
+  summariseReconcile,
   txDate,
 } from './reconcile';
 import type { ChainTransaction } from './scan';
@@ -172,6 +173,24 @@ describe('journalLinesFor', () => {
     expect(lines.reduce((s, l) => s + l.amountSats, 0)).toBe(-61_000);
   });
 
+  it('drafts a jointly funded send as one line, never a guessed fee', () => {
+    const lines = journalLinesFor(
+      withDate(tx({ txid: id('9'), netSats: -100_000, sharedInputs: true })),
+      accounts
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ amountSats: -100_000, balancingAccountNumber: '2190' });
+    expect(lines[0].description).toMatch(/fee not separated/);
+  });
+
+  it('puts a move within the wallet with an unknown fee on the fee account', () => {
+    const lines = journalLinesFor(
+      withDate(tx({ txid: id('8'), netSats: -700, direction: 'self' })),
+      accounts
+    );
+    expect(lines.map((l) => [l.amountSats, l.balancingAccountNumber])).toEqual([[-700, '8430']]);
+  });
+
   it('drafts only the fee for a move within the wallet', () => {
     const lines = journalLinesFor(
       withDate(tx({ txid: id('c'), netSats: -800, feeSats: 800, direction: 'self' })),
@@ -201,5 +220,21 @@ describe('journalLinesFor', () => {
   it('recognises which transactions a draft already covers', () => {
     const lines = journalLinesFor(withDate(tx({ txid: id('a'), netSats: 1 })), accounts);
     expect([...draftedTxids(lines, [id('a'), id('b')])]).toEqual([id('a')]);
+  });
+});
+
+describe('summariseReconcile', () => {
+  it('says "not available" rather than 0 when the drafts could not be read', () => {
+    const t = tx({ txid: id('a'), netSats: 5_000 });
+    const summary = summariseReconcile({
+      wallet: 'Treasury',
+      bankAccountNumber: 'BTC-01',
+      scan: { tip: { height: 1 }, balance: { confirmedSats: 5_000, pendingSats: 0 } },
+      result: reconcile([t], []),
+      ledgerSats: 0,
+      drafted: 'not available',
+    });
+    expect(summary.counts.draftedNotPosted).toBe('not available');
+    expect(summary.onChainNotInBooks[0].drafted).toBe('not available');
   });
 });

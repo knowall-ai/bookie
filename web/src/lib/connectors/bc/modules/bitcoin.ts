@@ -130,6 +130,28 @@ const isBankLine = (raw: BcBtcJournalLine, bankAccountNumber: string) =>
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** The batch name Bookie gives its BTC batches; with the BTC code, it marks a batch as Bookie's. */
+export const BTC_BATCH_NAME = 'Bookie Bitcoin reconcile';
+
+/**
+ * One rule for "this is Bookie's draft for this wallet", used both to list drafts and
+ * before posting: Bookie's batch code and name, at least one line, and every line on
+ * this bank account. Anything else (an accountant's own BTC batch, a stray line) is
+ * neither shown as Bookie's nor posted.
+ */
+export function isOwnBatch(
+  batch: { code: string; displayName?: string },
+  lines: BcBtcJournalLine[],
+  bankAccountNumber: string
+): boolean {
+  return (
+    batch.code.startsWith(BTC_BATCH_PREFIX) &&
+    batch.displayName === BTC_BATCH_NAME &&
+    lines.length > 0 &&
+    lines.every((l) => isBankLine(l, bankAccountNumber))
+  );
+}
+
 export function btcBatchCode(now = Date.now()): string {
   return `${BTC_BATCH_PREFIX}${now.toString(36).toUpperCase().slice(-7)}`;
 }
@@ -175,15 +197,13 @@ export function bcBitcoin(client: BcClient): BitcoinWalletsModule {
     },
 
     async drafts(bankAccountNumber): Promise<BtcJournalDraft[]> {
-      const batches = (await client.all<BcJournal>('journals', { $select: 'id,code' })).filter(
-        (b) => b.code.startsWith(BTC_BATCH_PREFIX)
-      );
+      const batches = (
+        await client.all<BcJournal>('journals', { $select: 'id,code,displayName' })
+      ).filter((b) => b.code.startsWith(BTC_BATCH_PREFIX) && b.displayName === BTC_BATCH_NAME);
       const drafts = await Promise.all(
         batches.map(async (batch) => {
-          const lines = (await batchLines(batch.id)).filter((l) =>
-            isBankLine(l, bankAccountNumber)
-          );
-          return lines.length
+          const lines = await batchLines(batch.id);
+          return isOwnBatch(batch, lines, bankAccountNumber)
             ? { batchId: batch.id, batchCode: batch.code, lines: lines.map(fromBcBtcJournalLine) }
             : undefined;
         })
@@ -198,7 +218,7 @@ export function bcBitcoin(client: BcClient): BitcoinWalletsModule {
       const code = btcBatchCode();
       const batch = await client.request<BcJournal>('journals', {
         method: 'POST',
-        body: { code, displayName: 'Bookie Bitcoin reconcile' },
+        body: { code, displayName: BTC_BATCH_NAME },
       });
       try {
         for (const line of lines) {
@@ -221,22 +241,30 @@ export function bcBitcoin(client: BcClient): BitcoinWalletsModule {
       if (!GUID.test(batchId))
         throw new ConnectorError('Unknown journal batch.', 400, 'business-central');
       const batch = await client.request<BcJournal>(`journals(${batchId})`, {
-        query: { $select: 'id,code' },
+        query: { $select: 'id,code,displayName' },
       });
       const lines = await batchLines(batchId);
       // Only a batch Bookie drafted for this wallet's bank account, and nothing else in it.
-      if (
-        !batch.code.startsWith(BTC_BATCH_PREFIX) ||
-        lines.length === 0 ||
-        !lines.every((l) => isBankLine(l, bankAccountNumber))
-      ) {
+      if (!isOwnBatch(batch, lines, bankAccountNumber)) {
         throw new ConnectorError(
           'That journal batch isn’t one Bookie drafted for this wallet, so Bookie won’t post it.',
           400,
           'business-central'
         );
       }
-      await postAndRemoveBatch(client, batchId);
+      try {
+        await postAndRemoveBatch(client, batchId);
+      } catch (error) {
+        // postAndRemoveBatch deletes a batch BC refused to post: say so, so nobody looks for it.
+        if (error instanceof ConnectorError) {
+          throw new ConnectorError(
+            `${error.message} Business Central didn't post it, and Bookie removed the draft batch; draft the lines again once that's fixed.`,
+            error.status,
+            'business-central'
+          );
+        }
+        throw error;
+      }
     },
   };
 }

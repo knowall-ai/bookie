@@ -167,6 +167,7 @@ export function ReconcilePanel({
         drafts={view.drafts.map((d) => ({
           batchId: d.batchId,
           batchCode: d.batchCode,
+          alreadyInBooks: view.alreadyInBooks.includes(d.batchId),
           lines: d.lines.map((l) => ({
             postingDate: l.postingDate,
             description: l.description,

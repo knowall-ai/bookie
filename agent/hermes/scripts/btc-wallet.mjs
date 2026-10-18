@@ -8830,10 +8830,28 @@ import net from "node:net";
 import tls from "node:tls";
 
 class ElectrumError extends Error {
-  constructor(message) {
+  detail;
+  constructor(message, detail) {
     super(message);
+    this.detail = detail;
     this.name = "ElectrumError";
   }
+}
+function connectionMessage(error) {
+  const code = error.code ?? "";
+  if (code === "ECONNREFUSED")
+    return "The Electrum server refused the connection.";
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN")
+    return "The Electrum server’s name could not be found.";
+  if (code === "ETIMEDOUT")
+    return "Timed out connecting to the Electrum server.";
+  if (code === "BOOKIE_CERT_PIN") {
+    return "The Electrum server’s TLS certificate does not match BOOKIE_ELECTRUM_CERT_SHA256.";
+  }
+  if (/^(CERT_|ERR_TLS_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_)/.test(code)) {
+    return "The Electrum server’s TLS certificate could not be verified.";
+  }
+  return "Could not connect to the Electrum server.";
 }
 function parseElectrumUrl(url) {
   const match = /^(ssl|tcp):\/\/(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.-]+):(\d{1,5})\/?$/.exec(url.trim());
@@ -8864,7 +8882,7 @@ class ElectrumClient {
     this.options = options;
     socket.setEncoding("utf8");
     socket.on("data", (chunk) => this.onData(chunk));
-    socket.on("error", (error) => this.fail(new ElectrumError(`Electrum connection error: ${error.message}`)));
+    socket.on("error", (error) => this.fail(new ElectrumError("The connection to the Electrum server failed.", error.message)));
     socket.on("close", () => this.fail(new ElectrumError("The Electrum server closed the connection.")));
   }
   static async connect(server, options = {}) {
@@ -8883,7 +8901,7 @@ class ElectrumClient {
         clearTimeout(timer);
         if (error) {
           s.destroy();
-          reject(new ElectrumError(`Could not connect to the Electrum server: ${error.message}`));
+          reject(new ElectrumError(connectionMessage(error), error.message));
         } else
           resolve(s);
       };
@@ -8898,7 +8916,9 @@ class ElectrumClient {
           const cert = s.getPeerCertificate();
           const fingerprint = cert?.raw ? createHash("sha256").update(cert.raw).digest("hex") : "";
           if (fingerprint !== pin) {
-            done(new Error("the TLS certificate does not match BOOKIE_ELECTRUM_CERT_SHA256"));
+            done(Object.assign(new Error("TLS certificate fingerprint mismatch"), {
+              code: "BOOKIE_CERT_PIN"
+            }));
             return;
           }
         }
@@ -8907,7 +8927,12 @@ class ElectrumClient {
       s.once("error", (error) => done(error));
     });
     const client = new ElectrumClient(socket, settings);
-    await client.request("server.version", ["Bookie", "1.4"]);
+    try {
+      await client.request("server.version", ["Bookie", "1.4"]);
+    } catch (error) {
+      client.close();
+      throw error;
+    }
     return client;
   }
   onData(chunk) {
@@ -8942,7 +8967,7 @@ class ElectrumClient {
     this.release();
     if (message.error) {
       const text = typeof message.error === "string" ? message.error : message.error.message;
-      entry.reject(new ElectrumError(`Electrum server error: ${text ?? "unknown error"}`));
+      entry.reject(new ElectrumError("The Electrum server returned an error.", text ?? "unknown error"));
     } else
       entry.resolve(message.result);
   }
@@ -9065,7 +9090,7 @@ var timeLabel = (unix) => `${new Date(unix * 1000).toLocaleTimeString("en-GB", {
   minute: "2-digit",
   timeZone: "UTC"
 })} UTC, ${dateLabel(unix)}`;
-function dailyCloseRate(candles, blockTime, now, currency) {
+function dailyCloseRate(candles, blockTime, now, currency, use = "fallback") {
   const dayStart = blockTime - blockTime % DAY;
   const candle = candles.find((c) => c.time === dayStart);
   if (!candle || candle.time + DAY > now)
@@ -9075,7 +9100,7 @@ function dailyCloseRate(candles, blockTime, now, currency) {
     currency,
     source: "kraken-daily-close",
     rateTime: new Date((candle.time + DAY) * 1000).toISOString(),
-    label: `Kraken ${krakenPair(currency)} daily close, ${dateLabel(candle.time)} (fallback: the price at the block time wasn't available)`
+    label: `Kraken ${krakenPair(currency)} daily close, ${dateLabel(candle.time)}${use === "fallback" ? " (fallback: the price at the block time wasn't available)" : ""}`
   };
 }
 var tradeRateOf = (trade, currency, label) => ({
@@ -9101,10 +9126,11 @@ function latestTradeRate(trades, currency) {
     return;
   return tradeRateOf(trade, currency, `Kraken ${krakenPair(currency)} last trade at ${timeLabel(trade.time)}`);
 }
+var roundCents = (x) => Math.sign(x) * Math.round(Math.abs(x) * 100) / 100;
 function valueFor(sats, rate) {
   return {
     ok: true,
-    amount: Math.round(sats / 1e8 * rate.perBtc * 100) / 100,
+    amount: roundCents(sats / 1e8 * rate.perBtc),
     currency: rate.currency,
     rate
   };
@@ -9315,7 +9341,8 @@ function reconcile(transactions, entries, options = {}) {
 var btc = (sats) => Number(satsToBtc(sats).replace(/,/g, ""));
 function summariseReconcile(input) {
   const { result, scan } = input;
-  const drafted = new Set(input.drafted ?? []);
+  const draftsKnown = input.drafted !== "not available";
+  const drafted = new Set(draftsKnown ? input.drafted ?? [] : []);
   const differs = result.matched.filter((m) => m.amountDiffers);
   return {
     wallet: input.wallet,
@@ -9328,20 +9355,20 @@ function summariseReconcile(input) {
       onChainNotInBooks: result.chainOnly.length,
       inBooksNotOnChain: result.ledgerOnly.length,
       pending: result.pending.length,
-      draftedNotPosted: drafted.size
+      draftedNotPosted: draftsKnown ? drafted.size : "not available"
     },
     balances: {
       onChainConfirmedBtc: btc(scan.balance.confirmedSats),
       inBooksBtc: btc(input.ledgerSats),
       differenceBtc: btc(scan.balance.confirmedSats - input.ledgerSats),
-      note: "In the books = the sum of posted entries on the bank account. Pending transactions are in neither."
+      note: "In the books = the sum of posted entries on the bank account. The chain figure is confirmed only; a pending transaction the books already have is in the books figure but not yet the chain one."
     },
     onChainNotInBooks: result.chainOnly.map((t) => ({
       txid: t.txid,
       date: t.date,
       amountBtc: btc(t.netSats),
       feeBtc: t.feeSats === undefined ? undefined : btc(t.feeSats),
-      drafted: drafted.has(t.txid)
+      drafted: draftsKnown ? drafted.has(t.txid) : "not available"
     })),
     inBooksNotOnChain: result.ledgerOnly.map((e) => ({
       postingDate: e.postingDate,
@@ -9372,6 +9399,7 @@ function draftedTxids(lines, txids) {
 // src/lib/bitcoin/scan.ts
 var GAP_LIMIT = 20;
 var MAX_ADDRESSES_PER_CHAIN = 5000;
+var MAX_TRANSACTIONS = 1e4;
 function headerTime(headerHex) {
   const bytes = hex.decode(headerHex);
   if (bytes.length < 80)
@@ -9457,6 +9485,9 @@ async function scanWallet(descriptor, electrum, options = {}) {
     mapLimit(usedHashes, concurrency, (h) => electrum.request("blockchain.scripthash.get_balance", [h]))
   ]);
   const txids = [...history.keys()];
+  if (txids.length > MAX_TRANSACTIONS) {
+    throw new WalletError(`This wallet has more than ${MAX_TRANSACTIONS.toLocaleString("en-GB")} transactions, more than Bookie reads live.`);
+  }
   const raw = new Map;
   const fetchTxs = async (ids) => {
     const fetched = await mapLimit(ids, concurrency, (id) => electrum.request("blockchain.transaction.get", [id, false]));
@@ -9468,17 +9499,6 @@ async function scanWallet(descriptor, electrum, options = {}) {
     const out = history.has(input.txid) ? prev?.outputs[input.index] : undefined;
     return out && ours.has(out.script) ? out : undefined;
   };
-  const foreign = new Set;
-  for (const id of txids) {
-    const tx = raw.get(id);
-    if (!tx.inputs.some(isOurInput))
-      continue;
-    for (const input of tx.inputs)
-      if (!raw.has(input.txid))
-        foreign.add(input.txid);
-  }
-  if (foreign.size > 0)
-    await fetchTxs([...foreign]);
   const heights = [...new Set([...history.values()].filter((h) => h > 0))];
   const headers = await mapLimit(heights, concurrency, (h) => electrum.request("blockchain.block.header", [h]));
   const blockTimes = new Map(heights.map((h, i) => [h, headerTime(headers[i])]));
@@ -9488,16 +9508,18 @@ async function scanWallet(descriptor, electrum, options = {}) {
     const pending = height <= 0;
     const receivedSats = tx.outputs.reduce((s, o) => s + (ours.has(o.script) ? o.sats : 0), 0);
     let sentSats = 0;
-    let inputTotal = 0;
+    let ourInputs = 0;
     for (const input of tx.inputs) {
       const mine = isOurInput(input);
-      if (mine)
+      if (mine) {
         sentSats += mine.sats;
-      const prev = raw.get(input.txid)?.outputs[input.index];
-      inputTotal = prev && inputTotal !== undefined ? inputTotal + prev.sats : undefined;
+        ourInputs++;
+      }
     }
     const outputTotal = tx.outputs.reduce((s, o) => s + o.sats, 0);
-    const feeSats = sentSats > 0 && inputTotal !== undefined && inputTotal >= outputTotal ? inputTotal - outputTotal : undefined;
+    const allInputsOurs = ourInputs > 0 && ourInputs === tx.inputs.length;
+    const feeSats = allInputsOurs && sentSats >= outputTotal ? sentSats - outputTotal : undefined;
+    const sharedInputs = ourInputs > 0 && !allInputsOurs;
     const netSats = receivedSats - sentSats;
     const allOurs = tx.outputs.every((o) => ours.has(o.script));
     return {
@@ -9510,6 +9532,7 @@ async function scanWallet(descriptor, electrum, options = {}) {
       sentSats,
       netSats,
       feeSats,
+      ...sharedInputs ? { sharedInputs } : {},
       direction: sentSats > 0 && allOurs ? "self" : netSats >= 0 ? "in" : "out"
     };
   });
@@ -9538,6 +9561,7 @@ var BITCOIN_API = "bookie/bitcoin/v1.0";
 
 class Refusal extends Error {
 }
+var decodeBcEnum = (value) => (value ?? "").replace(/_x([0-9A-F]{4})_/gi, (_, code) => String.fromCharCode(parseInt(code, 16))).trim();
 function loadEnv() {
   const file = join(homedir(), ".hermes", ".env");
   if (!existsSync(file))
@@ -9730,8 +9754,10 @@ async function show(company, wanted, limit, withValues) {
 }
 async function reconcileWallets(company, wanted) {
   const { bc, rows } = await bcWallets(company);
-  const journals = await bc.api.all(bc.url("v2.0", "journals?$select=id,code")).catch(() => []);
-  const btcBatches = journals.filter((j) => j.code.startsWith("BTC"));
+  const journals = await bc.api.all(bc.url("v2.0", "journals?$select=id,code,displayName")).catch(() => {
+    return;
+  });
+  const btcBatches = journals?.filter((j) => j.code.startsWith("BTC") && j.displayName === "Bookie Bitcoin reconcile");
   const results = [];
   for (const row of pick(rows, wanted)) {
     try {
@@ -9754,7 +9780,11 @@ async function reconcileWallets(company, wanted) {
         description: e.description || undefined,
         amountSats: Math.round(e.amount * 1e8)
       }));
-      const draftLines = (await Promise.all(btcBatches.map((b) => bc.api.all(bc.url("v2.0", `journals(${b.id})/journalLines`)).catch(() => [])))).flat().filter((l) => l.accountNumber === row.number).map((l) => ({ externalDocumentNumber: l.externalDocumentNumber ?? "" }));
+      const batchLines = btcBatches ? await Promise.all(btcBatches.map((b) => bc.api.all(bc.url("v2.0", `journals(${b.id})/journalLines`)).catch(() => {
+        return;
+      }))) : undefined;
+      const isThisBank = (l) => decodeBcEnum(l.accountType) === "Bank Account" && l.accountNumber === row.number;
+      const draftLines = batchLines && batchLines.every(Boolean) ? batchLines.filter((lines) => lines.length > 0 && lines.every(isThisBank)).flat().map((l) => ({ externalDocumentNumber: l.externalDocumentNumber ?? "" })) : undefined;
       const txids = chain.transactions.map((t) => t.txid);
       results.push(summariseReconcile({
         wallet: row.displayName ?? row.number,
@@ -9762,7 +9792,7 @@ async function reconcileWallets(company, wanted) {
         scan: chain,
         result: reconcile(chain.transactions, ledger),
         ledgerSats: ledger.reduce((s, e) => s + e.amountSats, 0),
-        drafted: [
+        drafted: draftLines ? [
           ...draftedTxids(draftLines.map((l) => ({
             bankAccountNumber: row.number,
             postingDate: "",
@@ -9772,7 +9802,7 @@ async function reconcileWallets(company, wanted) {
             amountSats: 0,
             balancingAccountNumber: ""
           })), txids)
-        ]
+        ] : "not available"
       }));
     } catch (error) {
       results.push({
