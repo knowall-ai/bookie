@@ -21,6 +21,7 @@ import { bcPurchaseOrders } from './modules/purchase-orders';
 import { bcItems } from './modules/items';
 import { bcPayments } from './modules/payments';
 import { bcBank } from './modules/bank';
+import { bcReconcile } from './modules/reconcile';
 import { bcAccounts } from './modules/accounts';
 import { bcJournals } from './modules/journals';
 import { bcTaxRates } from './modules/tax-rates';
@@ -837,15 +838,29 @@ export function createBcConnector({
     };
   };
 
-  const bank = bcBank(
-    client,
-    lcy,
-    {
-      bankAccounts: bcWebClientLink(client.tenantId, client.environment, companyName, 371),
-      currencies: bcWebClientLink(client.tenantId, client.environment, companyName, 5),
-    },
-    !!extension
-  );
+  const bank = {
+    ...bcBank(
+      client,
+      lcy,
+      {
+        bankAccounts: bcWebClientLink(client.tenantId, client.environment, companyName, 371),
+        currencies: bcWebClientLink(client.tenantId, client.environment, companyName, 5),
+      },
+      !!extension
+    ),
+    // Bank Acc. Reconciliation List (388), filtered to this account.
+    reconcile: bcReconcile(
+      (account) =>
+        bcWebClientLink(
+          client.tenantId,
+          client.environment,
+          companyName,
+          388,
+          account.code ? `'Bank Account No.' IS '${account.code}'` : undefined
+        ),
+      !!extension
+    ),
+  };
 
   return {
     kind: 'business-central',

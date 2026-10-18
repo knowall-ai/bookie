@@ -623,6 +623,25 @@ export interface BankTransaction {
   updatedAt?: string;
 }
 
+/**
+ * One unreconciled line from the bank statement (the bank feed), as the bank
+ * reported it. `amount` is positive; `direction` says which way the money went.
+ * Only sources whose API shares statement lines provide these.
+ */
+export interface BankStatementLine {
+  id: string;
+  bankAccountId: string;
+  date: IsoDate;
+  direction: 'in' | 'out';
+  amount: number;
+  /** The bank account's currency, when the source says. */
+  currency?: string;
+  reference?: string;
+  description?: string;
+  /** Who the bank says paid or was paid, when it says. */
+  payee?: string;
+}
+
 /** Filters for an account register ("Account transactions"). */
 export interface BankTransactionQuery extends ListQuery {
   direction?: 'spent' | 'received';

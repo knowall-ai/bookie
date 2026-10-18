@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { ArrowDownLeft, ArrowUpRight, Check, Paperclip, Receipt } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Check, Paperclip, Receipt, Scale } from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
 import { isConnectorError } from '@/lib/connectors/types';
 import type { BankTransaction, BankTransactionQuery } from '@/lib/domain/types';
@@ -172,16 +172,21 @@ export default async function Page({
           </span>
         }
         actions={
-          canCreate && (
-            <>
-              <ButtonLink href={`${newHref}?type=spend&account=${encodeURIComponent(id)}`}>
-                <ArrowUpRight className="h-4 w-4" /> Spend money
-              </ButtonLink>
-              <ButtonLink href={`${newHref}?type=receive&account=${encodeURIComponent(id)}`}>
-                <ArrowDownLeft className="h-4 w-4" /> Receive money
-              </ButtonLink>
-            </>
-          )
+          <>
+            <ButtonLink href={`${listPath}/reconcile`} variant="primary">
+              <Scale className="h-4 w-4" /> Reconcile
+            </ButtonLink>
+            {canCreate && (
+              <>
+                <ButtonLink href={`${newHref}?type=spend&account=${encodeURIComponent(id)}`}>
+                  <ArrowUpRight className="h-4 w-4" /> Spend money
+                </ButtonLink>
+                <ButtonLink href={`${newHref}?type=receive&account=${encodeURIComponent(id)}`}>
+                  <ArrowDownLeft className="h-4 w-4" /> Receive money
+                </ButtonLink>
+              </>
+            )}
+          </>
         }
       />
       <SourceNote>{result.note}</SourceNote>
