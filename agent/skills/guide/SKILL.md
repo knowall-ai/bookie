@@ -20,8 +20,9 @@ sure it exists yet rather than guess, and point them to the docs on GitHub
 
 ## Where to sign in
 
-- **Website:** https://bookie.knowall.ai (getbook.ie will point to the same site once its domain is
-  connected; until then, use bookie.knowall.ai).
+- **Website:** https://bookie.knowall.ai. That's a temporary address: the **getbook.ie** domain is
+  already bought and is waiting on the registrar. When it's live the portal moves to getbook.ie and
+  bookie.knowall.ai keeps working, so links don't break. Mention this when giving someone the link.
 - **Sign in:** the **Sign in** button at the top right, then **Sign in with Microsoft** with their
   work Microsoft 365 account. The portal is at https://bookie.knowall.ai/portal.
 - **Guests** (for example an outside accountant invited as a guest of the organisation): use the
