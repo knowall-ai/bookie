@@ -90,6 +90,30 @@ Use `top` and `skip` to page. If a call fails with `Company '<name>' not found`,
 `BC_COMPANY` is wrong: report it, do not retry with guesses. A 401/403 means the BC app user lacks a
 permission set: tell the accountant which resource was refused.
 
+## 3a. Common questions: the fast way
+
+Rule: **let the source do the work.** Use its own status fields and server-side filters, and ask for
+only what the answer needs. Never page through years of history and match things up by hand when a
+status already says it; on a call the person is waiting. If an answer genuinely needs a heavy trawl,
+say so ("that means reading every invoice since 2019; I'll send it to the chat in a few minutes")
+rather than going quiet.
+
+| Question | Xero | Business Central |
+|---|---|---|
+| Quotes sent but not turned into invoices | `Quotes?Status=SENT` (and `Status=ACCEPTED`). Xero sets a quote to `INVOICED` when it's converted, so no invoice matching is needed | `salesQuotes`, `filter: "status eq 'Sent' or status eq 'Accepted'"`. BC removes a quote when it becomes an order or invoice, so what's left is unconverted |
+| Who owes us, overdue | `Invoices?Statuses=AUTHORISED&where=Type=="ACCREC" AND DueDate<DateTime(y,m,d)&order=DueDate&summaryOnly=true` | `salesInvoices`, `filter: "status eq 'Open' and dueDate lt YYYY-MM-DD"` |
+| Who owes us the most | the same open-invoices call; sum `AmountDue` per contact | `customers` (field `balanceDue`), largest first |
+| Bills due this week | `Invoices?Statuses=AUTHORISED&where=Type=="ACCPAY" AND DueDate<=DateTime(...)&summaryOnly=true` | `purchaseInvoices`, `filter: "status eq 'Open' and dueDate le YYYY-MM-DD"` |
+| Bills waiting for approval | `Invoices?Statuses=DRAFT,SUBMITTED&where=Type=="ACCPAY"` | `purchaseInvoices`, `filter: "status eq 'Draft'"` |
+| Last invoice sent | see "Latest sent invoice" above | `salesInvoices`, `filter: "status ne 'Draft'"`, ordered by `postingDate desc`, `top: 1` |
+| Cash in the bank | `Reports/BankSummary` (one call, all accounts) | `bankAccounts` with balances where exposed; otherwise say BC doesn't report it |
+| Profit this month / year | `Reports/ProfitAndLoss?fromDate=…&toDate=…` | the income statement report resource, or `generalLedgerEntries` totals by account category |
+| A customer's or supplier's position | `Contacts?where=Name.Contains("…")`, then `Invoices?ContactIDs=<id>&Statuses=AUTHORISED&summaryOnly=true` | `get_items_by_field` `customers` / `vendors`, then their open invoices |
+| Unreconciled bank lines | `BankTransactions?where=IsReconciled==false` (entries in the books not yet matched); Xero doesn't give bank-feed statement lines to this connection | not available from API v2.0 |
+
+`summaryOnly=true` returns invoices without line items: much faster when you only need totals,
+dates and statuses. Check the API reference before relying on a parameter you haven't used here.
+
 ## 4. Formatting money
 
 - Always the currency and the organisation: "Contoso Coffee Roasters Ltd is owed £12,480.00 (GBP)".

@@ -77,6 +77,34 @@ as_agent "git -C '${PLUG}' checkout --quiet --detach 'origin/${REVERIE_PLUGIN_RE
 info "plugin at $(as_agent "git -C '${PLUG}' log -1 --format='%h %s'")"
 as_agent "hermes plugins enable reverie" >/dev/null 2>&1 || info "(enabled through config.yaml plugins.enabled)"
 
+step "Reverie over HTTP on localhost (Agent Presence's call self-check reads it)"
+SERVE_ENV="/home/${AGENT_NAME}/.config/reverie/serve.env"
+sudo install -d -m 700 -o "${AGENT_NAME}" -g "${AGENT_NAME}" "/home/${AGENT_NAME}/.config/reverie"
+if ! sudo test -s "${SERVE_ENV}"; then
+  printf 'REVERIE_SERVE_TOKEN=%s\nREVERIE_HTTP_HOST=127.0.0.1\nREVERIE_HTTP_PORT=8643\n' "$(openssl rand -hex 32)" \
+    | sudo tee "${SERVE_ENV}" >/dev/null
+  sudo chown "${AGENT_NAME}:${AGENT_NAME}" "${SERVE_ENV}"; sudo chmod 600 "${SERVE_ENV}"
+fi
+sudo tee "/etc/systemd/system/reverie-serve-${AGENT_NAME}.service" >/dev/null <<UNIT
+[Unit]
+Description=Reverie memory over HTTP for ${AGENT_NAME} (localhost only; Presence health check)
+After=network-online.target
+[Service]
+User=${AGENT_NAME}
+Environment=HOME=/home/${AGENT_NAME}
+Environment=PATH=/home/${AGENT_NAME}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=${HERMES_DIR}/.env
+EnvironmentFile=${SERVE_ENV}
+ExecStart=/home/${AGENT_NAME}/.npm-global/bin/reverie serve
+Restart=on-failure
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl enable --now "reverie-serve-${AGENT_NAME}" >/dev/null 2>&1
+info "reverie serve: $(curl -s -m5 http://127.0.0.1:8643/health || echo 'not answering yet')"
+
 cat <<EOF
 
 ==> Step 40 done. Check (the first call downloads the local embedding model, ~23 MB):

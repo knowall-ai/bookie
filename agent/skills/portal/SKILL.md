@@ -11,7 +11,7 @@ metadata:
 # Portal links
 
 The Bookie portal is the same books in a Xero-style web app, behind the person's own Microsoft sign-in.
-Base URL: `PORTAL_BASE_URL` (`https://bookie.knowall.ai/portal`; getbook.ie will also work once its
+Base URL: `PORTAL_BASE_URL` (`https://bookie.knowall.ai/portal`; getbook.ie (bought, waiting on the registrar) will also work once its
 domain is connected, but until then use bookie.knowall.ai). A link only opens for someone whose
 sign-in may see that organisation: the portal checks it again on every request, so a link is never a
 way round the access rules. Still, only send links to people who may see that organisation.
