@@ -74,14 +74,12 @@ fi
 step "v4l2loopback-ctl ${V4L2_VER} and the format udev rule"
 [ -d "/usr/src/v4l2loopback-${V4L2_VER}" ] && (cd "/usr/src/v4l2loopback-${V4L2_VER}" && sudo make -s install-utils >/dev/null)
 command -v v4l2loopback-ctl >/dev/null || die "v4l2loopback-ctl not installed (pulse-setup needs it to pin the camera format)"
-# set-caps writes the sysfs `format` attribute, which is root-only by default; pulse-setup runs it as the agent user.
-# Match on the card label: loopback devices have no parent, so DRIVERS=="v4l2 loopback" never matches.
-[ -n "${AVATAR_LABEL:-}" ] || die "AVATAR_LABEL is required (the v4l2loopback card label, e.g. Bookie-Avatar)"
-sudo tee /etc/udev/rules.d/60-v4l2loopback.rules >/dev/null <<UDEV
-# Agent Presence: let the agent user (group video) pin the loopback format at boot with
-# `v4l2loopback-ctl set-caps`, which writes this sysfs attribute (root-only by default).
-ACTION=="add", SUBSYSTEM=="video4linux", ATTR{name}=="${AVATAR_LABEL}*", RUN+="/bin/chgrp video /sys%p/format", RUN+="/bin/chmod g+w /sys%p/format"
-KERNEL=="v4l2loopback", GROUP="video", MODE="0660"
+# set-caps' fps step writes the sysfs `format` attribute, root-only by default, and pulse-setup runs it as the
+# agent user. Match on that attribute: loopback devices have no parent, so DRIVERS=="v4l2 loopback" never
+# matches (agent-presence#346; verified on ka-bookie-vm with udevadm test --action=add and a fresh modprobe).
+sudo tee /etc/udev/rules.d/60-v4l2loopback.rules >/dev/null <<'UDEV'
+# v4l2loopback devices: let group video write the sysfs format attribute (v4l2loopback-ctl set-caps' fps step)
+ACTION=="add", SUBSYSTEM=="video4linux", TEST=="format", RUN+="/bin/chgrp video /sys%p/format", RUN+="/bin/chmod g+w /sys%p/format"
 UDEV
 sudo udevadm control --reload
 
