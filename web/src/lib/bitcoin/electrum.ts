@@ -19,11 +19,35 @@ export interface ElectrumServer {
   port: number;
 }
 
+/**
+ * An Electrum failure. `message` is a fixed sentence that is safe to show anyone: it
+ * never contains the server's host, port, IP or certificate details. `detail` holds
+ * the underlying socket or server text, for the server's own logs only.
+ */
 export class ElectrumError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly detail?: string
+  ) {
     super(message);
     this.name = 'ElectrumError';
   }
+}
+
+/** A socket error as a fixed message, by its code (never its text, which names the host). */
+function connectionMessage(error: Error & { code?: string }): string {
+  const code = error.code ?? '';
+  if (code === 'ECONNREFUSED') return 'The Electrum server refused the connection.';
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN')
+    return 'The Electrum server’s name could not be found.';
+  if (code === 'ETIMEDOUT') return 'Timed out connecting to the Electrum server.';
+  if (code === 'BOOKIE_CERT_PIN') {
+    return 'The Electrum server’s TLS certificate does not match BOOKIE_ELECTRUM_CERT_SHA256.';
+  }
+  if (/^(CERT_|ERR_TLS_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_)/.test(code)) {
+    return 'The Electrum server’s TLS certificate could not be verified.';
+  }
+  return 'Could not connect to the Electrum server.';
 }
 
 /** `ssl://host:port` or `tcp://host:port`. */
@@ -83,7 +107,7 @@ export class ElectrumClient implements ElectrumApi {
     socket.setEncoding('utf8');
     socket.on('data', (chunk: string) => this.onData(chunk));
     socket.on('error', (error) =>
-      this.fail(new ElectrumError(`Electrum connection error: ${error.message}`))
+      this.fail(new ElectrumError('The connection to the Electrum server failed.', error.message))
     );
     socket.on('close', () =>
       this.fail(new ElectrumError('The Electrum server closed the connection.'))
@@ -109,7 +133,7 @@ export class ElectrumClient implements ElectrumApi {
         clearTimeout(timer);
         if (error) {
           s.destroy();
-          reject(new ElectrumError(`Could not connect to the Electrum server: ${error.message}`));
+          reject(new ElectrumError(connectionMessage(error), error.message));
         } else resolve(s);
       };
       const s: net.Socket =
@@ -127,7 +151,11 @@ export class ElectrumClient implements ElectrumApi {
           const cert = s.getPeerCertificate();
           const fingerprint = cert?.raw ? createHash('sha256').update(cert.raw).digest('hex') : '';
           if (fingerprint !== pin) {
-            done(new Error('the TLS certificate does not match BOOKIE_ELECTRUM_CERT_SHA256'));
+            done(
+              Object.assign(new Error('TLS certificate fingerprint mismatch'), {
+                code: 'BOOKIE_CERT_PIN',
+              })
+            );
             return;
           }
         }
@@ -136,7 +164,13 @@ export class ElectrumClient implements ElectrumApi {
       s.once('error', (error) => done(error));
     });
     const client = new ElectrumClient(socket, settings);
-    await client.request('server.version', ['Bookie', '1.4']);
+    try {
+      await client.request('server.version', ['Bookie', '1.4']);
+    } catch (error) {
+      // Don't leave the socket open when the handshake fails.
+      client.close();
+      throw error;
+    }
     return client;
   }
 
@@ -170,7 +204,9 @@ export class ElectrumClient implements ElectrumApi {
     this.release();
     if (message.error) {
       const text = typeof message.error === 'string' ? message.error : message.error.message;
-      entry.reject(new ElectrumError(`Electrum server error: ${text ?? 'unknown error'}`));
+      entry.reject(
+        new ElectrumError('The Electrum server returned an error.', text ?? 'unknown error')
+      );
     } else entry.resolve(message.result);
   }
 

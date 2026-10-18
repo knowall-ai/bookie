@@ -145,7 +145,9 @@ export function dailyCloseRate(
   candles: Candle[],
   blockTime: number,
   now: number,
-  currency: string
+  currency: string,
+  /** A fallback for a transaction's own-time price (labelled so), or a daily figure in its own right. */
+  use: 'fallback' | 'daily' = 'fallback'
 ): FiatRate | undefined {
   const dayStart = blockTime - (blockTime % DAY);
   const candle = candles.find((c) => c.time === dayStart);
@@ -156,7 +158,7 @@ export function dailyCloseRate(
     currency,
     source: 'kraken-daily-close',
     rateTime: new Date((candle.time + DAY) * 1000).toISOString(),
-    label: `Kraken ${krakenPair(currency)} daily close, ${dateLabel(candle.time)} (fallback: the price at the block time wasn't available)`,
+    label: `Kraken ${krakenPair(currency)} daily close, ${dateLabel(candle.time)}${use === 'fallback' ? " (fallback: the price at the block time wasn't available)" : ''}`,
   };
 }
 
@@ -192,11 +194,14 @@ export function latestTradeRate(trades: Trade[], currency: string): FiatRate | u
   );
 }
 
+const roundCents = (x: number) => (Math.sign(x) * Math.round(Math.abs(x) * 100)) / 100;
+
 /** sats × rate, to the cent (2 decimals). */
 export function valueFor(sats: number, rate: FiatRate): FiatValue {
   return {
     ok: true,
-    amount: Math.round((sats / 1e8) * rate.perBtc * 100) / 100,
+    // Symmetric to the cent: -0.125 rounds to -0.13, as 0.125 rounds to 0.13.
+    amount: roundCents((sats / 1e8) * rate.perBtc),
     currency: rate.currency,
     rate,
   };
@@ -397,4 +402,43 @@ export async function ratesForBlockTimes(
     }
   }
   return out;
+}
+
+/**
+ * One rate per UTC day (`YYYY-MM-DD`) for a balance chart: Kraken's daily close for a
+ * closed day, Kraken's latest trade for today. A day Kraken has no close for (older
+ * than its daily history) is missing. Returns the reason instead when there's no price
+ * in this currency at all.
+ */
+export async function ratesForDays(
+  days: string[],
+  currency: string | undefined,
+  options: { fetchImpl?: Fetch; nowMs?: number } = {}
+): Promise<Map<string, FiatRate> | string> {
+  const missing = noPairReason(currency);
+  if (missing) return missing;
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const nowMs = options.nowMs ?? Date.now();
+  const now = Math.floor(nowMs / 1000);
+  const code = currency!.trim().toUpperCase();
+  const pair = krakenPair(code)!;
+  try {
+    const candles = await cached(ohlcCache, pair, OHLC_TTL_MS, nowMs, () =>
+      krakenJson(fetchImpl, `OHLC?pair=${pair}&interval=1440`).then(parseKrakenOhlc)
+    );
+    const today = new Date(nowMs).toISOString().slice(0, 10);
+    const out = new Map<string, FiatRate>();
+    for (const day of days) {
+      const start = Date.parse(`${day}T00:00:00Z`) / 1000;
+      const rate =
+        day === today
+          ? await latestRate(code, fetchImpl, nowMs)
+          : dailyCloseRate(candles, start, now, code, 'daily');
+      if (rate) out.set(day, rate);
+    }
+    return out;
+  } catch (error) {
+    if (error instanceof KrakenError && error.unknownPair) return unknownPairReason(code);
+    return error instanceof KrakenError ? error.message : 'Kraken prices are unavailable.';
+  }
 }

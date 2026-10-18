@@ -16,10 +16,13 @@ import {
   type WalletDescriptor,
 } from './descriptor';
 import type { ElectrumApi } from './electrum';
+import { WalletError } from './errors';
 
 export const GAP_LIMIT = 20;
 /** Safety cap per chain, so a broken server can't make Bookie derive forever. */
 export const MAX_ADDRESSES_PER_CHAIN = 5_000;
+/** Bookie reads wallets live; past this many transactions it stops rather than load them all. */
+export const MAX_TRANSACTIONS = 10_000;
 
 export interface ChainTransaction {
   txid: string;
@@ -36,10 +39,13 @@ export interface ChainTransaction {
   /** received − sent: positive is money in. A send includes its fee. */
   netSats: number;
   /**
-   * Network fee in satoshis, when the wallet paid it (it funded at least one input)
-   * and every input's value was known. Undefined otherwise: Bookie doesn't guess.
+   * Network fee in satoshis, only when the wallet funded every input (so the whole fee
+   * is the wallet's) and every input's value was known. Undefined otherwise: Bookie
+   * doesn't guess a share of a fee on a jointly funded transaction.
    */
   feeSats?: number;
+  /** The wallet funded some, but not all, of the inputs (payjoin, coinjoin). */
+  sharedInputs?: boolean;
   direction: 'in' | 'out' | 'self';
 }
 
@@ -179,8 +185,14 @@ export async function scanWallet(
     ),
   ]);
 
-  // Every transaction in the history, then any outside transaction a wallet-funded input spends.
+  // Every transaction in the history. (Outside transactions aren't needed: a fee is only
+  // reported when the wallet funded every input, and those inputs are in the history.)
   const txids = [...history.keys()];
+  if (txids.length > MAX_TRANSACTIONS) {
+    throw new WalletError(
+      `This wallet has more than ${MAX_TRANSACTIONS.toLocaleString('en-GB')} transactions, more than Bookie reads live.`
+    );
+  }
   const raw = new Map<string, ParsedTx>();
   const fetchTxs = async (ids: string[]) => {
     const fetched = await mapLimit(ids, concurrency, (id) =>
@@ -196,14 +208,6 @@ export async function scanWallet(
     return out && ours.has(out.script) ? out : undefined;
   };
 
-  const foreign = new Set<string>();
-  for (const id of txids) {
-    const tx = raw.get(id)!;
-    if (!tx.inputs.some(isOurInput)) continue;
-    for (const input of tx.inputs) if (!raw.has(input.txid)) foreign.add(input.txid);
-  }
-  if (foreign.size > 0) await fetchTxs([...foreign]);
-
   const heights = [...new Set([...history.values()].filter((h) => h > 0))];
   const headers = await mapLimit(heights, concurrency, (h) =>
     electrum.request<string>('blockchain.block.header', [h])
@@ -216,18 +220,18 @@ export async function scanWallet(
     const pending = height <= 0;
     const receivedSats = tx.outputs.reduce((s, o) => s + (ours.has(o.script) ? o.sats : 0), 0);
     let sentSats = 0;
-    let inputTotal: number | undefined = 0;
+    let ourInputs = 0;
     for (const input of tx.inputs) {
       const mine = isOurInput(input);
-      if (mine) sentSats += mine.sats;
-      const prev = raw.get(input.txid)?.outputs[input.index];
-      inputTotal = prev && inputTotal !== undefined ? inputTotal + prev.sats : undefined;
+      if (mine) {
+        sentSats += mine.sats;
+        ourInputs++;
+      }
     }
     const outputTotal = tx.outputs.reduce((s, o) => s + o.sats, 0);
-    const feeSats =
-      sentSats > 0 && inputTotal !== undefined && inputTotal >= outputTotal
-        ? inputTotal - outputTotal
-        : undefined;
+    const allInputsOurs = ourInputs > 0 && ourInputs === tx.inputs.length;
+    const feeSats = allInputsOurs && sentSats >= outputTotal ? sentSats - outputTotal : undefined;
+    const sharedInputs = ourInputs > 0 && !allInputsOurs;
     const netSats = receivedSats - sentSats;
     const allOurs = tx.outputs.every((o) => ours.has(o.script));
     return {
@@ -240,6 +244,7 @@ export async function scanWallet(
       sentSats,
       netSats,
       feeSats,
+      ...(sharedInputs ? { sharedInputs } : {}),
       direction: sentSats > 0 && allOurs ? 'self' : netSats >= 0 ? 'in' : 'out',
     };
   });

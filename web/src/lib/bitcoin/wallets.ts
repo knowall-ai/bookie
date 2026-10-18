@@ -16,6 +16,7 @@ import {
   DEMO_WALLET_BC_BANK,
   DEMO_WALLET_ID,
   DEMO_WALLET_ORG,
+  demoDailyRates,
   demoRates,
   demoWalletScan,
 } from './demo';
@@ -27,7 +28,15 @@ import {
   type WalletDescriptor,
 } from './descriptor';
 import { ElectrumClient, ElectrumError, parseElectrumUrl, type ElectrumServer } from './electrum';
-import { ratesForBlockTimes, valueFor, valueNow, type FiatValue } from './kraken';
+import {
+  ratesForBlockTimes,
+  ratesForDays,
+  valueFor,
+  valueNow,
+  type FiatRate,
+  type FiatValue,
+} from './kraken';
+import { dailyBalances } from './history';
 import { scanWallet, type ChainTransaction, type WalletScan } from './scan';
 
 /* ------------------------------------------------------------------ */
@@ -157,20 +166,34 @@ const DEMO_RECORD: WalletSummary = {
 
 const BC_PREFIX = 'bc~';
 
+/** A sealed record as a summary; a record that no longer parses becomes a `problem`, never a crash. */
 function summariseRecord(record: BitcoinWalletRecord): WalletSummary {
-  const parsed = parseWalletInput(record.descriptor);
-  return {
+  const base = {
     id: record.id,
     name: record.name,
     orgKey: record.orgKey,
-    source: 'bookie',
-    type: parsed.type,
-    typeLabel: describeWallet(parsed),
-    network: parsed.network,
-    hasChange: parsed.hasChange,
+    source: 'bookie' as const,
     createdBy: record.createdBy,
     createdAt: record.createdAt,
   };
+  try {
+    const parsed = parseWalletInput(record.descriptor);
+    return {
+      ...base,
+      type: parsed.type,
+      typeLabel: describeWallet(parsed),
+      network: parsed.network,
+      hasChange: parsed.hasChange,
+    };
+  } catch (error) {
+    if (!(error instanceof WalletError)) throw error;
+    return {
+      ...base,
+      typeLabel: 'Descriptor not usable',
+      hasChange: false,
+      problem: `This wallet's stored key can't be used (${error.message}). Remove it and add it again.`,
+    };
+  }
 }
 
 /** A BC bank account with a descriptor, parsed; an unusable descriptor becomes a `problem`. */
@@ -282,7 +305,8 @@ async function resolveWallet(
   }
   const record = (await records(auth)).find((r) => r.id === id && r.orgKey === scope.org.key);
   if (!record) throw notFound();
-  return { summary: summariseRecord(record), descriptor: parseWalletInput(record.descriptor) };
+  const summary = summariseRecord(record);
+  return { summary, descriptor: summary.problem ? undefined : parseWalletInput(record.descriptor) };
 }
 
 /** The setup guide (the extension, permission sets, BTC currency and bank account). */
@@ -342,7 +366,9 @@ export type WalletLoad =
   | { status: 'not-configured'; message: string }
   | { status: 'error'; message: string };
 
-const SCAN_TTL_MS = 60_000;
+// Chain history changes only when a block lands or a payment arrives; five minutes keeps
+// repeated page views from re-reading a large wallet.
+const SCAN_TTL_MS = 5 * 60_000;
 const scans = new Map<string, { at: number; value: Promise<WalletScan> }>();
 
 /** Tenant, organisation, wallet and descriptor: a descriptor changed in BC is never served stale. */
@@ -415,12 +441,18 @@ async function loadResolved(
   try {
     return { status: 'ok', scan: await hit.value, source: 'electrum', electrum: electrumStatus() };
   } catch (error) {
-    const message =
-      error instanceof ElectrumError
-        ? error.message
-        : 'Bookie could not read this wallet from the Electrum server.';
-    if (!(error instanceof ElectrumError)) console.error('[bookie] wallet scan failed', error);
-    return { status: 'error', message };
+    // ElectrumError and WalletError messages are fixed sentences, safe to show; the
+    // socket or server detail (which can name the host) goes to the server log only.
+    if (error instanceof ElectrumError) {
+      console.error('[bookie] wallet scan failed:', error.message, error.detail ?? '');
+      return { status: 'error', message: error.message };
+    }
+    if (error instanceof WalletError) return { status: 'error', message: error.message };
+    console.error('[bookie] wallet scan failed', error);
+    return {
+      status: 'error',
+      message: 'Bookie could not read this wallet from the Electrum server.',
+    };
   }
 }
 
@@ -480,6 +512,67 @@ export async function valueBalance(
       : { ok: false, reason: `The demo has prices in ${DEMO_LATEST_RATE.currency} only.` };
   }
   return valueNow(sats, currency);
+}
+
+/** What the balance panel (card and wallet page) shows, in BTC and in the base currency. */
+export interface BalanceView {
+  /** The organisation's base currency, or undefined when its books don't say. */
+  currency?: string;
+  confirmedSats: number;
+  pendingSats: number;
+  /** The confirmed balance now, in `currency`, or the reason there's no value. */
+  now: FiatValue;
+  /** End-of-day confirmed balances; `value` only where a price for that day exists. */
+  series: { date: string; sats: number; value?: number; rateLabel?: string }[];
+  /** Where the chart's currency values come from, or why there are none. */
+  seriesSource: string;
+  hasSeriesValues: boolean;
+  /** When the chain was last read, and the block it was read at. */
+  checkedAt: string;
+  tipHeight: number;
+}
+
+const valueOf = (sats: number, rate: FiatRate): number | undefined => {
+  const value = valueFor(sats, rate);
+  return value.ok ? value.amount : undefined;
+};
+
+export async function balanceView(
+  scan: WalletScan,
+  source: 'electrum' | 'demo',
+  currency: string | undefined,
+  days: number
+): Promise<BalanceView> {
+  const points = dailyBalances(scan.balance.confirmedSats, scan.transactions, days);
+  const dates = points.map((p) => p.date);
+  const [now, rates] = await Promise.all([
+    valueBalance(scan.balance.confirmedSats, source, currency),
+    source === 'demo' ? demoDailyRates(dates, currency) : ratesForDays(dates, currency),
+  ]);
+  const series = points.map((p) => {
+    const rate = typeof rates === 'string' ? undefined : rates.get(p.date);
+    return rate ? { ...p, value: valueOf(p.sats, rate), rateLabel: rate.label } : p;
+  });
+  const hasSeriesValues = series.some((p) => 'value' in p && p.value !== undefined);
+  const pair = currency ? `XBT${currency}` : '';
+  return {
+    currency,
+    confirmedSats: scan.balance.confirmedSats,
+    pendingSats: scan.balance.pendingSats,
+    now,
+    series,
+    seriesSource:
+      typeof rates === 'string'
+        ? rates
+        : source === 'demo'
+          ? 'Each day at a demo price (fictional).'
+          : hasSeriesValues
+            ? `Each day at Kraken's ${pair} daily close; today at Kraken's last trade.`
+            : `Kraken has no ${pair} prices for these days.`,
+    hasSeriesValues,
+    checkedAt: scan.scannedAt,
+    tipHeight: scan.tip.height,
+  };
 }
 
 /** The organisation's base currency as its books report it, or undefined (never guessed). */

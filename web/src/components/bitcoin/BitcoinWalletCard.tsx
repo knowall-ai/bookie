@@ -4,13 +4,13 @@ import { Bitcoin } from 'lucide-react';
 import type { AuthContext } from '@/lib/auth/context';
 import {
   loadWalletSummary,
-  valueBalance,
+  balanceView,
   type WalletScope,
   type WalletSummary,
 } from '@/lib/bitcoin/wallets';
 import { Badge } from '@/components/ui/Badge';
 import { buttonClass } from '@/components/ui/Button';
-import { BtcAmount, FiatValueView } from './BitcoinParts';
+import { BitcoinBalancePanel } from './BitcoinBalancePanel';
 
 async function WalletBalance({
   auth,
@@ -27,36 +27,13 @@ async function WalletBalance({
   const load = await loadWalletSummary(auth, scope, wallet);
   if (load.status !== 'ok') {
     return (
-      <p className="text-muted col-span-2 text-sm" data-testid="wallet-unavailable">
+      <p className="text-muted text-sm" data-testid="wallet-unavailable">
         {load.message}
       </p>
     );
   }
-  const { confirmedSats, pendingSats } = load.scan.balance;
-  const value = await valueBalance(confirmedSats, load.source, currency);
-  return (
-    <>
-      <div>
-        <dt className="text-faint text-xs font-semibold tracking-wide uppercase">On chain</dt>
-        <dd className="text-ink mt-1 text-lg font-semibold" data-testid="wallet-balance">
-          <BtcAmount sats={confirmedSats} />
-          {pendingSats !== 0 && (
-            <span className="text-warn block text-xs font-normal">
-              <BtcAmount sats={pendingSats} sign /> pending
-            </span>
-          )}
-        </dd>
-      </div>
-      <div>
-        <dt className="text-faint text-xs font-semibold tracking-wide uppercase">
-          Value in {currency ?? 'base currency'}
-        </dt>
-        <dd className="text-ink mt-1 text-lg font-semibold">
-          <FiatValueView value={value} className="items-start" />
-        </dd>
-      </div>
-    </>
-  );
+  const view = await balanceView(load.scan, load.source, currency, 30);
+  return <BitcoinBalancePanel view={view} compact />;
 }
 
 /** A Bitcoin wallet on the Bank accounts page, next to the source's own bank accounts. */
@@ -96,13 +73,11 @@ export function BitcoinWalletCard({
         </div>
         <Badge tone="amber">BTC</Badge>
       </div>
-      <dl className="grid flex-1 grid-cols-2 gap-4 px-5 py-4">
-        <Suspense
-          fallback={<p className="text-faint col-span-2 text-sm">Reading the blockchain…</p>}
-        >
+      <div className="flex-1 px-5 py-4">
+        <Suspense fallback={<p className="text-faint text-sm">Reading the blockchain…</p>}>
           <WalletBalance auth={auth} scope={scope} wallet={wallet} currency={currency} />
         </Suspense>
-      </dl>
+      </div>
       <div className="border-line flex flex-wrap gap-2 border-t px-5 py-3">
         <Link href={href} className={buttonClass('secondary', 'sm')}>
           Wallet transactions

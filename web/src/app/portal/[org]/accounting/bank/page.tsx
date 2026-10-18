@@ -77,7 +77,7 @@ export default async function Page({ params }: { params: Promise<{ org: string }
   // If wallets can't be read (settings store or BC down), the bank accounts still show.
   const wallets = await walletsForOrg(auth, scope).catch((error): OrgWallets => {
     console.error('[bookie] bitcoin wallets unavailable', error);
-    return { wallets: [] };
+    return { wallets: [], unavailable: "couldn't be read right now. Try again in a minute." };
   });
   // Wallets are valued in the organisation's base currency, as its books report it.
   const currency = wallets.wallets.length ? await baseCurrencyOf(connector) : undefined;

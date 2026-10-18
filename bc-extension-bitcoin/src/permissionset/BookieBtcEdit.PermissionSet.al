@@ -1,10 +1,9 @@
 namespace KnowAll.Bookie.Bitcoin;
 
-using Microsoft.Bank.BankAccount;
-
 /// <summary>
-/// Everything in BOOKIE BTC READ, plus entering or changing a bank account's Bitcoin
-/// wallet descriptor and script type on the Bank Account Card.
+/// Everything in BOOKIE BTC READ, plus entering, changing or clearing a bank account's
+/// Bitcoin wallet descriptor and script type on the Bank Account Card. It grants no
+/// rights on Bank Account itself: opening the card still needs the user's usual sets.
 /// </summary>
 permissionset 50251 "BOOKIE BTC EDIT"
 {
@@ -13,6 +12,5 @@ permissionset 50251 "BOOKIE BTC EDIT"
     IncludedPermissionSets = "BOOKIE BTC READ";
 
     Permissions =
-        tabledata "Bank Account" = RM,
-        tabledata "Bookie BTC Access" = RIMD;
+        tabledata "Bookie BTC Wallet" = RIMD;
 }

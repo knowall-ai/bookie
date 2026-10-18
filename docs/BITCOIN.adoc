@@ -39,9 +39,9 @@ API extension so either can be installed alone.
 |===
 | App | `Bookie Bitcoin` by `KnowAll`, id `b43701b1-70d6-43d4-9d83-3a9a6dc6a208`, BC 27.0 or later, cloud
 | Object ids | 50250 to 50299 (the Bookie BC API extension uses 50200 to 50249 and Thyme 50100 to 50199, so all three can be installed together)
-| Table extension | *Bank Account*: `Bitcoin Wallet Descriptor` (Text[1024]) and `Bitcoin Script Type` (Automatic, WPKH, SHWPKH, TR, WSHMulti, PKH). Entering a private key is refused.
-| Page extension | *Bank Account Card*: a *Bitcoin Wallet* group, shown only to users with `BOOKIE BTC READ` or `BOOKIE BTC EDIT`, editable only with `BOOKIE BTC EDIT`
-| API page | `api/bookie/bitcoin/v1.0/companies({id})/bitcoinWallets`, read-only: bank account id (the same SystemId as API v2.0), no., name, currency code, descriptor, script type
+| Table | *Bookie BTC Wallet*: one row per bank account (`Bank Account No.`) with `Bitcoin Wallet Descriptor` (Text[1024]) and `Bitcoin Script Type` (Automatic, WPKH, SHWPKH, TR, WSHMulti, PKH). It is a table of its own, not fields on Bank Account, so reading it takes `BOOKIE BTC READ`: Bank Account rights alone (personalisation, Edit in Excel, OData, reports) never reach the descriptor. Entering a private key is refused. Deleting the bank account deletes its wallet row.
+| Page extension | *Bank Account Card*: a *Bitcoin Wallet* group that reads and writes that table, shown only to users who can read it (`BOOKIE BTC READ` or `EDIT`), editable only with `BOOKIE BTC EDIT`. Clearing the descriptor removes the wallet.
+| API page | `api/bookie/bitcoin/v1.0/companies({id})/bitcoinWallets`, read-only: `bankAccountId` (the same SystemId as API v2.0 bankAccounts), no., name, currency code, descriptor, script type
 | Permission sets | `BOOKIE BTC READ` (see wallets; run the API page), `BOOKIE BTC EDIT` (also enter and change them)
 |===
 
@@ -57,7 +57,9 @@ as the `bookie-bitcoin-bc-extension` artifact. Locally:
 [source,bash]
 ----
 dotnet tool install --global Microsoft.Dynamics.BusinessCentral.Development.Tools --version 18.1.43.24897
-APP=bitcoin bc-extension/scripts/build.sh
+bc-extension-bitcoin/build.sh                  # symbols from the public feed, `al` tool
+SYMBOLS=sandbox bc-extension-bitcoin/build.sh  # symbols from your Sandbox (az login), `al` tool
+ALC_DLL=~/.vscode/extensions/ms-dynamics-smb.al-*/bin/alc.dll bc-extension-bitcoin/build.sh  # another alc
 # -> bc-extension-bitcoin/output/KnowAll_Bookie Bitcoin_1.0.0.0.app
 ----
 
@@ -83,7 +85,7 @@ To update, raise `version` in `bc-extension-bitcoin/app.json` and upload again. 
 | Who | Permission set
 
 | People who use Bookie with this company and should see its wallets | `BOOKIE BTC READ`
-| People who enter or change a wallet descriptor | `BOOKIE BTC EDIT` (and modify rights on Bank Accounts from their usual sets)
+| People who enter or change a wallet descriptor | `BOOKIE BTC EDIT` (it grants nothing on Bank Account itself; opening the card still needs their usual sets)
 | The Bookie agent's service-to-service app (*Microsoft Entra Applications* › `Bookie Business Central` › *User Permission Sets*) | `BOOKIE BTC READ` only, never EDIT
 |===
 
@@ -141,15 +143,32 @@ Per transaction Bookie shows:
 
 * the txid, the date of its block (UTC) and its confirmations;
 * the amount: what was paid to the wallet's own addresses minus what it spent from them;
-* the fee, only when the wallet paid it (it funded at least one input) and every input's value is
-  known. A receipt's fee was paid by the sender and shows "—" with that reason.
+* the fee, only when the wallet funded every input, so the whole fee is the wallet's. A receipt's fee
+  was paid by the sender, and a jointly funded transaction (payjoin, coinjoin) has no fee shown, with
+  that reason: Bookie doesn't guess the wallet's share. A wallet with more than 10,000 transactions
+  isn't read live; the page says so.
 
 A transaction the server reports at height 0 or below is in the mempool: it is shown as *Pending*,
 counted in the *Pending* balance, never in the confirmed balance, and has no value in fiat.
 
-*Stateless.* Bookie keeps no chain data. The only cache is in memory, for 60 seconds, keyed by the
+*Stateless.* Bookie keeps no chain data. The only cache is in memory, for five minutes, keyed by the
 Entra tenant id, the organisation, the wallet and its descriptor's checksum (so a descriptor changed in
 Business Central is never served stale).
+
+== The balance panel
+
+Each wallet's card on the Bank accounts page, and the top of its own page, shows:
+
+* the *confirmed balance*, with pending transactions apart ("pending, unconfirmed, not settled");
+* a *BTC | <base currency>* toggle (for example *BTC | GBP* or *BTC | USD*). BTC shows the exact
+  amounts. The currency view shows the balance at Kraken's latest price, labelled with its source and
+  time, or "—" with the reason. The choice is remembered per person in the browser (`localStorage`), not
+  on the server, and every wallet on screen follows it;
+* a *balance-over-time chart*: 30 days on the card, 90 days on the wallet page. The BTC line is exact,
+  the confirmed balance at the end of each UTC day, worked back from the chain history; pending
+  transactions are in no day. In the currency view each day is valued at Kraken's daily close for that
+  date (today at the last trade), and the source is labelled. Days without a price are left out;
+* *Last checked*: when Bookie last read the wallet from Electrum, and the block height it read at.
 
 == Values in the organisation's currency ("worth at the time")
 

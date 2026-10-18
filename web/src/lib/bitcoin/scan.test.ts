@@ -4,7 +4,7 @@ import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
 import { electrumScriptHash, parseWalletInput, scriptDeriver } from './descriptor';
 import { ElectrumClient, ElectrumError, parseElectrumUrl } from './electrum';
-import { headerTime, scanWallet } from './scan';
+import { MAX_TRANSACTIONS, headerTime, scanWallet } from './scan';
 import { btcToSats, formatBtc, satsToBtc, satsToBtcNumber, shortTxid } from './format';
 
 /*
@@ -185,9 +185,13 @@ describe('ElectrumClient', () => {
 
   it('turns server errors into ElectrumError', async () => {
     const client = await ElectrumClient.connect(await fakeServer(fixtureHandler));
-    await expect(client.request('blockchain.transaction.get', ['cc'.repeat(32)])).rejects.toThrow(
-      /No such transaction/
-    );
+    const error = await client
+      .request('blockchain.transaction.get', ['cc'.repeat(32)])
+      .catch((e: ElectrumError) => e);
+    expect(error).toBeInstanceOf(ElectrumError);
+    // A fixed message for the browser; the server's text stays in `detail` for logs.
+    expect((error as ElectrumError).message).toBe('The Electrum server returned an error.');
+    expect((error as ElectrumError).detail).toMatch(/No such transaction/);
     client.close();
   });
 
@@ -218,8 +222,23 @@ describe('ElectrumClient', () => {
   it('fails cleanly when nothing is listening', async () => {
     const server = await fakeServer(fixtureHandler);
     await new Promise((r) => servers.pop()!.close(r));
-    await expect(ElectrumClient.connect(server, { connectTimeoutMs: 500 })).rejects.toThrow(
-      ElectrumError
+    const error = (await ElectrumClient.connect(server, { connectTimeoutMs: 500 }).catch(
+      (e: unknown) => e
+    )) as ElectrumError;
+    expect(error).toBeInstanceOf(ElectrumError);
+    // Never the host or port in what the browser may see.
+    expect(error.message).toBe('The Electrum server refused the connection.');
+    expect(error.message).not.toContain(String(server.port));
+    expect(error.message).not.toContain('127.0.0.1');
+  });
+
+  it('closes the socket when the version handshake fails', async () => {
+    const server = await fakeServer((method, params) => {
+      if (method === 'server.version') throw new Error('unsupported protocol version');
+      return fixtureHandler(method, params);
+    });
+    await expect(ElectrumClient.connect(server)).rejects.toThrow(
+      'The Electrum server returned an error.'
     );
   });
 });
@@ -276,6 +295,56 @@ describe('scanWallet', () => {
     client.close();
     expect(scan.derived.change).toBe(0);
     expect(scan.transactions.map((t) => t.txid)).toContain(funding.id);
+  });
+
+  it('reports no fee when others funded part of the transaction', async () => {
+    // The wallet's 100,000-sat output and someone else's 250,000 fund one payment.
+    const joint = rawTx(
+      [
+        { txid: funding.id, index: 0 },
+        { txid: outsider.id, index: 0 },
+      ],
+      [{ script: FOREIGN_SCRIPT, sats: 349_000 }]
+    );
+    const txs = new Map([...TXS, [joint.id, joint.hex]]);
+    const handler: Handler = (method, params) => {
+      if (method === 'blockchain.scripthash.get_history') {
+        return params[0] === electrumScriptHash(recv0)
+          ? [
+              { tx_hash: funding.id, height: 100 },
+              { tx_hash: joint.id, height: 106 },
+            ]
+          : [];
+      }
+      if (method === 'blockchain.transaction.get') return txs.get(String(params[0]));
+      return fixtureHandler(method, params);
+    };
+    const client = await ElectrumClient.connect(await fakeServer(handler));
+    const scan = await scanWallet(wallet, client);
+    client.close();
+    const tx = scan.transactions.find((t) => t.txid === joint.id)!;
+    expect(tx).toMatchObject({ sentSats: 100_000, netSats: -100_000, sharedInputs: true });
+    expect(tx.feeSats).toBeUndefined();
+    // Bookie no longer fetches other people's transactions to price a fee.
+    expect(methodsSeen.filter((m) => m === 'blockchain.transaction.get')).toHaveLength(2);
+  });
+
+  it('stops rather than read an enormous history', async () => {
+    const many = Array.from({ length: MAX_TRANSACTIONS + 1 }, (_, i) => ({
+      tx_hash: i.toString(16).padStart(64, '0'),
+      height: 100,
+    }));
+    const client = await ElectrumClient.connect(
+      await fakeServer((method, params) =>
+        method === 'blockchain.scripthash.get_history'
+          ? params[0] === electrumScriptHash(recv0)
+            ? many
+            : []
+          : fixtureHandler(method, params)
+      )
+    );
+    await expect(scanWallet(wallet, client)).rejects.toThrow(/more than Bookie reads live/);
+    client.close();
   });
 
   it('sees an empty wallet as empty', async () => {
