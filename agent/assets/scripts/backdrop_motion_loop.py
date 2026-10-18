@@ -27,6 +27,14 @@ Effects (all coordinates are fractions of the plate's width and height):
                            leaving out of view, once per loop.
   --breathe X0 Y0 X1 Y1    the bright parts of a region (LED strips) brighten and dim
                            softly on a smooth random field.
+  --flow X0 Y0 X1 Y1 DIR   packets of light run along the bright vertical lines of a
+                           region (data streams, holographic columns): DIR 1 runs down,
+                           -1 runs up; repeatable. Each 6 px column has its own phase.
+  --traffic X0 Y0 X1 Y1 N  N small craft (flying cars, shuttles) cross the region with a
+                           short light trail, seen only inside it (a window); each makes
+                           one or two whole crossings per loop, out of view at the wrap.
+  --bob X0 Y0 X1 Y1        the light in a region (holograms) floats gently up and down
+                           and flickers softly, as projected light does.
 
 usage: backdrop_motion_loop.py IN.png OUT.mp4 [effects...] [--seconds 10] [--fps 24]
            [--crf 16] [--still-left 0.40] [--frames-dir DIR]
@@ -66,6 +74,11 @@ p.add_argument("--sheen", type=float, nargs=4)
 p.add_argument("--sheen-strength", type=float, default=0.10)
 p.add_argument("--breathe", type=float, nargs=4)
 p.add_argument("--breathe-amp", type=float, default=0.22)
+p.add_argument("--flow", type=float, nargs=5, action="append", default=[])
+p.add_argument("--flow-gain", type=float, default=1.1)
+p.add_argument("--traffic", type=float, nargs=5)
+p.add_argument("--bob", type=float, nargs=4, action="append", default=[])
+p.add_argument("--bob-px", type=float, default=7.0)
 a = p.parse_args()
 
 rng = np.random.default_rng(20261018)
@@ -176,6 +189,47 @@ if a.breathe:
     f2 /= np.abs(f2).max() or 1
     b_ph = np.arctan2(f2, f1)
 
+# ---- flow: travelling packets of light --------------------------------------------------
+flows = []
+for (fx0, fy0, fx1, fy1, fdir) in a.flow:
+    fm = rect_mask((fx0, fy0, fx1, fy1), 8)
+    colw = max(1, int(6 * k))
+    ncol = W // colw + 1
+    fphase = rng.uniform(0, 1, ncol).astype(np.float32)[(xx[0] // colw).astype(int)]
+    fcyc = rng.integers(2, 5, ncol).astype(np.float32)[(xx[0] // colw).astype(int)]
+    lam = 150 * k
+    flows.append((fm, fphase[None, :], fcyc[None, :], lam, 1.0 if fdir >= 0 else -1.0))
+
+# ---- traffic: craft crossing a window -----------------------------------------------------
+if a.traffic:
+    tx0, ty0, tx1, ty1, tn = a.traffic
+    tmask = rect_mask((tx0, ty0, tx1, ty1), 6)
+    tn = int(tn)
+    tr_y = rng.uniform(ty0 * H + 12 * k, ty1 * H - 12 * k, tn)
+    tr_laps = rng.integers(1, 3, tn)
+    tr_dir = rng.choice([-1.0, 1.0], tn)
+    tr_off = rng.uniform(0, 1, tn)
+    tr_len = rng.uniform(26, 60, tn) * k
+    tr_drop = rng.uniform(-14, 14, tn) * k  # a slight climb or descent across the window
+
+# ---- bob: floating holograms ----------------------------------------------------------------
+bobs = []
+for r in a.bob:
+    bx0, by0, bx1, by1 = int(r[0] * W), int(r[1] * H), int(r[2] * W), int(r[3] * H)
+    bm = rect_mask(r, 10)[by0:by1, bx0:bx1, None]
+    bobs.append((bx0, by0, bx1, by1, bm, light[by0:by1, bx0:bx1].copy(), rng.uniform(0, 2 * np.pi)))
+
+
+def shift2d(arr, dx, dy):
+    """arr (h, w, 3) moved by a sub-pixel (dx, dy), bilinear, edges padded black."""
+    out = np.empty_like(arr)
+    h, w = arr.shape[:2]
+    for c in range(arr.shape[2]):
+        out[..., c] = np.asarray(Image.fromarray(arr[..., c], "F").transform(
+            (w, h), Image.AFFINE, (1, 0, -dx, 0, 1, -dy), resample=Image.BILINEAR), dtype=np.float32)
+    return out
+
+
 still_x = int(a.still_left * W)
 
 
@@ -217,6 +271,37 @@ def frame(t):
         band = np.exp(-((u - pos) / sw) ** 2) + 0.4 * np.exp(-((u - pos + 2.6 * sw) / (0.35 * sw)) ** 2)
         s = (a.sheen_strength * band * smask * sbase)[..., None]
         out += s * np.array([1.0, 0.9, 0.72], dtype=np.float32)
+    for (fm, fph, fcyc, lam, fdir) in flows:
+        # packets move a whole number (fcyc) of wavelengths per loop, so the loop is exact
+        sph = (yy / lam + fph - fdir * fcyc * t / T) % 1.0
+        pkt = np.exp(-((sph - 0.5) / 0.09) ** 2)
+        out += light * (fm * (a.flow_gain * pkt - 0.45))[..., None]
+    for (bx0, by0, bx1, by1, bm, bl, bph) in bobs:
+        dy = a.bob_px * k * math.sin(th + bph)
+        dx = 0.4 * a.bob_px * k * math.sin(2 * th + bph)
+        fl = 1.0 + 0.10 * math.sin(3 * th + bph) + 0.05 * math.sin(7 * th)
+        out[by0:by1, bx0:bx1] += (shift2d(bl, dx, dy) * fl - bl) * bm
+    if a.traffic:
+        tl = np.zeros((H, W), np.float32)
+        span = (tx1 - tx0) * W + 160 * k
+        for y0c, laps, dr, off, ln, drop in zip(tr_y, tr_laps, tr_dir, tr_off, tr_len, tr_drop):
+            u = (laps * t / T + off) % 1.0
+            xh = tx0 * W - 80 * k + span * u
+            if dr < 0:
+                xh = tx1 * W + 80 * k - span * u
+            yh = y0c + drop * (u - 0.5)
+            nj = int(ln / (0.6 * k)) + 2  # samples closer than the dot size: a smooth streak
+            for j in range(nj):  # head plus a fading trail behind it
+                xj = xh - dr * ln * j / (nj - 1)
+                aj = (1.0 if j == 0 else 0.22 * (1 - j / nj))
+                rr = (1.7 if j == 0 else 1.0) * k
+                xi0, xi1 = int(max(0, xj - 4 * rr)), int(min(W, xj + 4 * rr + 1))
+                yi0, yi1 = int(max(0, yh - 4 * rr)), int(min(H, yh + 4 * rr + 1))
+                if xi1 <= xi0 or yi1 <= yi0:
+                    continue
+                gy_, gx_ = np.mgrid[yi0:yi1, xi0:xi1]
+                tl[yi0:yi1, xi0:xi1] += aj * np.exp(-((gx_ - xj) ** 2 + (gy_ - yh) ** 2) / (rr * rr))
+        out += (np.minimum(tl, 1.2) * tmask)[..., None] * np.array([1.0, 0.88, 0.62], dtype=np.float32)
     if a.motes:
         layer = np.zeros((H, W), np.float32)
         mxs = m_x + m_ax * np.sin(m_c1 * th + m_p[0])
