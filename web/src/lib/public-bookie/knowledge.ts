@@ -27,7 +27,7 @@ export const SITE_FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Can Bookie show a Bitcoin wallet, and is that safe?',
-    a: 'Yes, as a bank account, from the wallet’s extended public key (xpub) or output descriptor. An xpub can see a wallet but can never spend from it, and Bookie refuses private keys. For a Business Central company the xpub is kept on the bank account in your own Business Central. Bookie looks up the transactions through an Electrum server chosen by whoever runs your Bookie; that server sees which addresses are asked about, so we recommend your own node. Values in your organisation’s base currency come from Kraken at each transaction’s own time, and each one says which Kraken price and time it used.',
+    a: 'Yes, as a bank account, from the wallet’s extended public key (xpub) or output descriptor. An xpub can see a wallet but can never spend from it, and Bookie refuses private keys. For a Business Central company the xpub is kept on the bank account in your own Business Central; for Xero organisations it’s stored encrypted in your own Microsoft 365, because Xero can’t hold it. Bookie looks up the transactions through an Electrum server chosen by whoever runs your Bookie; that server sees which addresses are asked about, so we recommend your own node. Values in your organisation’s base currency come from Kraken at each transaction’s own time, and each one says which Kraken price and time it used. When it’s posted to Business Central, the books use that day’s exchange rate, and any difference shows as an exchange gain or loss.',
   },
   {
     q: 'Is my Xero data used to train AI?',
@@ -84,6 +84,8 @@ Bookie reads each system through its official API and shows it in one familiar l
   - Microsoft Graph User.Read: your name, email and organisation.
   - Dynamics 365 Business Central Financials.ReadWrite.All (user_impersonation): open Business Central as you, only if you switch it on.
   - Microsoft Graph Sites.Manage.All: keep Bookie's sealed connection settings in a hidden list on your own SharePoint.
+  - Microsoft Graph User.ReadBasic.All: find people in your directory (name and email) when giving someone access in People and access.
+  - Optional, Microsoft Graph Application.Read.All and GroupMember.Read.All: read who is assigned to Bookie in Enterprise applications, so People and access can say when someone can't sign in yet. Bookie never assigns anyone itself.
 - Then anyone in the organisation signs in at /portal on the Bookie website and connects Xero or switches on Business Central.
 - To limit who can use it: in Microsoft Entra, Enterprise applications, set Assignment required to Yes and assign users or groups. Conditional access applies.
 - To remove it: delete Bookie from Enterprise applications and delete the hidden BookieConnections list on the root SharePoint site.

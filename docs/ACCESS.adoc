@@ -36,14 +36,21 @@ from before this feature sign in again.
 [source,json]
 ----
 {
+  "userId": "{Entra object id}",
   "email": "accountant@example.com",
   "name": "Robin Example",
   "orgKeys": ["xero.{connectionId}.{xeroTenantId}"]
 }
 ----
 
+* `userId` is the person's Microsoft Entra object id, saved when they're picked from the directory
+  (see <<people-picker>>). An entry with a `userId` matches only the account with that object id
+  (the `oid` of the sign-in), so a mailbox address reused by another account never inherits
+  someone's access.
 * `email` is matched case-insensitively with the address the person signs in with (their `mail`,
-  or their home email for a guest).
+  or their home email for a guest), for entries without a `userId`. Entries added before the
+  picker have none and keep working; the portal marks them _Matched by email_. Picking the same
+  person from the directory adds their `userId` and keeps their organisations.
 * `orgKeys` lists the organisation keys they may open (the same keys as in portal URLs), or `"all"`
   for every organisation, including ones connected later.
 * The list of organisations to tick includes Business Central companies hidden from the switcher.
@@ -52,6 +59,78 @@ from before this feature sign in again.
 
 Entries are part of the tenant's settings, sealed with the tenant's key and stored in the tenant's own
 SharePoint like every other setting. No accounting data is involved.
+
+[[people-picker]]
+== Adding people from the directory
+
+People are added with a people picker, not by typing an address. Only people in your Microsoft
+Entra directory (members, and guests you've invited) can be added.
+
+. Type at least two characters of a name or email. Bookie searches as you type (debounced), with
+  the signed-in member's own delegated Graph token:
++
+----
+GET /v1.0/users?$search="displayName:<text>" OR "mail:<text>"
+    &$select=id,displayName,mail,userPrincipalName,userType&$top=10
+ConsistencyLevel: eventual
+----
+. Each result shows the name, the email (`mail`, or for a guest without one, the home address taken
+  from their `...#EXT#@...` user principal name) and *Member* or *Guest*. A blank `userType` counts as
+  a member unless the user principal name is a guest's, the same rule as at sign-in. The badge is a
+  label only: what a person sees is decided by their sign-in.
+. Choose someone with the mouse or the keyboard (arrow keys and Enter). Bookie looks them up again
+  by object id on the server, then adds them with no organisations; tick the ones they need and
+  *Save access*.
+
+Searching and adding are members only, like every settings write, and validated on the server.
+
+=== "Can't sign in yet"
+
+Bookie's Entra app can require assignment (*Enterprise applications › Bookie › Properties ›
+Assignment required*). Then only people assigned to Bookie, directly or through a group, can sign
+in, whatever their entry says. For each listed person with a `userId`, the portal checks:
+
+. `GET /servicePrincipals(appId='{AZURE_AD_CLIENT_ID}')?$select=id,appRoleAssignmentRequired`:
+  Bookie's service principal in your tenant. If assignment isn't required, everyone can sign in.
+. `GET /servicePrincipals/{id}/appRoleAssignedTo`: the users and groups assigned to Bookie.
+. For someone not assigned directly, while groups are assigned:
+  `POST /users/{id}/checkMemberGroups` with those groups.
+
+If they aren't assigned, the entry says _Can't sign in yet: an administrator needs to assign them
+to Bookie in Microsoft Entra_ with a link to Enterprise applications in the Entra admin centre. If
+the check can't be made (a permission isn't granted, the signed-in member's directory role doesn't
+allow it, or Graph fails), the portal shows nothing rather than guessing. Bookie never assigns
+anyone: an administrator does that in Entra.
+
+Microsoft Entra doesn't pass app assignment down nested groups, while `checkMemberGroups` is
+transitive. Someone who is only in a nested group shows no hint, though they can't sign in; Bookie
+errs on the side of saying nothing.
+
+=== Permissions
+
+All delegated, so Bookie acts as the signed-in member and sees only what they may see. They come
+with the token Bookie already redeems for Microsoft Graph (`.default`), so they only need admin
+consent on the app (see `docs/DEPLOYMENT.adoc`); the sign-in scopes don't change.
+
+[cols="1,1,3"]
+|===
+| Permission | Needed for | Without it
+
+| `User.ReadBasic.All` | The people picker | The picker says an administrator needs to approve
+the permission. Existing entries keep working.
+| `Application.Read.All` | The sign-in hint (service principal and its assignments) | No hint.
+| `GroupMember.Read.All` | The sign-in hint for people assigned through a group | No hint for
+people who aren't assigned directly, while groups are assigned.
+|===
+
+Reading assignments through the user (`GET /users/{id}/appRoleAssignments`) would need
+`AppRoleAssignment.ReadWrite.All` (a write permission) or `Directory.Read.All`, so Bookie reads them
+from its own service principal instead. Microsoft documents that reading the assignments needs the
+signed-in member to hold a directory role such as Directory Readers; without one Graph refuses, and
+the hint is left out.
+
+`User.ReadBasic.All` reads the basic profile. If Graph leaves `userType` out of the answer, the
+Member/Guest badge follows the user principal name as above.
 
 Business Central still applies each person's own Business Central permissions: an entry can't give
 anyone more than Business Central allows them. Xero connections are shared, so the entry is what
@@ -104,15 +183,24 @@ custom domain).
 
 == Giving your accountant access
 
-. In Microsoft Entra, invite the accountant as a guest user.
-. In Bookie, *Settings › People and access*, add them by email and tick the organisations they need.
+. In Microsoft Entra, invite the accountant as a guest user. If Bookie requires assignment, assign
+  them to Bookie in *Enterprise applications*.
+. In Bookie, *Settings › People and access*, find them in the people picker and tick the
+  organisations they need.
 . Send them to Bookie's sign-in page and ask them to use *Sign in to <your organisation>*.
 
 == Testing
 
-* Unit tests: `web/src/lib/auth/access.test.ts` (the rules) and
-  `web/src/lib/connectors/registry-access.test.ts` (listOrgs, getConnector, Bookie, the Live feed and
-  the settings actions, as a demo member and a demo guest).
+* Unit tests: `web/src/lib/auth/access.test.ts` (the rules, including matching by `userId` then
+  email), `web/src/lib/directory/graph.test.ts` (the Graph search, lookup and assignment check,
+  with Graph mocked) and `web/src/lib/connectors/registry-access.test.ts` (listOrgs, getConnector,
+  Bookie, the Live feed and the settings actions, including the picker, as a demo member and a demo
+  guest).
+* Demo directory: under `BOOKIE_DEV_AUTH=demo` the picker searches a fictional directory
+  (`web/src/lib/directory/demo.ts`): Contoso members and one Fabrikam guest. One member, Sam Taylor,
+  isn't assigned to Bookie, so the sign-in hint can be seen.
 * End to end: `web/tests/e2e/access.spec.ts` runs against a second dev server started with
   `BOOKIE_DEV_AUTH=demo-guest`: a fictional guest accountant whose seeded entry grants Contoso
-  Coffee Roasters only. Like the other dev sign-ins, `demo-guest` is refused in production.
+  Coffee Roasters only. Like the other dev sign-ins, `demo-guest` is refused in production. The
+  member spec searches the picker, picks a person with the keyboard, sees the sign-in hint, ticks an
+  organisation, saves and removes them.

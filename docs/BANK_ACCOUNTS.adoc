@@ -1,0 +1,56 @@
+= Adding a bank account
+:toc: left
+:icons: font
+
+*Accounting → Bank accounts → Add bank account* creates a bank account in the organisation's own
+books, the way Xero's *Add Bank Account* does. Bookie stores nothing: the account exists only in
+Xero or Business Central.
+
+== What the form asks
+
+The form asks only what the source system accepts. Each connector declares its rules
+(`BankModule.newAccount` in `web/src/lib/connectors/types.ts`) and the button appears only when the
+connector has `bank.createAccount`, those rules, and a currency list.
+
+[cols="1,2,2"]
+|===
+| Field | Xero | Business Central
+
+| Account type | Bank account, Credit card or PayPal (`BankAccountType` `BANK`, `CREDITCARD`, `PAYPAL`) | Not asked: BC bank accounts have no kind
+| Account name | Required, up to 150 characters (`Name`) | Required, up to 100 characters (`displayName`)
+| Account number | Required (`BankAccountNumber`). Labelled "Last 4 digits of the card" or "PayPal email address" for those kinds, as in Xero | Optional, up to 30 characters (`bankAccountNumber`)
+| Code | Optional, up to 10 characters (`Code`) | Optional, up to 20 characters (`number`). Left blank, BC takes the next number from the *Bank Account Nos.* series
+| IBAN | Not asked | Optional (`iban`)
+| Currency | Required, one of the organisation's currencies (`CurrencyCode`) | Required, the local currency or one from the Currencies list (`currencyCode`, sent blank for the local currency)
+|===
+
+=== Currency
+
+The currency picker lists only the currencies the books actually have: Xero's `GET Currencies`, or
+Business Central's local currency plus its Currencies list. Nothing is preselected and nothing is
+inferred from the country. If the currency isn't there, the form says where to add it (Xero:
+organisation settings, Currencies; Business Central: the Currencies page, linked). The server action
+re-reads the currency list before writing, so a tampered request can't use a currency the books don't
+have.
+
+== How it writes
+
+* *Xero:* `PUT Accounts` with `Type: BANK` (scope `accounting.settings`, already used for "Add
+  account" on the chart of accounts).
+* *Business Central:* API v2.0 `POST bankAccounts`. Microsoft documents GET, POST, PATCH and DELETE
+  for the `bankAccount` entity, with `number`, `displayName`, `bankAccountNumber`, `iban`,
+  `currencyCode`, `blocked` and `intercompanyEnabled` writable. The API page doesn't expose the
+  *Bank Account Posting Group*, so the form says plainly that it must be set on the new account in
+  Business Central before anything is posted to it, and links to the Bank Accounts page.
+* *Demo books:* a fictional, in-memory account (`BOOKIE_DEV_AUTH=demo` only) with the same rules as
+  Xero, so the Playwright tests can exercise the flow.
+
+Like every write to live books, the action (`createBankAccount` in
+`web/src/lib/portal/actions/bank.ts`) validates with zod, re-resolves the organisation with
+`orgContext()`, and runs only after the person confirms in a `ConfirmDialog`. Errors from Xero or
+Business Central are shown as the source system worded them.
+
+== Not yet
+
+Bookie the agent can't add bank accounts yet. When he can, it will follow SOUL rule 2: draft the new
+account and ask the person to confirm before writing.

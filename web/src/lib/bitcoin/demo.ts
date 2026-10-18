@@ -147,3 +147,29 @@ export const DEMO_LATEST_RATE: FiatRate = {
   rateTime: '2026-10-17T12:00:00.000Z',
   label: 'Demo price (fictional), 17 Oct 2026',
 };
+
+/** Fictional daily prices for the demo's balance chart: a made-up gentle rise, labelled as such. */
+export function demoDailyRates(
+  days: string[],
+  currency: string | undefined
+): Map<string, FiatRate> | string {
+  if (currency !== DEMO_PRICE_CURRENCY)
+    return `The demo has prices in ${DEMO_PRICE_CURRENCY} only.`;
+  const base = Date.parse('2026-08-01T00:00:00Z');
+  return new Map(
+    days.map((day) => {
+      const ms = Date.parse(`${day}T00:00:00Z`);
+      const perBtc = 46_000 + Math.round(((ms - base) / 86_400_000) * 80);
+      return [
+        day,
+        {
+          perBtc,
+          currency: DEMO_PRICE_CURRENCY,
+          source: 'demo' as const,
+          rateTime: new Date(ms).toISOString(),
+          label: demoLabel(ms / 1000),
+        },
+      ];
+    })
+  );
+}

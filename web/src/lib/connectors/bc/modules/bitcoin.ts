@@ -36,7 +36,10 @@ export const BC_LEDGER_NEEDS_EXTENSION =
 export const BTC_BATCH_PREFIX = 'BTC';
 
 export interface BcBitcoinWallet {
+  /** The wallet record's own id. */
   id: string;
+  /** The Bank Account SystemId, the same id API v2.0 bankAccounts uses. */
+  bankAccountId: string;
   number: string;
   displayName?: string;
   currencyCode?: string;
@@ -57,7 +60,7 @@ export function fromBcBitcoinWallet(raw: BcBitcoinWallet): SourceBitcoinWallet |
   const descriptor = raw.bitcoinWalletDescriptor?.trim();
   if (!descriptor) return undefined;
   return {
-    bankAccountId: raw.id,
+    bankAccountId: raw.bankAccountId,
     bankAccountNumber: raw.number,
     name: raw.displayName || raw.number,
     currencyCode: raw.currencyCode ?? '',
@@ -138,7 +141,7 @@ export function bcBitcoin(client: BcClient): BitcoinWalletsModule {
   return {
     async wallets(): Promise<SourceBitcoinWallets> {
       try {
-        const rows = await client.all<BcBitcoinWallet>('bitcoinWallets', {}, 2, BITCOIN_API);
+        const rows = await client.all<BcBitcoinWallet>('bitcoinWallets', {}, 10, BITCOIN_API);
         return {
           status: 'ok',
           wallets: rows.map(fromBcBitcoinWallet).filter((w): w is SourceBitcoinWallet => !!w),

@@ -18,7 +18,34 @@ test.describe('Bitcoin wallets', () => {
     const card = page.getByRole('article', { name: 'Contoso Treasury' });
     await expect(card.getByTestId('wallet-balance')).toContainText('0.18646400 BTC');
     await expect(card.getByTestId('wallet-balance')).toContainText('+0.00100000 BTC pending');
-    await expect(card).toContainText('Demo price (fictional)');
+    await expect(card.getByTestId('wallet-chart')).toBeVisible();
+    await expect(card.getByTestId('wallet-checked')).toContainText('Last checked');
+    await expect(card.getByTestId('wallet-checked')).toContainText('block 919,400');
+  });
+
+  test('toggles between BTC and the base currency, and remembers the choice', async ({ page }) => {
+    await page.goto(`${ORG}/accounting/bank`);
+    const card = page.getByRole('article', { name: 'Contoso Treasury' });
+    await expect(card.getByTestId('unit-btc')).toHaveAttribute('aria-pressed', 'true');
+    await card.getByTestId('unit-fiat').click();
+    await expect(card.getByTestId('unit-fiat')).toHaveText('GBP');
+    // 0.186464 BTC × £52,000 (fictional) = £9,696.13, labelled with its source.
+    await expect(card.getByTestId('wallet-balance')).toContainText('£9,696.13');
+    await expect(card.getByTestId('wallet-balance')).toContainText('Demo price (fictional)');
+    await expect(card.getByTestId('wallet-checked')).toContainText('demo price (fictional)');
+
+    // Remembered in this browser: the wallet page opens in GBP too.
+    await card.getByRole('link', { name: 'Wallet transactions' }).click();
+    const summary = page.getByTestId('wallet-summary');
+    await expect(summary.getByTestId('unit-fiat')).toHaveAttribute('aria-pressed', 'true');
+    await expect(summary.getByTestId('wallet-balance')).toContainText('£9,696.13');
+    await summary.getByTestId('unit-btc').click();
+    await expect(summary.getByTestId('wallet-balance')).toContainText('0.18646400 BTC');
+    await page.reload();
+    await expect(page.getByTestId('wallet-summary').getByTestId('unit-btc')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
   });
 
   test('lists wallet transactions; pending ones have no value', async ({ page }) => {

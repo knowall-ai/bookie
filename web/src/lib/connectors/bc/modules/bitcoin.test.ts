@@ -20,7 +20,8 @@ describe('fromBcBitcoinWallet', () => {
   it('maps the API row and the script type enum', () => {
     expect(
       fromBcBitcoinWallet({
-        id: 'b1',
+        id: 'w1',
+        bankAccountId: 'b1',
         number: 'BTC-01',
         displayName: 'Treasury',
         currencyCode: 'BTC',
@@ -40,14 +41,20 @@ describe('fromBcBitcoinWallet', () => {
   it('leaves Automatic as undefined and skips accounts without a descriptor', () => {
     expect(
       fromBcBitcoinWallet({
-        id: 'b1',
+        id: 'w1',
+        bankAccountId: 'b1',
         number: 'BTC-01',
         bitcoinWalletDescriptor: ZPUB,
         bitcoinScriptType: 'Automatic',
       })?.scriptType
     ).toBeUndefined();
     expect(
-      fromBcBitcoinWallet({ id: 'b2', number: 'GBP-01', bitcoinWalletDescriptor: '' })
+      fromBcBitcoinWallet({
+        id: 'w2',
+        bankAccountId: 'b2',
+        number: 'GBP-01',
+        bitcoinWalletDescriptor: '',
+      })
     ).toBeUndefined();
   });
 });
@@ -56,7 +63,8 @@ describe('bcBitcoin', () => {
   it('reads bitcoinWallets from the Bookie Bitcoin extension API', async () => {
     const client = clientWith(async () => [
       {
-        id: 'b1',
+        id: 'w1',
+        bankAccountId: 'b1',
         number: 'BTC-01',
         displayName: 'Treasury',
         currencyCode: 'BTC',
@@ -64,7 +72,7 @@ describe('bcBitcoin', () => {
       },
     ]);
     const result = await bcBitcoin(client).wallets();
-    expect(client.all).toHaveBeenCalledWith('bitcoinWallets', {}, 2, BITCOIN_API);
+    expect(client.all).toHaveBeenCalledWith('bitcoinWallets', {}, 10, BITCOIN_API);
     expect(result).toMatchObject({ status: 'ok', wallets: [{ bankAccountNumber: 'BTC-01' }] });
   });
 

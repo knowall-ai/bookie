@@ -4,11 +4,14 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth/context';
 import {
+  addAccessPersonFromDirectory,
   addXeroCustomConnection,
   removeConnection,
+  searchPeople,
   updateAccessSettings,
   updateConnectorSettings,
 } from '@/lib/connections';
+import { ENTRA_ID, type DirectoryPerson } from '@/lib/directory/types';
 import { describeError, type ActionResult } from './util';
 
 const customConnectionSchema = z.object({
@@ -72,20 +75,64 @@ const orgKeySchema = z
   .max(300)
   .regex(/^(xero|bc|demo)\.[\w.-]+$/, 'That is not an organisation Bookie knows.');
 
-const accessPersonSchema = z.object({
+const userIdSchema = z
+  .string()
+  .trim()
+  .regex(ENTRA_ID, 'That is not someone from your Microsoft 365 directory.');
+
+const identitySchema = z.object({
+  userId: userIdSchema.optional(),
   email: z.string().trim().toLowerCase().email('Enter a valid email address.').max(320),
-  name: z.string().trim().max(120).optional(),
+});
+
+const accessGrantSchema = identitySchema.extend({
   orgKeys: z.union([z.literal('all'), z.array(orgKeySchema).max(500)]),
 });
 
+const directoryQuerySchema = z
+  .string()
+  .trim()
+  .min(2, 'Type at least 2 characters.')
+  .max(100, 'That search is too long.');
+
+/** People and access: search the directory (members only), for the people picker. */
+export async function searchDirectoryAction(
+  query: string
+): Promise<ActionResult<DirectoryPerson[]>> {
+  try {
+    const auth = await requireAuth('/portal/settings');
+    return { ok: true, data: await searchPeople(auth, directoryQuerySchema.parse(query)) };
+  } catch (error) {
+    return { ok: false, error: describeError(error) };
+  }
+}
+
+/** Add someone picked from the directory, by Entra object id. They start with no organisations. */
+export async function addAccessPersonAction(
+  userId: string
+): Promise<ActionResult<{ name: string; email: string }>> {
+  try {
+    const auth = await requireAuth('/portal/settings');
+    const person = await addAccessPersonFromDirectory(auth, userIdSchema.parse(userId));
+    revalidatePath('/portal', 'layout');
+    return { ok: true, data: { name: person.name, email: person.email } };
+  } catch (error) {
+    return { ok: false, error: describeError(error) };
+  }
+}
+
+/** Change the organisations of someone already listed (matched by Entra object id, then email). */
 export async function saveAccessPersonAction(
-  input: z.input<typeof accessPersonSchema>
+  input: z.input<typeof accessGrantSchema>
 ): Promise<ActionResult> {
   try {
     const auth = await requireAuth('/portal/settings');
-    const person = accessPersonSchema.parse(input);
-    if (Array.isArray(person.orgKeys)) person.orgKeys = [...new Set(person.orgKeys)];
-    await updateAccessSettings(auth, { type: 'upsert', person });
+    const { orgKeys, ...who } = accessGrantSchema.parse(input);
+    await updateAccessSettings(auth, {
+      type: 'grant',
+      who,
+      orgKeys: Array.isArray(orgKeys) ? [...new Set(orgKeys)] : orgKeys,
+    });
     revalidatePath('/portal', 'layout');
     return { ok: true, data: undefined };
   } catch (error) {
@@ -93,13 +140,12 @@ export async function saveAccessPersonAction(
   }
 }
 
-export async function removeAccessPersonAction(email: string): Promise<ActionResult> {
+export async function removeAccessPersonAction(
+  who: z.input<typeof identitySchema>
+): Promise<ActionResult> {
   try {
     const auth = await requireAuth('/portal/settings');
-    await updateAccessSettings(auth, {
-      type: 'remove',
-      email: accessPersonSchema.shape.email.parse(email),
-    });
+    await updateAccessSettings(auth, { type: 'remove', who: identitySchema.parse(who) });
     revalidatePath('/portal', 'layout');
     return { ok: true, data: undefined };
   } catch (error) {

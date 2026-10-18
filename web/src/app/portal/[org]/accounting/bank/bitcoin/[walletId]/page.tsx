@@ -9,8 +9,8 @@ import { WalletError } from '@/lib/bitcoin/errors';
 import { shortTxid } from '@/lib/bitcoin/format';
 import {
   loadWallet,
+  balanceView,
   baseCurrencyOf,
-  valueBalance,
   valueTransactions,
   type WalletTransactionRow,
 } from '@/lib/bitcoin/wallets';
@@ -24,6 +24,7 @@ import { EmptyState } from '@/components/ui/States';
 import { NotAvailableValue } from '@/components/ui/Money';
 import { SourceNote } from '@/components/accounting/SourceNote';
 import { BtcAmount, FiatValueView } from '@/components/bitcoin/BitcoinParts';
+import { BitcoinBalancePanel } from '@/components/bitcoin/BitcoinBalancePanel';
 
 export const metadata = { title: 'Bitcoin wallet' };
 
@@ -85,7 +86,9 @@ const columnsFor = (currency: string | undefined): Column<WalletTransactionRow>[
           reason={
             t.sentSats === 0
               ? 'The sender paid this fee, not this wallet.'
-              : 'Not every input of this transaction could be read.'
+              : t.sharedInputs
+                ? 'Others funded part of this transaction, so this wallet’s share of the fee isn’t known.'
+                : 'The fee isn’t known for this transaction.'
           }
         />
       ),
@@ -178,12 +181,12 @@ export default async function Page({
   const tab = query.tab === 'reconcile' && canReconcile ? 'reconcile' : 'transactions';
   // The Reconcile tab shows BTC only, so it doesn't ask Kraken for prices.
   const currency = tab === 'reconcile' ? undefined : await baseCurrencyOf(connector);
-  const [rows, balanceValue] =
+  const [rows, balance] =
     tab === 'reconcile'
-      ? [[], { ok: false as const, reason: '' }]
+      ? [[], undefined]
       : await Promise.all([
           valueTransactions(slice, source, currency),
-          valueBalance(scan.balance.confirmedSats, source, currency),
+          balanceView(scan, source, currency, 90),
         ]);
 
   return (
@@ -218,31 +221,11 @@ export default async function Page({
         />
       ) : (
         <>
-          <div className="mb-6 grid gap-4 sm:grid-cols-3" data-testid="wallet-summary">
-            <div className="card px-5 py-4">
-              <p className="text-faint text-xs font-semibold tracking-wide uppercase">
-                Confirmed balance
-              </p>
-              <p className="text-ink mt-1 text-xl font-semibold">
-                <BtcAmount sats={scan.balance.confirmedSats} />
-              </p>
+          {balance && (
+            <div className="card mb-6 px-5 py-4" data-testid="wallet-summary">
+              <BitcoinBalancePanel view={balance} />
             </div>
-            <div className="card px-5 py-4">
-              <p className="text-faint text-xs font-semibold tracking-wide uppercase">Pending</p>
-              <p className="text-ink mt-1 text-xl font-semibold">
-                <BtcAmount sats={scan.balance.pendingSats} sign />
-              </p>
-              <p className="text-faint text-xs">Unconfirmed: not settled until mined</p>
-            </div>
-            <div className="card px-5 py-4">
-              <p className="text-faint text-xs font-semibold tracking-wide uppercase">
-                Confirmed balance in {currency ?? 'base currency'}
-              </p>
-              <p className="text-ink mt-1 text-xl font-semibold">
-                <FiatValueView value={balanceValue} className="items-start" />
-              </p>
-            </div>
-          </div>
+          )}
 
           <SourceNote>
             {source === 'demo'

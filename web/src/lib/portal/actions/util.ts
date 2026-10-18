@@ -1,7 +1,8 @@
 import 'server-only';
 import { unstable_rethrow } from 'next/navigation';
 import { z } from 'zod';
-import { SettingsAccessError } from '@/lib/auth/access';
+import { AccessChangeError, SettingsAccessError } from '@/lib/auth/access';
+import { DirectoryError } from '@/lib/directory/types';
 import { isConnectorError } from '@/lib/connectors/types';
 import { WalletError } from '@/lib/bitcoin/errors';
 
@@ -33,6 +34,8 @@ export function describeError(error: unknown): string {
   if (
     isConnectorError(error) ||
     error instanceof SettingsAccessError ||
+    error instanceof AccessChangeError ||
+    error instanceof DirectoryError ||
     error instanceof WalletError
   )
     return error.message;
