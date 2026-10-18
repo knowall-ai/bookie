@@ -4,12 +4,19 @@
 Imports RobotAvatar from an agent-presence checkout, so the backdrop motion (stars,
 rain, city_lights, flicker_zones) is exactly what a call would show. Bookie's plate and
 eyes are composed on the backdrop, the eyes blink once at 2.5 s (the run loop's first
-blink), and the mouth stays off the canvas. The HUD, REC dot, PRESENCE badge, logo and
-ticker are switched off in this process only, so the preview shows just Bookie and the
-scene; Presence itself is not modified.
+blink), and the mouth moves with a made-up speech level (talk, pause, talk). By default
+the HUD, REC dot, PRESENCE badge, logo and ticker are switched off in this process only,
+so the preview shows just Bookie and the scene; Presence itself is not modified.
+
+  --hud       keep the HUD panels, REC dot, PRESENCE badge and logo, as on a real call
+              (the ticker stays off), to judge a backdrop under them.
+  --no-badge  hide the BOOKIE name plate on his chest. Presence has no switch for it,
+              so this sets `badge_style.badge_image` to a fully transparent PNG, which
+              the renderer composites as nothing. The same works in a live config.
 
 usage: backdrop_preview.py PRESENCE_MEDIA_DIR ASSETS_DIR BACKDROP_JSON OUT.mp4
-           [--still OUT.png] [--seconds 6] [--size 1280x720]
+           [--still OUT.png] [--still-at 1.0] [--seconds 6] [--size 1280x720]
+           [--hud] [--no-badge]
 
 PRESENCE_MEDIA_DIR is agent-presence's src/call-bot/media. ASSETS_DIR holds
 bookie-agent.png, bookie-avatar.json and the backdrop PNG. BACKDROP_JSON is a file with
@@ -26,11 +33,20 @@ def opt(name, default):
 
 media, assets, bd_json, out = (Path(a).resolve() for a in sys.argv[1:5])
 still, seconds, size = opt("--still", None), float(opt("--seconds", "6")), opt("--size", "1280x720")
+still_at = float(opt("--still-at", "1.0"))
+hud, no_badge = "--hud" in sys.argv, "--no-badge" in sys.argv
 
 cfg = json.loads((assets / "bookie-avatar.json").read_text())
 cfg["assets_dir"] = str(assets)
 cfg["backdrop"] = json.loads(bd_json.read_text())
-cfg["hud"] = {"alpha": 0}
+if not hud:
+    cfg["hud"] = {"alpha": 0}
+blank = None
+if no_badge:
+    from PIL import Image
+    blank = tempfile.NamedTemporaryFile(suffix=".png", delete=False); blank.close()
+    Image.new("RGBA", (8, 8), (0, 0, 0, 0)).save(blank.name)
+    cfg.setdefault("badge_style", {})["badge_image"] = blank.name  # absolute: _asset keeps it
 tmp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
 json.dump(cfg, tmp); tmp.close()
 os.environ.update(PRESENCE_AVATAR_CONFIG=tmp.name, AVATAR_TICKER="0", AVATAR_DEV="0", AVATAR_LASHES="off",
@@ -43,12 +59,21 @@ import robot_avatar  # noqa: E402  (reads the config at import)
 av = robot_avatar.RobotAvatar()
 av._compose_base()
 av._base_bg = av._base.copy()
-# Preview only: no HUD, REC dot, version badge or logo over the scene.
-av.hud.draw = lambda *a, **k: None
-av.rec.draw = lambda *a, **k: None
-av.badge.draw = lambda *a, **k: None
-av._logo = None
 av.TICKER_ON = False
+if not hud:
+    # Preview only: no HUD, REC dot, version badge or logo over the scene.
+    av.hud.draw = lambda *a, **k: None
+    av.rec.draw = lambda *a, **k: None
+    av.badge.draw = lambda *a, **k: None
+    av._logo = None
+
+
+def speech_level(t):
+    """A made-up speech envelope: syllables while talking, quiet in the pauses."""
+    if not 0.3 <= t % 3.0 < 2.2:
+        return 0.0
+    return max(0.0, 0.55 + 0.3 * math.sin(t * 9.1) + 0.15 * math.sin(t * 23.7 + 1.0))
+
 
 fps = robot_avatar.FPS
 ff = subprocess.Popen(
@@ -62,11 +87,14 @@ for i in range(int(seconds * fps)):
     t = i / fps
     bp = (t - BLINK_AT) / BLINK_LEN
     blink = abs(math.cos(math.pi * bp)) if 0.0 <= bp < 1.0 else 1.0
+    av.level += (speech_level(t) - av.level) * 0.5  # smoothed, like the run loop
     frame = av._draw_frame(t, blink, 1.0)
-    if still and i == int(1.0 * fps):
+    if still and i == int(still_at * fps):
         from PIL import Image
         Image.fromarray(frame).resize(tuple(map(int, size.split("x"))), Image.LANCZOS).save(still)
     ff.stdin.write(frame.tobytes())
 ff.stdin.close(); ff.wait()
 os.unlink(tmp.name)
+if blank:
+    os.unlink(blank.name)
 print(f"{out} ({out.stat().st_size // 1024} KB)")
