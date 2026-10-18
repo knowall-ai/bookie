@@ -81,7 +81,7 @@ declare -A CB=(
   # 60 ms like Poppie: 160 ms plus the writer's 60 ms lead overfills paplay's 200 ms buffer, so every
   # frame stalled and call audio stuttered.
   [PLAYOUT_PREBUFFER_MS]=60
-  [AVATAR_HUD]=0             # no usage/budget/voice/telemetry panels on a client-facing call (Ben, 2026-10-18)
+  [AVATAR_HUD]=1             # usage, subscription and machine telemetry panels on (Ben, 2026-10-18: wants them with the feed)
   [AVATAR_DEV]=1             # but do show the DEEP BRAIN activity feed, top left
   [HUD_VOICE_MODEL]="${VOICE_LIVE_MODEL:-gpt-live-1}"   # the HUD label otherwise shows the rollback realtime model
   [AVATAR_LASHES]=off        # Bookie has no eyelashes (Presence's default draws Sallie's)
