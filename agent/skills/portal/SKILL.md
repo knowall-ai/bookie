@@ -45,6 +45,7 @@ Always URL-encode the key.
 | Search | `/search?q=<text>` |
 | Organisation settings | `/settings` |
 | Reports | `/reporting`, `/reporting/profit-and-loss`, `/reporting/balance-sheet`, `/reporting/aged-receivables`, `/reporting/aged-payables`, `/reporting/trial-balance`, `/reporting/bank-summary`, `/reporting/account-transactions`, `/reporting/journal-report` |
+| A Bitcoin wallet (listed under Bank accounts) | `/accounting/bank/bitcoin/<walletId>` (Business Central: `bc~<bank account id>`) |
 | Bank, chart of accounts, journals, payments, tax rates | `/accounting/bank`, `/accounting/chart`, `/accounting/journals`, `/accounting/payments`, `/accounting/tax-rates` |
 
 `<id>` is the back end's own id: Xero `InvoiceID`, BC `id` of the sales/purchase invoice. When a

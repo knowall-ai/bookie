@@ -8,7 +8,7 @@ Bookie works without it. When it is installed, Bookie detects it (one `companySe
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | App             | `Bookie BC API Extension` by `KnowAll`, id `76f5224b-85e0-4956-af6b-07f140665e4f`                                               |
 | Targets         | BC 27.0 or later (platform and application 27.0, runtime 16.0), cloud                                                           |
-| Object ids      | 50200 to 50249 (Thyme's extension uses 50100 to 50199, so both can be installed)                                                |
+| Object ids      | 50200 to 50249 (Thyme uses 50100 to 50199 and Bookie Bitcoin 50250 to 50299, so all can be installed)                            |
 | API route       | `https://api.businesscentral.dynamics.com/v2.0/{tenant}/{environment}/api/knowallBookie/bookie/v1.0/companies({companyId})/...` |
 | Permission sets | `BOOKIE READ`, `BOOKIE WRITE`                                                                                                   |
 | Stores data?    | No. The only table is temporary; every page reads BC's own tables.                                                              |

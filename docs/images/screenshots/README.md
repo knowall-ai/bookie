@@ -22,6 +22,7 @@ Every portal screenshot comes from **Microsoft's CRONUS sample company** in a Bu
 | `settings.webp` | Settings: the Xero and Business Central connector switches (the lists of connected organisations and the storage note are removed before the shot, as they name the signed-in user's organisations and tenant) |
 | `ask-bookie.webp` | Ask Bookie panel with his real answer to "Who owes us the most, and how late are they?" |
 | `landing.webp` | The public website hero at getbook.ie |
+| `bitcoin-wallet.webp` | A Bitcoin wallet as a bank account. The one exception to CRONUS: it is the **demo organisation's fictional wallet** (`BOOKIE_DEV_AUTH=demo`), because a real wallet would publish its transactions; every transaction id, amount and price in it is made up and labelled so |
 
 ## Regenerating
 

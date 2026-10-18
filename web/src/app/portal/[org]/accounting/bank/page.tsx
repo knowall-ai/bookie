@@ -1,21 +1,90 @@
 import { ArrowLeftRight, Landmark, List, Plus } from 'lucide-react';
+import { requireAuth, type AuthContext } from '@/lib/auth/context';
+import {
+  BITCOIN_DOCS,
+  walletsForOrg,
+  type OrgWallets,
+  type WalletScope,
+} from '@/lib/bitcoin/wallets';
 import { orgContext, sourceName } from '@/lib/portal/context';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ButtonLink } from '@/components/ui/Button';
 import { EmptyState, NotAvailable } from '@/components/ui/States';
 import { BankAccountCard } from '@/components/accounting/BankAccountCard';
+import { BitcoinWalletCard } from '@/components/bitcoin/BitcoinWalletCard';
 
 export const metadata = { title: 'Bank accounts' };
+
+function BitcoinWalletsSection({
+  auth,
+  scope,
+  wallets,
+  base,
+}: {
+  auth: AuthContext;
+  scope: WalletScope;
+  wallets: OrgWallets;
+  base: string;
+}) {
+  if (wallets.unavailable) {
+    return (
+      <p className="text-faint mt-8 text-sm" data-testid="bitcoin-unavailable">
+        Bitcoin wallets: {wallets.unavailable}{' '}
+        <a
+          className="text-brand-bright hover:underline"
+          href={BITCOIN_DOCS}
+          target="_blank"
+          rel="noreferrer"
+        >
+          How to set them up
+        </a>
+      </p>
+    );
+  }
+  if (wallets.wallets.length === 0) return null;
+  return (
+    <section className="mt-8" aria-labelledby="bitcoin-wallets-title">
+      <h2 id="bitcoin-wallets-title" className="text-ink mb-1 text-lg font-semibold">
+        Bitcoin wallets
+      </h2>
+      <p className="text-muted mb-4 text-sm">
+        Read live from the blockchain. Bookie can see these wallets but never spend from them.
+      </p>
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {wallets.wallets.map((wallet) => (
+          <BitcoinWalletCard
+            key={wallet.id}
+            auth={auth}
+            scope={scope}
+            wallet={wallet}
+            href={`${base}/accounting/bank/bitcoin/${encodeURIComponent(wallet.id)}`}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default async function Page({ params }: { params: Promise<{ org: string }> }) {
   const { org: orgParam } = await params;
   const { connector, base, org } = await orgContext(orgParam);
+  const auth = await requireAuth(`/portal/${orgParam}/accounting/bank`);
+  const scope: WalletScope = { org, connector };
+  // If wallets can't be read (settings store or BC down), the bank accounts still show.
+  const wallets = await walletsForOrg(auth, scope).catch((error): OrgWallets => {
+    console.error('[bookie] bitcoin wallets unavailable', error);
+    return { wallets: [] };
+  });
   const crumbs = [{ label: 'Accounting', href: `${base}/accounting` }];
+  const walletsSection = (
+    <BitcoinWalletsSection auth={auth} scope={scope} wallets={wallets} base={base} />
+  );
   if (!connector.bank) {
     return (
       <>
         <PageHeader title="Bank accounts" crumbs={crumbs} />
         <NotAvailable feature="Bank accounts" source={sourceName(org)} />
+        {walletsSection}
       </>
     );
   }
@@ -71,6 +140,7 @@ export default async function Page({ params }: { params: Promise<{ org: string }
           ))}
         </div>
       )}
+      {walletsSection}
     </>
   );
 }

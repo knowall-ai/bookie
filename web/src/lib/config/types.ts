@@ -40,6 +40,23 @@ export interface XeroConnection {
 
 export type Connection = XeroConnection;
 
+/**
+ * A watch-only Bitcoin wallet shown as a bank account in one organisation. The
+ * descriptor can't spend, but it reveals every address and balance, so it is sealed
+ * like a connection secret and never sent to the browser again. Only for organisations
+ * whose books can't hold it (Xero); Business Central keeps it on the BC bank account.
+ */
+export interface BitcoinWalletRecord {
+  id: string;
+  name: string;
+  /** The organisation it appears in (Accounting › Bank accounts). */
+  orgKey: string;
+  /** Canonical output descriptor with checksum (see lib/bitcoin/descriptor). */
+  descriptor: string;
+  createdBy: string;
+  createdAt: string;
+}
+
 /** One person's organisation access, matched by email (case-insensitive). */
 export interface AccessPerson {
   email: string;
@@ -88,6 +105,9 @@ export interface ConfigStore {
   getConnection(id: string): Promise<Connection | undefined>;
   saveConnection(connection: Connection): Promise<void>;
   deleteConnection(id: string): Promise<void>;
+  listWallets(): Promise<BitcoinWalletRecord[]>;
+  saveWallet(wallet: BitcoinWalletRecord): Promise<void>;
+  deleteWallet(id: string): Promise<void>;
   getSettings(): Promise<TenantSettings>;
   saveSettings(settings: TenantSettings): Promise<void>;
 }

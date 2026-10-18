@@ -61,6 +61,7 @@ Real pages, read live through Bookie's own connector code from **Microsoft's CRO
 
 - **Multi-currency:** documents and payments in any currency the organisation uses. Totals across documents are kept per currency ("£8,340.00 + €1,200.00"), never converted at a guessed rate; a document's own base-currency total uses the source's rate for it.
 - **Live feed:** a Live panel on Home shows invoices, bills and contacts changing as it happens, from Xero and Business Central webhooks.
+- **Bitcoin wallets:** add a wallet's xpub or output descriptor (single-key, Taproot or multisig) and it appears under Bank accounts, read live from an Electrum server, with GBP values from Kraken labelled with their source and time. Watch-only: Bookie never holds a key that can spend. See [docs/BITCOIN.adoc](docs/BITCOIN.adoc).
 
 **Xero or Business Central, same screens.** Each organisation can live in either system. Turn each connector on or off in Settings.
 
@@ -109,6 +110,7 @@ Real pages, read live through Bookie's own connector code from **Microsoft's CRO
 |---|---|
 | [`web/`](web) | The website and portal (Next.js 16, Bun, Tailwind 4, TypeScript) |
 | [`bc-extension/`](bc-extension) | Optional Business Central extension (AL) adding the API Bookie needs beyond BC's API v2.0 |
+| [`bc-extension-bitcoin/`](bc-extension-bitcoin) | Optional Business Central extension (AL) that keeps a Bitcoin wallet's descriptor on a bank account ([docs/BITCOIN.adoc](docs/BITCOIN.adoc)) |
 | [`agent/`](agent) | Bookie the Hermes agent: identity, skills, voice, memory, VM deployment |
 | [`infra/`](infra) | Azure deployment for the web app (App Service, Key Vault, Azure OpenAI) |
 | [`docs/`](docs) | Solution design, deployment, testing, security, agent and hosted-agent isolation |

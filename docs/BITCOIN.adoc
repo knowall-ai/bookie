@@ -1,0 +1,217 @@
+= Bitcoin wallets as bank accounts
+:toc: left
+:icons: font
+
+Bookie can show a Bitcoin wallet as a bank account whose statement is the blockchain. The wallet's
+extended public key (xpub) or output descriptor tells Bookie which addresses belong to it; Bookie reads
+their transactions live from an Electrum server and shows them under *Accounting › Bank accounts*,
+with GBP values from Kraken.
+
+Bookie is *watch-only*: an xpub or descriptor can see a wallet but never spend from it. Bookie, and the
+Business Central extension below, refuse private keys (xprv, yprv, zprv and their testnet forms).
+
+== Where the descriptor lives
+
+[cols="1,3", options="header"]
+|===
+| Organisation | Where you enter the wallet
+
+| Business Central
+| On the *bank account* in Business Central, with the *Bookie Bitcoin* extension (below). Every bank
+  account with a descriptor is a wallet in Bookie; there is no Bookie setting for it. The descriptor
+  stays in your own Business Central and Bookie reads it live, like the rest of your books.
+
+| Other organisations
+| *Settings › Bitcoin wallets* in Bookie (members only). The descriptor is sealed with your tenant's
+  key and stored in your own SharePoint (the `BookieConnections` list, record `bitcoin-wallet:{id}`),
+  like Xero connection secrets, and never shown again.
+|===
+
+Either way, the descriptor never reaches the browser: pages show the wallet's name, script type and
+bank account number only.
+
+== Business Central: the Bookie Bitcoin extension
+
+A small per-tenant extension, `bc-extension-bitcoin/` in this repository, separate from the Bookie BC
+API extension so either can be installed alone.
+
+[cols="1,3"]
+|===
+| App | `Bookie Bitcoin` by `KnowAll`, id `b43701b1-70d6-43d4-9d83-3a9a6dc6a208`, BC 27.0 or later, cloud
+| Object ids | 50250 to 50299 (the Bookie BC API extension uses 50200 to 50249 and Thyme 50100 to 50199, so all three can be installed together)
+| Table extension | *Bank Account*: `Bitcoin Wallet Descriptor` (Text[1024]) and `Bitcoin Script Type` (Automatic, WPKH, SHWPKH, TR, WSHMulti, PKH). Entering a private key is refused.
+| Page extension | *Bank Account Card*: a *Bitcoin Wallet* group, shown only to users with `BOOKIE BTC READ` or `BOOKIE BTC EDIT`, editable only with `BOOKIE BTC EDIT`
+| API page | `api/bookie/bitcoin/v1.0/companies({id})/bitcoinWallets`, read-only: bank account id (the same SystemId as API v2.0), no., name, currency code, descriptor, script type
+| Permission sets | `BOOKIE BTC READ` (see wallets; run the API page), `BOOKIE BTC EDIT` (also enter and change them)
+|===
+
+When Bookie gets a 404 from the API page it says the extension isn't installed; a 403 means the
+signed-in user hasn't got `BOOKIE BTC READ`. Either way the Bank accounts page says so and links here.
+
+=== Build
+
+CI (`.github/workflows/bc-extension.yml`) compiles it with the other extension on every PR that
+touches either folder (CodeCop, PerTenantExtensionCop and UICop, warnings as errors) and uploads it
+as the `bookie-bitcoin-bc-extension` artifact. Locally:
+
+[source,bash]
+----
+dotnet tool install --global Microsoft.Dynamics.BusinessCentral.Development.Tools --version 18.1.43.24897
+APP=bitcoin bc-extension/scripts/build.sh
+# -> bc-extension-bitcoin/output/KnowAll_Bookie Bitcoin_1.0.0.0.app
+----
+
+Or open `bc-extension-bitcoin/` in VS Code with the AL Language extension, run *AL: Download
+Symbols* against a sandbox and build with Ctrl+Shift+B. AL-Go for GitHub works too: point a project
+at `bc-extension-bitcoin`.
+
+=== Publish
+
+You need `EXTEN. MGT. - ADMIN` (or `SUPER`). Sandbox first, then Production with the same `.app`.
+
+. In Business Central, search *Extension Management*, choose *Manage › Upload Extension*.
+. Choose the `.app`, *Deploy to: Current version*, accept, *Deploy*.
+. *Manage › Deployment Status* shows *Completed*; *Bookie Bitcoin* appears under Installed Extensions.
+
+To update, raise `version` in `bc-extension-bitcoin/app.json` and upload again. Uninstalling with
+*Delete Extension Data* removes the descriptors from your bank accounts.
+
+=== Assign the permission sets
+
+[cols="1,3", options="header"]
+|===
+| Who | Permission set
+
+| People who use Bookie with this company and should see its wallets | `BOOKIE BTC READ`
+| People who enter or change a wallet descriptor | `BOOKIE BTC EDIT` (and modify rights on Bank Accounts from their usual sets)
+| The Bookie agent's service-to-service app (*Microsoft Entra Applications* › `Bookie Business Central` › *User Permission Sets*) | `BOOKIE BTC READ` only, never EDIT
+|===
+
+Search *Users* (or *Security Groups*, recommended, linked to an Entra group such as "Bookie users"),
+open the user or group and add the permission set. Leave *Company* blank for every company, or pick one.
+The descriptor reveals every address and balance of the wallet, so give `BOOKIE BTC READ` only to people
+who may see the wallet's history.
+
+=== Set up the BTC currency and bank account
+
+. *Currencies*: add `BTC` (Bitcoin) with *Amount Rounding Precision* and *Unit-Amount Rounding
+  Precision* `0.00000001` and *Amount Decimal Places* and *Unit-Amount Decimal Places* `8:8`, and its
+  realised and unrealised gains and losses accounts. Business Central converts BTC to your local
+  currency with the rates you enter under *Currency Exchange Rates*; Bookie doesn't enter them.
+. *Bank Account Posting Groups*: a group whose G/L account is where you hold digital assets.
+. *Bank Accounts*: a new account, for example `BTC-01` "Treasury wallet", *Currency Code* `BTC`, that
+  posting group.
+. On its card, in *Bitcoin Wallet*, paste the wallet's zpub, ypub, xpub or output descriptor. For a
+  bare xpub choose the *Bitcoin Script Type* your wallet uses; leave it on *Automatic* otherwise.
+
+Bookie shows the wallet under Bank accounts straight away. It flags a wallet whose bank account
+currency isn't `BTC`, and shows a descriptor it can't use with the reason rather than failing the page.
+
+== What Bookie accepts
+
+[cols="1,2,2", options="header"]
+|===
+| Input | Addresses | Chains scanned
+
+| `zpub...` (`vpub` on testnet) | Native SegWit, P2WPKH (`bc1q...`) | receive `/0/*`, change `/1/*`
+| `ypub...` (`upub`) | Nested SegWit, P2SH-P2WPKH (`3...`) | receive `/0/*`, change `/1/*`
+| `xpub...` (`tpub`) + script type | Whichever type you choose | receive `/0/*`, change `/1/*`
+| `pkh(KEY)` | Legacy P2PKH (`1...`) | as the descriptor says
+| `wpkh(KEY)` | P2WPKH | as the descriptor says
+| `sh(wpkh(KEY))` | P2SH-P2WPKH | as the descriptor says
+| `tr(KEY)` | Taproot key path only (BIP86) | as the descriptor says
+| `wsh(multi(k,KEY,...))`, `wsh(sortedmulti(k,KEY,...))` | P2WSH multisig, up to 20 keys | as the descriptor says
+|===
+
+`KEY` is `[fingerprint/origin/path]xpub.../<0;1>/*`. The key origin is optional; the path after the
+xpub must be non-hardened and end in `/*`. `<0;1>` gives the receive and change chains; a descriptor
+with a single chain (for example `/0/*`) scans that chain only, and the wallet page says change
+addresses aren't included. A `#checksum` (BIP380) is checked when present. Taproot script trees,
+`sh(multi)` and Miniscript aren't supported yet.
+
+== Reading the chain
+
+For each chain, Bookie derives addresses until it finds 20 unused ones in a row (the gap limit), and
+asks the Electrum server for each address's history (`blockchain.scripthash.get_history`) and balance
+(`blockchain.scripthash.get_balance`). It then fetches every transaction
+(`blockchain.transaction.get`) and the header of every block they are in (`blockchain.block.header`)
+for the block time.
+
+Per transaction Bookie shows:
+
+* the txid, the date of its block (UTC) and its confirmations;
+* the amount: what was paid to the wallet's own addresses minus what it spent from them;
+* the fee, only when the wallet paid it (it funded at least one input) and every input's value is
+  known. A receipt's fee was paid by the sender and shows "—" with that reason.
+
+A transaction the server reports at height 0 or below is in the mempool: it is shown as *Pending*,
+counted in the *Pending* balance, never in the confirmed balance, and has no GBP value.
+
+*Stateless.* Bookie keeps no chain data. The only cache is in memory, for 60 seconds, keyed by the
+Entra tenant id, the organisation, the wallet and its descriptor's checksum (so a descriptor changed in
+Business Central is never served stale).
+
+== GBP values
+
+GBP values come only from Kraken's public market data (pair XBTGBP), and every figure says which:
+
+[cols="1,3"]
+|===
+| Situation | Rate used
+
+| A confirmed transaction whose UTC day has closed and is within Kraken's daily history (about 720 days, `OHLC?interval=1440`) | *Kraken XBTGBP daily close* of that day
+| Today's transactions, or older than the daily history | *Kraken XBTGBP trade*: the first trade at or after the block time (`Trades?since=`), if one happened within six hours
+| The confirmed balance | *Kraken XBTGBP last trade*, with its time
+| A pending transaction | None: "—", it has no block time yet
+| Kraken unreachable or has no trade in the window | None: "—" with the reason
+|===
+
+Bookie never values an old amount at today's price. To stay within Kraken's public rate limits it
+looks up at most eight trades per page view; any others say "Not looked up yet" until the next view.
+Kraken prices are public data, not anyone's books, so they are cached in memory (daily candles for ten
+minutes, the latest trade for one minute, trade lookups for the life of the process).
+
+== The Electrum server
+
+[cols="1,3"]
+|===
+| App setting | Meaning
+
+| `BOOKIE_ELECTRUM_URL` | `ssl://host:port` (recommended) or `tcp://host:port`. Unset: wallets say "No Electrum server configured" and show nothing.
+| `BOOKIE_ELECTRUM_TRUSTED` | `1` when the operator runs this server. Without it, Settings and every wallet page warn that the server learns every address in the wallet.
+| `BOOKIE_ELECTRUM_CERT_SHA256` | Optional SHA-256 fingerprint of the server's TLS certificate, to pin a self-signed certificate instead of checking it against public CAs.
+|===
+
+Run your own server (Fulcrum, ElectrumX or electrs) next to a Bitcoin Core node where you can: an
+Electrum server sees which addresses are asked about and can link them into one wallet. A public
+server works but is a privacy trade-off, which is why the UI says so. Bookie never shows the server's
+address in the portal. Testnet keys parse (so the BIP test vectors can be checked) but Bookie reads
+mainnet wallets only.
+
+== Demo organisation
+
+With `BOOKIE_DEV_AUTH=demo`, Contoso Coffee Roasters has a fictional wallet, *Contoso Treasury*, read
+from fixtures (`web/src/lib/bitcoin/demo.ts`). Its transaction ids are hashes of made-up labels and
+its prices are labelled "Demo price (fictional)". Production refuses demo mode.
+
+== Code map
+
+[cols="1,3"]
+|===
+| File | What
+
+| `bc-extension-bitcoin/` | The Bookie Bitcoin BC extension
+| `web/src/lib/connectors/bc/modules/bitcoin.ts` | Reads `bitcoinWallets` from Business Central (404: not installed; 403: no permission)
+| `web/src/lib/bitcoin/descriptor.ts` | Parse keys and descriptors (SLIP-0132 prefixes, BIP380 checksum), derive scripts and addresses with `@scure/bip32` and `@scure/btc-signer`
+| `web/src/lib/bitcoin/electrum.ts` | Electrum JSON-RPC client over TLS or TCP, pipelined with a cap on requests in flight
+| `web/src/lib/bitcoin/scan.ts` | Gap-limit scan, transaction parsing, amounts, fees, confirmations
+| `web/src/lib/bitcoin/kraken.ts` | Kraken OHLC and trade parsing, rate selection, GBP values
+| `web/src/lib/bitcoin/wallets.ts` | Wallets per organisation (Business Central or sealed settings), members-only changes, the scan cache
+| `web/src/lib/portal/actions/bitcoin.ts` | Server actions (zod-validated, org re-resolved with `orgContext()`)
+|===
+
+Tests: `descriptor.test.ts` checks the BIP84, BIP86 and BIP49 test vectors and a Bitcoin Core
+multisig vector; `scan.test.ts` runs the scanner against a fake Electrum server on localhost;
+`kraken.test.ts` parses Kraken responses and rate rules; `bitcoin.test.ts` (BC module) and
+`wallets.test.ts` cover where wallets come from; `tests/e2e/bitcoin.spec.ts` covers the demo wallet
+and adding and removing one. The repository holds no real xpubs, addresses or amounts.

@@ -16,6 +16,8 @@ import { XeroStatusToast } from '@/components/settings/XeroStatusToast';
 import { BcLiveUpdates } from '@/components/settings/BcLiveUpdates';
 import { PeopleAccess } from '@/components/settings/PeopleAccess';
 import { bcWebhooksConfigured } from '@/lib/webhooks/config';
+import { BitcoinWallets } from '@/components/settings/BitcoinWallets';
+import { electrumStatus, listWallets, type WalletSummary } from '@/lib/bitcoin/wallets';
 
 export const metadata = { title: 'Settings' };
 
@@ -77,9 +79,9 @@ export default async function SettingsPage({
   }
 
   const { orgs, allOrgs, hiddenBcOrgs, store, storeError } = await listOrgs(auth);
-  const [settings, connections] = storeError
-    ? [structuredClone(DEFAULT_SETTINGS), []]
-    : await Promise.all([store.getSettings(), store.listConnections()]);
+  const [settings, connections, wallets] = storeError
+    ? [structuredClone(DEFAULT_SETTINGS), [], [] as WalletSummary[]]
+    : await Promise.all([store.getSettings(), store.listConnections(), listWallets(auth)]);
 
   const xeroConnections: ConnectionSummary[] = connections.map((c) => ({
     id: c.id,
@@ -147,6 +149,17 @@ export default async function SettingsPage({
             />
           )}
         </ConnectorCard>
+
+        {!storeError && (
+          <BitcoinWallets
+            wallets={wallets}
+            // Business Central wallets live on the BC bank account, not in Bookie's settings.
+            orgs={orgs
+              .filter((o) => o.kind !== 'business-central')
+              .map((o) => ({ key: o.key, name: o.name, sourceLabel: o.sourceLabel }))}
+            electrum={electrumStatus()}
+          />
+        )}
 
         {!storeError && (
           <PeopleAccess

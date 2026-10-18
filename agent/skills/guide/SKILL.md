@@ -61,6 +61,27 @@ sure it exists yet rather than guess, and point them to the docs on GitHub
 - **Payroll** and **Projects** appear where the books have them; **Contacts** and **Search** cover
   the whole organisation.
 
+### Bitcoin wallets
+
+A Bitcoin wallet can appear under **Accounting › Bank accounts**, read live from the blockchain:
+balance (confirmed, and pending separately), and each transaction with its date, confirmations, fee
+when the wallet paid it, and a GBP value that says which Kraken price and time it used ("—" with the
+reason when there isn't one, and always for pending transactions).
+
+- **How to add one:** for a **Business Central** company, put the wallet's xpub, ypub, zpub or output
+  descriptor on the bank account card in Business Central (the *Bitcoin Wallet* group, from the
+  Bookie Bitcoin extension; it needs the **BOOKIE BTC EDIT** permission set, and **BOOKIE BTC READ**
+  to see wallets). Set the bank account's currency to BTC. For other organisations, a member adds it
+  in the portal under **Settings › Bitcoin wallets**.
+- **Is it safe?** An xpub or descriptor can see the wallet but never spend from it. Bookie refuses
+  private keys (xprv). Never ask anyone for a seed phrase or private key, and tell them not to send
+  one.
+- **Privacy:** lookups go through the Electrum server the Bookie installation is set up with; the
+  portal warns when that server isn't the operator's own, because it learns the wallet's addresses.
+- **Not covered:** capital gains and pooling calculations are for the accountant (SOUL rule 5).
+
+The setup guide is docs/BITCOIN.adoc in the Bookie repository.
+
 Anything that changes the books (approving, voiding, emailing, paying) asks the person to confirm
 first. Where Xero or Business Central doesn't provide a figure, the page says "not available" rather
 than estimating.
