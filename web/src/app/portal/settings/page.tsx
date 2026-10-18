@@ -1,4 +1,4 @@
-import { ShieldCheck, UserLock } from 'lucide-react';
+import { ExternalLink, ShieldCheck, UserLock } from 'lucide-react';
 import { canManageSettings } from '@/lib/auth/access';
 import { requireAuth } from '@/lib/auth/context';
 import { tenantDisplayName } from '@/lib/auth/tenant-name';
@@ -79,9 +79,14 @@ export default async function SettingsPage({
   }
 
   const { orgs, allOrgs, hiddenBcOrgs, store, storeError } = await listOrgs(auth);
-  const [settings, connections, wallets] = storeError
-    ? [structuredClone(DEFAULT_SETTINGS), [], [] as WalletSummary[]]
-    : await Promise.all([store.getSettings(), store.listConnections(), listWallets(auth)]);
+  const [settings, connections, locationUrl, wallets] = storeError
+    ? [structuredClone(DEFAULT_SETTINGS), [], undefined, [] as WalletSummary[]]
+    : await Promise.all([
+        store.getSettings(),
+        store.listConnections(),
+        store.locationUrl(),
+        listWallets(auth),
+      ]);
 
   const xeroConnections: ConnectionSummary[] = connections.map((c) => ({
     id: c.id,
@@ -185,7 +190,21 @@ export default async function SettingsPage({
                 a key unique to your organisation and stored in your own Microsoft 365:
               </p>
               <p className="bg-surface-2 text-body mt-3 rounded-lg px-3 py-2 font-mono text-xs break-all">
-                {store.location}
+                {locationUrl ? (
+                  <a
+                    href={locationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="settings-location-link"
+                    className="text-brand-bright inline-flex items-center gap-1.5 hover:underline"
+                  >
+                    {store.location}
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span className="sr-only">(opens SharePoint in a new tab)</span>
+                  </a>
+                ) : (
+                  store.location
+                )}
               </p>
               <p className="text-faint mt-3 text-xs">Microsoft 365 tenant: {auth.user.tenantId}</p>
             </div>

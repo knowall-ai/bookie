@@ -21,7 +21,7 @@ function entraProvider(id: string, name: string, tenantId: string) {
     clientSecret: process.env.AZURE_AD_CLIENT_SECRET ?? '',
     tenantId,
     authorization: { params: { scope: SIGN_IN_SCOPES, prompt: 'select_account' } },
-    // Graph photos can be large; we render initials instead.
+    // Keep the photo out of the session cookie (too large); the top bar loads it from /api/me/photo.
     profilePhotoSize: 48,
   });
 }
@@ -37,6 +37,28 @@ export interface SignInIdentity {
   email: string;
 }
 
+interface GraphMe {
+  userType?: string | null;
+  mail?: string | null;
+  userPrincipalName?: string | null;
+}
+
+/**
+ * Member or guest, from Graph `/me` (`null` when the call failed).
+ *
+ * Accounts created before Entra recorded `userType` can have it blank; Microsoft
+ * treats those as members, but only when the UPN isn't a B2B guest's `#EXT#` one.
+ * Anything else, or no answer from Graph, is a guest (fail closed).
+ */
+export function resolveUserType(me: GraphMe | null): UserType {
+  if (!me) return 'Guest';
+  if (me.userType === 'Member') return 'Member';
+  if (me.userType == null && me.userPrincipalName && !/#EXT#/i.test(me.userPrincipalName)) {
+    return 'Member';
+  }
+  return 'Guest';
+}
+
 /**
  * Who signed in, from Microsoft Graph with the sign-in token (User.Read).
  * `userType` decides whether access entries apply; when Graph can't say, the
@@ -46,25 +68,25 @@ export async function signInIdentity(
   accessToken: string | undefined,
   claims: Record<string, unknown>
 ): Promise<SignInIdentity> {
-  let me: { userType?: string; mail?: string | null; userPrincipalName?: string } = {};
+  let me: GraphMe | null = null;
   if (accessToken) {
     try {
       const response = await fetch(
         'https://graph.microsoft.com/v1.0/me?$select=userType,mail,userPrincipalName',
         { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store' }
       );
-      if (response.ok) me = await response.json();
+      if (response.ok) me = (await response.json()) as GraphMe;
       else console.error('[bookie] Graph /me failed at sign-in', response.status);
     } catch (error) {
       console.error('[bookie] Graph /me failed at sign-in', error);
     }
   }
   const email =
-    me.mail ||
+    me?.mail ||
     (claims.email as string | undefined) ||
     (claims.preferred_username as string | undefined) ||
-    (me.userPrincipalName ? externalUpnToEmail(me.userPrincipalName) : '');
-  return { userType: me.userType === 'Member' ? 'Member' : 'Guest', email: email ?? '' };
+    (me?.userPrincipalName ? externalUpnToEmail(me.userPrincipalName) : '');
+  return { userType: resolveUserType(me), email: email ?? '' };
 }
 
 /**

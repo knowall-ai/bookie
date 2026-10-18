@@ -26,6 +26,8 @@ there is a Xero company key and/or a Business Central company:
 
 KnowAll's own install: KnowAll AI Ltd is in Xero (`uk`) **and** Business Central (`business-central`);
 KnowAll AI SAS de CV is in Business Central only (`business-central-2`).
+In Business Central a company's *name* can differ from its display name:
+the MCP server takes the name, so `BC_COMPANY` must be the name.
 
 Rules:
 - If the person names the organisation, use it. If their question implies one (currency, country,
@@ -60,6 +62,13 @@ Rules:
 
 Paging: `page=N`, 100 per page; keep paging until a page has fewer than 100. Dates come as
 `/Date(1767225600000+0000)/`: convert with Python. URL-encode spaces and `==` in `where`.
+
+### Latest sent invoice
+
+1. Read `Organisation` live to confirm the selected books, then distinguish **newest invoice date marked sent** from **most recent actual sending event**. `SentToContact` is a flag, `Date` is the invoice date and `UpdatedDateUTC` is an edit timestamp; none establishes the last chronological send across invoices.
+2. For the newest-dated sent sales invoice, call `"$XERO_SH" GET 'Invoices?where=Type%3D%3D%22ACCREC%22%26%26SentToContact%3D%3Dtrue&order=Date%20DESC&page=1&pageSize=5'` with the selected `XERO_COMPANY`. Inspect status and tied invoice dates rather than treating an arbitrary first match as unique.
+3. Read `"$XERO_SH" GET 'Invoices/<InvoiceID>/History'` for the candidate. Inspect `Invoice Sent` events and `DateUTCString` to confirm actual sending; creation, approval and editing events are not send evidence.
+4. Lead with organisation, invoice number, customer, currency and tax-inclusive total, then give the invoice date and ordering basis. If only the newest-dated sent invoice was checked, say so. Claim the most recent send only after checking histories across the relevant candidate population, including potential resends of older invoices; a single candidate's history verifies that invoice's send, not global recency.
 
 ## 3. Business Central (MCP)
 
