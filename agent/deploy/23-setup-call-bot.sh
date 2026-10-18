@@ -97,6 +97,12 @@ declare -A CB=(
   [AZURE_VISION_DEPLOYMENT]="${AI_BRAIN_DEPLOYMENT}"
 )
 for k in "${!CB[@]}"; do set_env_line "${CB_ENV}" "${k}" "${CB[${k}]}"; done
+# ~/presence is a deployed copy without .git, so Presence can't read its own version (it would show
+# "v0.0.0-unknown"). Stamp the pinned checkout's version in; Presence prefers PRESENCE_VERSION.
+PRESENCE_VER="$(as_agent "python3 '${PRESENCE_CHECKOUT}/src/call-bot/media/sallie_version.py'" 2>/dev/null || true)"
+if [ -n "${PRESENCE_VER}" ] && [ "${PRESENCE_VER}" != "v0.0.0-unknown" ]; then
+  set_env_line "${CB_ENV}" PRESENCE_VERSION "${PRESENCE_VER}"; info "Presence version ${PRESENCE_VER}"
+fi
 # Outside callers Bookie may identify on direct calls (Presence #354): "<tenant id>:<object id>,...",
 # from config.env only (ids, never names). Blank = none.
 if [ -n "${TRUSTED_EXTERNAL_CALLERS:-}" ]; then set_env_line "${CB_ENV}" TRUSTED_EXTERNAL_CALLERS "${TRUSTED_EXTERNAL_CALLERS}"; fi
