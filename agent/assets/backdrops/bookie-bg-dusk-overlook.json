@@ -1,0 +1,7 @@
+{
+  "bg": "backdrops/bookie-bg-dusk-overlook.png",
+  "stars": false,
+  "rain": null,
+  "video": "backdrops/bookie-bg-dusk-overlook-loop.mp4",
+  "video_fps": 10
+}
