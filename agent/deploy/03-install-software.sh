@@ -56,8 +56,11 @@ else
   info "already installed"
 fi
 
-step "v4l2loopback (upstream ${V4L2LOOPBACK_VERSION:-0.13.2} via DKMS; Ubuntu 22.04's 0.12.7 does not build on Azure 6.8 kernels)"
-V4L2_VER="${V4L2LOOPBACK_VERSION:-0.13.2}"
+step "v4l2loopback (upstream ${V4L2LOOPBACK_VERSION:-0.15.3} via DKMS, as Poppie and Sallie; Ubuntu 22.04's 0.12.7 does not build on Azure 6.8 kernels)"
+V4L2_VER="${V4L2LOOPBACK_VERSION:-0.15.3}"
+# 0.15.x and its v4l2loopback-ctl are required: pulse-setup pins YU12 1920x1080 with `set-caps` at boot.
+# On 0.13.2 a reader (PipeWire's camera probe) could pin BGR4 640x480 first, and the avatar camera then
+# failed on every call after a reboot (VIDIOC_S_FMT: Device or resource busy).
 if ! sudo dkms status -m v4l2loopback -v "${V4L2_VER}" 2>/dev/null | grep -q installed; then
   dpkg -s v4l2loopback-dkms >/dev/null 2>&1 && sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y --purge v4l2loopback-dkms
   tmpdir="$(mktemp -d)"
@@ -67,6 +70,18 @@ if ! sudo dkms status -m v4l2loopback -v "${V4L2_VER}" 2>/dev/null | grep -q ins
   sudo dkms install -m v4l2loopback -v "${V4L2_VER}"
   rm -rf "${tmpdir}"
 fi
+
+step "v4l2loopback-ctl ${V4L2_VER} and the format udev rule"
+[ -d "/usr/src/v4l2loopback-${V4L2_VER}" ] && (cd "/usr/src/v4l2loopback-${V4L2_VER}" && sudo make -s install-utils >/dev/null)
+command -v v4l2loopback-ctl >/dev/null || die "v4l2loopback-ctl not installed (pulse-setup needs it to pin the camera format)"
+# set-caps writes the sysfs `format` attribute, which is root-only by default; pulse-setup runs it as the agent user.
+sudo tee /etc/udev/rules.d/60-v4l2loopback.rules >/dev/null <<'UDEV'
+# Agent Presence: let the agent user (group video) pin the loopback format at boot with
+# `v4l2loopback-ctl set-caps`, which writes this sysfs attribute (root-only by default).
+ACTION=="add", SUBSYSTEM=="video4linux", DRIVERS=="v4l2 loopback", RUN+="/bin/chgrp video /sys%p/format", RUN+="/bin/chmod g+w /sys%p/format"
+KERNEL=="v4l2loopback", GROUP="video", MODE="0660"
+UDEV
+sudo udevadm control --reload
 
 step "v4l2loopback loads at boot"
 echo "v4l2loopback" | sudo tee /etc/modules-load.d/v4l2loopback.conf >/dev/null
