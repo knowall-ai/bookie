@@ -1,0 +1,7 @@
+{
+  "bg": "backdrops/bookie-bg-holo-vault.png",
+  "stars": false,
+  "rain": null,
+  "video": "backdrops/bookie-bg-holo-vault-loop.mp4",
+  "video_fps": 10
+}

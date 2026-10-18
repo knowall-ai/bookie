@@ -1,0 +1,7 @@
+{
+  "bg": "backdrops/bookie-bg-glass-archive.png",
+  "stars": false,
+  "rain": null,
+  "video": "backdrops/bookie-bg-glass-archive-loop.mp4",
+  "video_fps": 10
+}

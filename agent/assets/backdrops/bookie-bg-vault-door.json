@@ -1,0 +1,7 @@
+{
+  "bg": "backdrops/bookie-bg-vault-door.png",
+  "stars": false,
+  "rain": null,
+  "video": "backdrops/bookie-bg-vault-door-loop.mp4",
+  "video_fps": 10
+}

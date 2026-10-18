@@ -1,0 +1,10 @@
+{
+  "bg": "backdrops/bookie-bg-tower-office.png",
+  "stars": false,
+  "rain": null,
+  "city_lights": {
+    "windows": 0.45,
+    "neon": 0.55,
+    "beacons": 3
+  }
+}
