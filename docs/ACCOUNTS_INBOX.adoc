@@ -6,6 +6,8 @@
 `accounts@yourcompany.com`) and gives every PDF or image attached in the last few weeks a verdict.
 It sits next to *Purchases › Inbox*, which shows Xero's own Files inbox.
 
+image::images/screenshots/accounts-inbox.webp[The Accounts inbox on the fictional demo organisation, with a verdict on each document]
+
 It follows the same rules as the Bookie agent's bill-capture skill
 (`agent/skills/bill-capture/SKILL.md`): check the email is genuine first, never guess a figure,
 drafts only, and a person confirms every change to the books.
