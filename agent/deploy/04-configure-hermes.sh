@@ -99,6 +99,10 @@ bash "${SCRIPT_DIR}/render-hermes-config.sh" > "${tmp}" && [ -s "${tmp}" ] || { 
 python3 -c 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))' "${tmp}" || { rm -f "${tmp}"; die "rendered config.yaml is not valid YAML"; }
 sudo install -o "${AGENT_NAME}" -g "${AGENT_NAME}" -m 600 "${tmp}" "${HERMES_DIR}/config.yaml"; rm -f "${tmp}"
 bash "${SCRIPT_DIR}/render-hermes-config.sh" --soul    | install_text "${HERMES_DIR}/SOUL.md" 644 "${AGENT_NAME}"
+# The brain is Bookie's ChatGPT Business seat (provider openai-codex). It needs a one-off device-code
+# sign-in per VM; until then every turn falls back to the metered Azure deployment.
+as_agent "hermes auth list" 2>/dev/null | grep -q "^openai-codex" \
+  || warn "no ChatGPT sign-in yet: run  sudo -u ${AGENT_NAME} -i hermes auth add openai-codex  and approve the code as bookie@ in a browser (until then Bookie runs on the Azure fallback, billed per token)"
 bash "${SCRIPT_DIR}/render-hermes-config.sh" --persona | install_text "${HERMES_DIR}/voice_persona.md" 644 "${AGENT_NAME}"
 info "installed (config.yaml mode 600: it holds the webhook route secret)"
 
