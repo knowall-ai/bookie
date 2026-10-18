@@ -360,7 +360,11 @@ export function createXeroConnector({
     purchaseOrders: xeroPurchaseOrders(client),
     items: xeroItems(client),
     payments: xeroPayments(client),
-    bank: xeroBank(client, async () => (await getOrganisation()).baseCurrency),
+    bank: xeroBank(
+      client,
+      async () => (await getOrganisation()).baseCurrency,
+      xeroDeepLink(shortCode, '/Dashboard/')
+    ),
     accounts: xeroAccounts(client),
     journals: xeroJournals(client),
     taxRates: xeroTaxRates(client),

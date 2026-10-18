@@ -1,7 +1,7 @@
-import type { BankAccount, BankTransactionInput } from '@/lib/domain/types';
+import type { BankAccount, BankAccountInput, BankTransactionInput } from '@/lib/domain/types';
 import { ConnectorError } from '../../types';
 import type { BcClient, ODataList } from '../client';
-import type { BankModule } from '../../types';
+import type { BankModule, NewBankAccountRules } from '../../types';
 import { journalBatchCode, postAndRemoveBatch } from './journals';
 import { extensionBankBalances, extensionBankTransactions, withBankBalance } from '../extension';
 
@@ -29,6 +29,56 @@ export function fromBcBankAccount(raw: BcBankAccount, lcy: string): BankAccount 
     accountNumber: raw.bankAccountNumber || raw.iban || undefined,
     currency: raw.currencyCode || lcy,
     type: 'bank',
+  };
+}
+
+/**
+ * POST bankAccounts body (API v2.0: number, displayName, bankAccountNumber,
+ * iban and currencyCode are writable). BC records the local currency as a
+ * blank currency code, so LCY is sent as nothing at all; a blank number lets
+ * BC take the next one from the company's Bank Account Nos. series.
+ */
+export function toBcBankAccount(input: BankAccountInput, lcy: string): Record<string, unknown> {
+  const isLcy = !!lcy && input.currency.toUpperCase() === lcy.toUpperCase();
+  return {
+    number: input.code || undefined,
+    displayName: input.name,
+    bankAccountNumber: input.accountNumber || undefined,
+    iban: input.iban ? input.iban.replace(/\s+/g, '').toUpperCase() : undefined,
+    currencyCode: isLcy ? undefined : input.currency,
+  };
+}
+
+/** Deep links into the BC web client for the new-bank-account form. */
+export interface BcBankLinks {
+  /** Bank Accounts list (page 371). */
+  bankAccounts?: string;
+  /** Currencies list (page 5). */
+  currencies?: string;
+}
+
+export function bcNewBankAccount(links: BcBankLinks = {}): NewBankAccountRules {
+  return {
+    // BC bank accounts have no kind (credit card, PayPal): every one is a bank account.
+    types: ['bank'],
+    iban: true,
+    codeOptional: true,
+    codeHint:
+      "Leave blank to take the next number from Business Central's Bank Account Nos. series.",
+    // Bank Account table: No. is Code[20], Name Text[100], Bank Account No. Text[30].
+    codeMaxLength: 20,
+    nameMaxLength: 100,
+    accountNumberMaxLength: 30,
+    currencySetup: {
+      text: 'To use another currency, add it on the Currencies page in Business Central.',
+      href: links.currencies,
+      linkLabel: 'Open Currencies',
+    },
+    note: {
+      text: "Business Central's API can't set the bank account posting group. Before posting to the new account, open it in Business Central and choose its Bank Account Posting Group.",
+      href: links.bankAccounts,
+      linkLabel: 'Open Bank Accounts',
+    },
   };
 }
 
@@ -83,7 +133,11 @@ export function toBcBankJournalLines(
  * for transfers (a posting mistake can't be undone from the API). Use
  * Business Central's own journals for transfers.
  */
-export function bcBank(client: BcClient, lcy: () => Promise<string>): BankModule {
+export function bcBank(
+  client: BcClient,
+  lcy: () => Promise<string>,
+  links?: BcBankLinks
+): BankModule {
   const contactName = async (contactId: string) => {
     const [prefix, id] = [contactId.slice(0, 2), contactId.slice(2)];
     const entity = prefix === 'c:' ? 'customers' : prefix === 'v:' ? 'vendors' : undefined;
@@ -166,6 +220,23 @@ export function bcBank(client: BcClient, lcy: () => Promise<string>): BankModule
         isReconciled: false,
         status: 'authorised',
       };
+    },
+
+    newAccount: bcNewBankAccount(links),
+    async createAccount(input) {
+      if (input.type && input.type !== 'bank') {
+        throw new ConnectorError(
+          'Business Central bank accounts have no account type such as credit card or PayPal.',
+          400,
+          'business-central'
+        );
+      }
+      const currency = await lcy();
+      const created = await client.request<BcBankAccount>('bankAccounts', {
+        method: 'POST',
+        body: toBcBankAccount(input, currency),
+      });
+      return fromBcBankAccount(created, currency);
     },
   };
 }

@@ -21,6 +21,7 @@ import type {
   AttachmentUpload,
   Inbox,
   BankAccount,
+  BankAccountInput,
   BankTransaction,
   BankTransactionInput,
   BankTransactionQuery,
@@ -194,6 +195,41 @@ export interface BankModule {
   /** Transfers between the organisation's own bank accounts, newest first. */
   transfers?(query?: ListQuery): Promise<Page<BankTransfer>>;
   createTransfer?(input: BankTransferInput): Promise<BankTransfer>;
+  /** Add a bank account to the books ("Add bank account"). Needs `newAccount`. */
+  createAccount?(input: BankAccountInput): Promise<BankAccount>;
+  /** What `createAccount` accepts in this source. */
+  readonly newAccount?: NewBankAccountRules;
+}
+
+/** A sentence about the source system, with an optional deep link into it. */
+export interface SourceHint {
+  text: string;
+  href?: string;
+  linkLabel?: string;
+}
+
+/** Per-source rules for a new bank account, so the form asks only what the source takes. */
+export interface NewBankAccountRules {
+  /** Account kinds the source can record (BC bank accounts have no kind). */
+  types: NonNullable<BankAccountInput['type']>[];
+  /** Xero needs a bank account number on a BANK account. */
+  accountNumberRequired?: boolean;
+  /** Whether the source has an IBAN field. */
+  iban?: boolean;
+  /** Longest code and name the source accepts. */
+  codeMaxLength: number;
+  nameMaxLength: number;
+  accountNumberMaxLength: number;
+  /** Whether the code can be left blank. */
+  codeOptional: boolean;
+  /** True when bank account codes share the chart of accounts' codes (Xero), so they must not clash. */
+  codeSharedWithChart?: boolean;
+  /** What happens to a blank code in this source, shown under the field. */
+  codeHint?: string;
+  /** Where to add a currency the books don't have yet, shown under the currency picker. */
+  currencySetup: SourceHint;
+  /** Something the source's API can't set on a new account, said plainly on the form. */
+  note?: SourceHint;
 }
 
 export interface AccountsModule {

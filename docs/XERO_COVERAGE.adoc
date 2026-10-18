@@ -57,7 +57,7 @@ Base URL: `https://api.xero.com/api.xro/2.0`
 |===
 |Method |Path |Status |Notes
 |GET |`/Accounts` |Implemented |Chart of accounts, bank accounts.
-|PUT |`/Accounts` |Implemented |New account.
+|PUT |`/Accounts` |Implemented |New account; new bank account (`Type: BANK`, see link:BANK_ACCOUNTS.adoc[Adding a bank account]).
 |GET |`/Accounts/{AccountID}` |Partly |Account data read through `GET /Accounts`.
 |POST |`/Accounts/{AccountID}` |Missing |Edit or archive an account.
 |DELETE |`/Accounts/{AccountID}` |Missing |Delete an unused account.
