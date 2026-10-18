@@ -64,4 +64,27 @@ for key in ${COMPANIES}; do
     warn "xero.sh not found at ${XERO_SH}; smoke test skipped (clone the knowall-ai pack: step 04)"
   fi
 done
+# Keep each company's Xero access token fresh (they last 30 minutes), so a call or chat never meets a
+# stale cached token. A read-only Organisation call through xero.sh every 20 minutes.
+sudo tee "/etc/systemd/system/xero-warm-${AGENT_NAME}.service" >/dev/null <<UNIT
+[Unit]
+Description=Keep ${AGENT_NAME}'s Xero tokens fresh (read-only Organisation call through xero.sh)
+[Service]
+Type=oneshot
+User=${AGENT_NAME}
+Environment=HOME=/home/${AGENT_NAME}
+EnvironmentFile=${HERMES_DIR}/.env
+ExecStart=/bin/bash -c 'for k in \$(echo "\${XERO_COMPANIES:-uk}" | tr ",;" "  "); do XERO_COMPANY=\$k "\$XERO_SH" GET Organisation >/dev/null && echo "xero \$k ok" || echo "xero \$k FAILED"; done'
+UNIT
+sudo tee "/etc/systemd/system/xero-warm-${AGENT_NAME}.timer" >/dev/null <<UNIT
+[Unit]
+Description=Refresh ${AGENT_NAME}'s Xero tokens every 20 minutes
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=20min
+[Install]
+WantedBy=timers.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl enable --now "xero-warm-${AGENT_NAME}.timer" >/dev/null 2>&1
 echo "Done. Bookie reads Xero with XERO_SCOPE from ~/.hermes/.env (read-only scopes by default)."
