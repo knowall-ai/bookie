@@ -368,7 +368,8 @@ export function UserMenu({
       return;
     }
     if (e.key === 'Tab') {
-      setOpen(false);
+      // Close after the browser has moved focus on, so Tab reaches the next control.
+      window.setTimeout(() => setOpen(false), 0);
       return;
     }
     const list = items();
