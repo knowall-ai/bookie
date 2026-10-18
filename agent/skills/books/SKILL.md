@@ -24,10 +24,10 @@ there is a Xero company key and/or a Business Central company:
 | Xero | `XERO_COMPANY=<key> "$XERO_SH" GET "<endpoint>"` | `XERO_COMPANIES` (keys), credentials in `~/.config/xero/` |
 | Business Central | MCP server `business-central` (`BC_COMPANY`) and, when configured, `business-central-2` (the second BC company) | `BC_COMPANIES` in `~/.hermes/.env` |
 
-KnowAll's own install: KnowAll AI Ltd is in Xero (`uk`) **and** Business Central (`business-central`);
-KnowAll AI SAS de CV is in Business Central only (`business-central-2`).
-In Business Central a company's *name* can differ from its display name:
-the MCP server takes the name, so `BC_COMPANY` must be the name.
+Which organisation lives where (and its Xero key or BC server) is in `ORGANISATIONS` in SOUL.md: that
+is this install's own configuration, so read it there rather than assuming. In Business Central the MCP
+server takes the company's *name*, which can differ from the display name people use (a company shown
+as "Contoso Ltd" may be named "My Company"); `ORGANISATIONS` gives both where they differ.
 
 Rules:
 - If the person names the organisation, use it. If their question implies one (currency, country,
