@@ -84,6 +84,7 @@ declare -A CB=(
   [AVATAR_HUD]=1             # usage, subscription and machine telemetry panels on (Ben, 2026-10-18: wants them with the feed)
   [AVATAR_DEV]=1             # but do show the DEEP BRAIN activity feed, top left
   [HUD_VOICE_MODEL]="${VOICE_LIVE_MODEL:-gpt-live-1}"   # the HUD label otherwise shows the rollback realtime model
+  [USAGE_PROVIDER]=codex     # HUD subscription gauge from Hermes's ChatGPT (openai-codex) sign-in, as Poppie
   [AVATAR_LASHES]=off        # Bookie has no eyelashes (Presence's default draws Sallie's)
   [AVATAR_TICKER]=0          # no scrolling activity ticker along the bottom of the video (as Poppie)
   [VOICE_MODE]="${VOICE_MODE}" [VOICE_REALTIME_PROVIDER]="${VOICE_REALTIME_PROVIDER}"
