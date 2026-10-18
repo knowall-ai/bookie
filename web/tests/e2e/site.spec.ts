@@ -42,6 +42,13 @@ test.describe('public site', () => {
     await expect(page.getByText(/not used to train or fine-tune any model/)).toBeVisible();
   });
 
+  test('announces watch-only Bitcoin wallets', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('site-bitcoin')).toContainText('never spend');
+    await page.getByText('Can Bookie show a Bitcoin wallet, and is that safe?').click();
+    await expect(page.getByText(/An xpub can see a wallet but can never spend/)).toBeVisible();
+  });
+
   test('install links to Microsoft admin consent with our callback', async ({ page }) => {
     await page.goto('/install');
     const link = page.getByRole('link', { name: 'Install for my organisation' });

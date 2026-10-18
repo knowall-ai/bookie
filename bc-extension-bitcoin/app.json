@@ -1,0 +1,30 @@
+{
+  "id": "b43701b1-70d6-43d4-9d83-3a9a6dc6a208",
+  "name": "Bookie Bitcoin",
+  "publisher": "KnowAll",
+  "version": "1.1.0.0",
+  "brief": "Keep a Bitcoin wallet's public descriptor on a Business Central bank account, for Bookie",
+  "description": "Adds a Bitcoin wallet descriptor (xpub, ypub, zpub or output descriptor) and script type to Bank Accounts, shows them on the Bank Account Card for users with the BOOKIE BTC EDIT permission set, and publishes the bank accounts that have one at api/bookie/bitcoin/v1.0/bitcoinWallets so the Bookie accounting portal (getbook.ie) can show the wallet's transactions. Watch-only: a descriptor can't spend.",
+  "privacyStatement": "https://getbook.ie/privacy",
+  "EULA": "https://getbook.ie/terms",
+  "help": "https://github.com/knowall-ai/bookie/blob/main/docs/BITCOIN.adoc",
+  "url": "https://getbook.ie",
+  "dependencies": [],
+  "screenshots": [],
+  "platform": "27.0.0.0",
+  "application": "27.0.0.0",
+  "runtime": "16.0",
+  "target": "Cloud",
+  "idRanges": [
+    {
+      "from": 50250,
+      "to": 50299
+    }
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": true,
+    "allowDownloadingSource": true,
+    "includeSourceInSymbolFile": true
+  },
+  "features": ["NoImplicitWith"]
+}

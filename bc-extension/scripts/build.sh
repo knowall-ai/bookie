@@ -2,6 +2,7 @@
 # Compile the Bookie BC extension on Linux or macOS, without Docker or a BC server.
 #
 #   bc-extension/scripts/build.sh            # output/KnowAll_Bookie BC API Extension_<version>.app
+#   APP=bitcoin bc-extension/scripts/build.sh  # ../bc-extension-bitcoin/output/KnowAll_Bookie Bitcoin_<version>.app
 #
 # The AL compiler comes from either:
 #   - the cross-platform dotnet tool (what CI uses):
@@ -18,7 +19,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CACHE="$ROOT/.alpackages"
-OUT="$ROOT/output"
+# APP=bitcoin builds the Bookie Bitcoin extension (../bc-extension-bitcoin) with the same symbols.
+case "${APP:-}" in
+  "") PROJECT="$ROOT" ;;
+  bitcoin) PROJECT="$(cd "$ROOT/../bc-extension-bitcoin" && pwd)" ;;
+  *) echo "Unknown APP '${APP}': leave it empty or use bitcoin." >&2; exit 1 ;;
+esac
+OUT="$PROJECT/output"
 BC_VERSION="${BC_SYMBOLS_VERSION:-27.0.38460.40293}"
 PLATFORM_VERSION="${BC_PLATFORM_VERSION:-27.0.40210}"
 FEED="https://dynamicssmb2.pkgs.visualstudio.com/571e802d-b44b-45fc-bd41-4cfddec73b44/_packaging/b656b10c-3de0-440c-900c-bc2e4e86d84c/nuget/v3/flat2"
@@ -65,7 +72,7 @@ fi
 
 rm -f "$OUT"/*.app
 "${RUN[@]}" \
-  /project:"$ROOT" \
+  /project:"$PROJECT" \
   /packagecachepath:"$CACHE" \
   /outfolder:"$OUT" \
   /analyzer:"$ANALYZERS/Microsoft.Dynamics.Nav.CodeCop.dll" \

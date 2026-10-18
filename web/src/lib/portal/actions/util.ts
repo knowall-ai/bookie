@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AccessChangeError, SettingsAccessError } from '@/lib/auth/access';
 import { DirectoryError } from '@/lib/directory/types';
 import { isConnectorError } from '@/lib/connectors/types';
+import { WalletError } from '@/lib/bitcoin/errors';
 
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -34,7 +35,8 @@ export function describeError(error: unknown): string {
     isConnectorError(error) ||
     error instanceof SettingsAccessError ||
     error instanceof AccessChangeError ||
-    error instanceof DirectoryError
+    error instanceof DirectoryError ||
+    error instanceof WalletError
   )
     return error.message;
   if (error instanceof z.ZodError) return error.issues.map((i) => i.message).join(' ');

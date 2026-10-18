@@ -46,6 +46,7 @@ import { isForeign } from '@/lib/domain/currency';
 import { bcFiscalYear } from './fiscal-year';
 import { invoiceBuckets } from '../buckets';
 import { bcHistory } from './modules/history';
+import { bcBitcoin } from './modules/bitcoin';
 import { todayIso } from '@/lib/domain/dates';
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -962,6 +963,7 @@ export function createBcConnector({
     // users: Business Central's standard API v2.0 has no users endpoint (only the
     // separate automation API, which needs admin permissions), so no Users list.
     history: bcHistory(client),
+    bitcoin: bcBitcoin(client),
 
     sourceLink(entity, id) {
       const pages = { invoice: 9301, bill: 9308, quote: 9300, contact: 22 };

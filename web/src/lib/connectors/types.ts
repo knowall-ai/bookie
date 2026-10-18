@@ -320,6 +320,31 @@ export interface CaptureModule {
   capturedBills(query?: ListQuery): Promise<Page<Invoice>>;
 }
 
+/**
+ * A bank account that holds a Bitcoin wallet's public descriptor in the source
+ * system. The descriptor never leaves the server: the UI only gets a summary.
+ */
+export interface SourceBitcoinWallet {
+  bankAccountId: string;
+  bankAccountNumber: string;
+  name: string;
+  /** The bank account's currency code ('' when the source leaves it blank, i.e. LCY). */
+  currencyCode: string;
+  /** xpub/ypub/zpub or an output descriptor, as typed into the source. */
+  descriptor: string;
+  /** Script type for a bare xpub; undefined = from the key prefix or the descriptor. */
+  scriptType?: 'pkh' | 'wpkh' | 'sh-wpkh' | 'tr' | 'wsh-multi';
+}
+
+export type SourceBitcoinWallets =
+  | { status: 'ok'; wallets: SourceBitcoinWallet[] }
+  /** The extension that holds wallets isn't installed (or the user lacks its permission set). */
+  | { status: 'unavailable'; reason: string };
+
+export interface BitcoinWalletsModule {
+  wallets(): Promise<SourceBitcoinWallets>;
+}
+
 /** The text the Bookie agent puts on bills it drafts from captured documents. */
 export const CAPTURED_BY_BOOKIE = 'Captured by Bookie';
 
@@ -352,6 +377,8 @@ export interface AccountingConnector {
   capture?: CaptureModule;
   users?: UsersModule;
   history?: HistoryModule;
+  /** Bitcoin wallets kept in the source system itself (BC: the Bookie Bitcoin extension). */
+  bitcoin?: BitcoinWalletsModule;
 
   /** Deep link to a document in the source system, for "Open in Xero/BC". */
   sourceLink?(entity: 'invoice' | 'bill' | 'quote' | 'contact', id: string): string | undefined;

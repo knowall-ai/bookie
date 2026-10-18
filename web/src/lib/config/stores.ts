@@ -2,10 +2,18 @@ import 'server-only';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { open, seal } from './crypto';
-import { DEFAULT_SETTINGS, type ConfigStore, type Connection, type TenantSettings } from './types';
+import {
+  DEFAULT_SETTINGS,
+  type BitcoinWalletRecord,
+  type ConfigStore,
+  type Connection,
+  type TenantSettings,
+} from './types';
 
 const SETTINGS_RECORD = 'settings';
 const connectionRecord = (id: string) => `connection:${id}`;
+const WALLET_PREFIX = 'bitcoin-wallet:';
+const walletRecord = (id: string) => `${WALLET_PREFIX}${id}`;
 
 /** Shared logic: every store is a set of named, sealed records for one tenant. */
 abstract class SealedRecordStore implements ConfigStore {
@@ -49,6 +57,24 @@ abstract class SealedRecordStore implements ConfigStore {
 
   async deleteConnection(id: string): Promise<void> {
     await this.remove(connectionRecord(id));
+  }
+
+  async listWallets(): Promise<BitcoinWalletRecord[]> {
+    const wallets: BitcoinWalletRecord[] = [];
+    for (const [name, sealed] of await this.readAll()) {
+      if (name.startsWith(WALLET_PREFIX)) {
+        wallets.push(open<BitcoinWalletRecord>(this.tenantId, name, sealed));
+      }
+    }
+    return wallets.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async saveWallet(wallet: BitcoinWalletRecord): Promise<void> {
+    await this.write(walletRecord(wallet.id), seal(this.tenantId, walletRecord(wallet.id), wallet));
+  }
+
+  async deleteWallet(id: string): Promise<void> {
+    await this.remove(walletRecord(id));
   }
 
   async getSettings(): Promise<TenantSettings> {

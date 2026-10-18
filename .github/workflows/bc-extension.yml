@@ -1,6 +1,6 @@
 name: BC extension
 
-# Compiles the Bookie Business Central extension (bc-extension/) on Linux with the AL
+# Compiles the Bookie Business Central extensions (bc-extension/, bc-extension-bitcoin/) on Linux with the AL
 # compiler dotnet tool and Microsoft's public symbol packages, with CodeCop,
 # PerTenantExtensionCop and UICop, warnings as errors. It never publishes to a BC
 # environment; see bc-extension/README.md for that.
@@ -9,11 +9,13 @@ on:
   pull_request:
     paths:
       - "bc-extension/**"
+      - "bc-extension-bitcoin/**"
       - ".github/workflows/bc-extension.yml"
   push:
     branches: [main]
     paths:
       - "bc-extension/**"
+      - "bc-extension-bitcoin/**"
       - ".github/workflows/bc-extension.yml"
   workflow_dispatch:
 
@@ -56,4 +58,13 @@ jobs:
         with:
           name: bookie-bc-extension
           path: bc-extension/output/*.app
+          if-no-files-found: error
+
+      - name: Compile the Bookie Bitcoin extension
+        run: APP=bitcoin AL_COMPILER=tool bc-extension/scripts/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bookie-bitcoin-bc-extension
+          path: bc-extension-bitcoin/output/*.app
           if-no-files-found: error
