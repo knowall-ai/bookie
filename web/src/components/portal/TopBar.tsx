@@ -20,6 +20,7 @@ import { cn } from '@/lib/ui/cn';
 import type { OrgRef } from '@/lib/domain/types';
 import { CREATE_ITEMS, NAV, type ModuleAvailability, type NavTab } from '@/lib/portal/nav';
 import { BookieLauncher } from '@/components/bookie/BookieLauncher';
+import { initials, nextMenuIndex } from './user-menu';
 
 /* ------------------------------------------------------------------ */
 /* Small popover helper                                                */
@@ -296,15 +297,50 @@ function CreateMenu({ base, modules }: { base: string; modules: ModuleAvailabili
   );
 }
 
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase())
-    .join('');
+/** The Microsoft 365 profile photo from /api/me/photo, over initials until (and unless) it loads. */
+function Avatar({ name, photo, className }: { name: string; photo: boolean; className: string }) {
+  const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading');
+  const img = useRef<HTMLImageElement>(null);
+  // The image can finish (or 404) before hydration attaches onLoad/onError.
+  useEffect(() => {
+    const el = img.current;
+    if (el?.complete) setState(el.naturalWidth > 0 ? 'loaded' : 'failed');
+  }, []);
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'bg-brand/15 text-brand-bright border-brand/30 relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border font-bold',
+        className
+      )}
+    >
+      {initials(name)}
+      {photo && state !== 'failed' && (
+        // A plain <img>: a tiny private image from our own route, and it needs onError for the fallback.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={img}
+          src="/api/me/photo"
+          alt=""
+          draggable={false}
+          decoding="async"
+          data-testid="user-photo"
+          onLoad={() => setState('loaded')}
+          onError={() => setState('failed')}
+          className={cn(
+            'absolute inset-0 h-full w-full object-cover transition-opacity',
+            state === 'loaded' ? 'opacity-100' : 'opacity-0'
+          )}
+        />
+      )}
+    </span>
+  );
 }
 
+const menuItem =
+  'text-body hover:bg-surface-3 hover:text-ink focus-visible:bg-surface-3 focus-visible:text-ink flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none';
+
+/** The account menu, like Thyme's: photo and chevron, then name, email, Settings and Sign out. */
 export function UserMenu({
   user,
   devMode,
@@ -313,37 +349,105 @@ export function UserMenu({
   devMode?: string;
 }) {
   const { open, setOpen, ref } = usePopover();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  // Demo users have no Microsoft account, so there is no photo to ask for.
+  const photo = devMode !== 'demo';
+
+  const items = () =>
+    Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+  useEffect(() => {
+    if (open) menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [open]);
+
+  const onMenuKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setOpen(false);
+      trigger.current?.focus();
+      return;
+    }
+    if (e.key === 'Tab') {
+      setOpen(false);
+      return;
+    }
+    const list = items();
+    const next = nextMenuIndex(
+      e.key,
+      list.indexOf(document.activeElement as HTMLElement),
+      list.length
+    );
+    if (next !== null) {
+      e.preventDefault();
+      list[next]?.focus();
+    }
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
+        ref={trigger}
         type="button"
         onClick={() => setOpen(!open)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' && !open) {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
         aria-label="Account menu"
+        aria-haspopup="menu"
         aria-expanded={open}
-        className="bg-brand/15 text-brand-bright border-brand/30 flex h-9 w-9 items-center justify-center rounded-full border text-xs font-bold"
+        aria-controls={open ? 'user-menu' : undefined}
+        data-testid="user-menu-button"
+        className="hover:bg-surface-2 focus-visible:ring-brand/60 flex items-center gap-1 rounded-full p-0.5 transition-colors outline-none focus-visible:ring-2 sm:pr-1.5"
       >
-        {initials(user.name)}
+        <Avatar name={user.name} photo={photo} className="h-8 w-8 text-xs" />
+        <ChevronDown
+          className={cn(
+            'text-muted hidden h-4 w-4 transition-transform sm:block',
+            open && 'rotate-180'
+          )}
+        />
       </button>
       {open && (
-        <div className={cn(panel, 'right-0 w-64')}>
-          <div className="border-line border-b px-3 py-2.5">
-            <p className="text-ink truncate text-sm font-semibold">{user.name}</p>
-            <p className="text-muted truncate text-xs">{user.email}</p>
-            {devMode && <p className="text-warn mt-1 text-[11px]">Dev sign-in: {devMode}</p>}
+        <div
+          ref={menu}
+          id="user-menu"
+          role="menu"
+          aria-label="Account"
+          onKeyDown={onMenuKey}
+          data-testid="user-menu"
+          className={cn(panel, 'right-0 w-72')}
+        >
+          <div className="border-line flex items-center gap-3 border-b px-3 pt-2 pb-3">
+            <Avatar name={user.name} photo={photo} className="h-10 w-10 text-sm" />
+            <div className="min-w-0">
+              <p className="text-ink truncate text-sm font-semibold">{user.name}</p>
+              <p className="text-muted truncate text-xs">{user.email}</p>
+              {devMode && <p className="text-warn mt-1 text-[11px]">Dev sign-in: {devMode}</p>}
+            </div>
           </div>
-          <Link
-            href="/portal/settings"
-            className="text-body hover:bg-surface-3 mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
-          >
-            <Settings className="h-4 w-4" /> Settings and connections
-          </Link>
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: '/' })}
-            className="text-danger hover:bg-danger/10 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm"
-          >
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
+          <div className="pt-1">
+            <Link
+              href="/portal/settings"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => setOpen(false)}
+              className={menuItem}
+            >
+              <Settings className="text-muted h-4 w-4" /> Settings
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => signOut({ callbackUrl: '/' })}
+              className={menuItem}
+            >
+              <LogOut className="text-muted h-4 w-4" /> Sign out
+            </button>
+          </div>
         </div>
       )}
     </div>
