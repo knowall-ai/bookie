@@ -37,7 +37,7 @@ API extension so either can be installed alone.
 
 [cols="1,3"]
 |===
-| App | `Bookie Bitcoin` by `KnowAll`, id `b43701b1-70d6-43d4-9d83-3a9a6dc6a208`, BC 27.0 or later, cloud
+| App | `Bookie Bitcoin` by `KnowAll`, id `b43701b1-70d6-43d4-9d83-3a9a6dc6a208`, version 1.1.0.0 (the first published version), BC 27.0 or later, cloud
 | Object ids | 50250 to 50299 (the Bookie BC API extension uses 50200 to 50249 and Thyme 50100 to 50199, so all three can be installed together)
 | Table | *Bookie BTC Wallet*: one row per bank account (`Bank Account No.`) with `Bitcoin Wallet Descriptor` (Text[1024]) and `Bitcoin Script Type` (Automatic, WPKH, SHWPKH, TR, WSHMulti, PKH). It is a table of its own, not fields on Bank Account, so reading it takes `BOOKIE BTC READ`: Bank Account rights alone (personalisation, Edit in Excel, OData, reports) never reach the descriptor. Entering a private key is refused. Deleting the bank account deletes its wallet row.
 | Page extension | *Bank Account Card*: a *Bitcoin Wallet* group that reads and writes that table, shown only to users who can read it (`BOOKIE BTC READ` or `EDIT`), editable only with `BOOKIE BTC EDIT`. Clearing the descriptor removes the wallet.
@@ -60,7 +60,7 @@ dotnet tool install --global Microsoft.Dynamics.BusinessCentral.Development.Tool
 bc-extension-bitcoin/build.sh                  # symbols from the public feed, `al` tool
 SYMBOLS=sandbox bc-extension-bitcoin/build.sh  # symbols from your Sandbox (az login), `al` tool
 ALC_DLL=~/.vscode/extensions/ms-dynamics-smb.al-*/bin/alc.dll bc-extension-bitcoin/build.sh  # another alc
-# -> bc-extension-bitcoin/output/KnowAll_Bookie Bitcoin_1.0.0.0.app
+# -> bc-extension-bitcoin/output/KnowAll_Bookie Bitcoin_1.1.0.0.app
 ----
 
 Or open `bc-extension-bitcoin/` in VS Code with the AL Language extension, run *AL: Download

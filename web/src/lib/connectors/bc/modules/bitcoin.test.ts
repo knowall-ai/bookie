@@ -57,6 +57,17 @@ describe('fromBcBitcoinWallet', () => {
       })
     ).toBeUndefined();
   });
+
+  it('skips a wallet whose bank account no longer exists (empty GUID)', () => {
+    expect(
+      fromBcBitcoinWallet({
+        id: 'w3',
+        bankAccountId: '00000000-0000-0000-0000-000000000000',
+        number: 'BTC-09',
+        bitcoinWalletDescriptor: ZPUB,
+      })
+    ).toBeUndefined();
+  });
 });
 
 describe('bcBitcoin', () => {

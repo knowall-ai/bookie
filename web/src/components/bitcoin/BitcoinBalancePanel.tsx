@@ -15,7 +15,6 @@ import { formatBtc } from '@/lib/bitcoin/format';
 import { formatDate, formatMoney } from '@/lib/ui/format';
 import { cn } from '@/lib/ui/cn';
 import { LocalTime } from '@/components/history/LocalTime';
-import { NotAvailableValue } from '@/components/ui/Money';
 import { BtcAmount, FiatValueView } from './BitcoinParts';
 
 type Unit = 'btc' | 'fiat';
@@ -187,8 +186,7 @@ export function BitcoinBalancePanel({
         </div>
       ) : fiat ? (
         <p className="text-faint text-xs">
-          <NotAvailableValue reason={view.seriesSource} /> No balance history in {currencyLabel}:{' '}
-          {view.seriesSource}
+          No balance history in {currencyLabel}: {view.seriesSource}
         </p>
       ) : null}
 

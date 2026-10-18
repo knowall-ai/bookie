@@ -22,9 +22,12 @@ table 50250 "Bookie BTC Wallet"
             TableRelation = "Bank Account";
             NotBlank = true;
         }
+        // Always the bank account's current SystemId (the id API v2.0 uses), never a stored copy.
         field(2; "Bank Account Id"; Guid)
         {
             Caption = 'Bank Account Id';
+            FieldClass = FlowField;
+            CalcFormula = lookup("Bank Account".SystemId where("No." = field("Bank Account No.")));
             Editable = false;
         }
         field(10; "Wallet Descriptor"; Text[1024])
@@ -69,30 +72,15 @@ table 50250 "Bookie BTC Wallet"
     }
 
     trigger OnInsert()
+    var
+        BankAccount: Record "Bank Account";
     begin
-        SetBankAccountId();
-    end;
-
-    trigger OnModify()
-    begin
-        SetBankAccountId();
-    end;
-
-    trigger OnRename()
-    begin
-        SetBankAccountId();
+        // A wallet only ever belongs to a bank account that exists.
+        BankAccount.Get(Rec."Bank Account No.");
     end;
 
     var
         PrivateKeyErr: Label 'That is a private key. Bookie only needs the public key (xpub, ypub or zpub) or an output descriptor. Never enter a private key here.';
-
-    local procedure SetBankAccountId()
-    var
-        BankAccount: Record "Bank Account";
-    begin
-        if BankAccount.Get(Rec."Bank Account No.") then
-            Rec."Bank Account Id" := BankAccount.SystemId;
-    end;
 
     /// <summary>True when any key in the text starts with a private-key prefix (at the start or after "(", "," or "]").</summary>
     local procedure IsPrivateKey(Value: Text): Boolean
