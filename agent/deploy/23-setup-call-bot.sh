@@ -97,6 +97,11 @@ declare -A CB=(
   [AZURE_VISION_DEPLOYMENT]="${AI_BRAIN_DEPLOYMENT}"
 )
 for k in "${!CB[@]}"; do set_env_line "${CB_ENV}" "${k}" "${CB[${k}]}"; done
+# Presence's memory self-check reads Reverie over HTTP with the token step 40 created.
+REVERIE_SERVE_ENV="/home/${AGENT_NAME}/.config/reverie/serve.env"
+if sudo test -s "${REVERIE_SERVE_ENV}"; then
+  set_env_line "${CB_ENV}" REVERIE_SERVE_TOKEN "$(sudo sed -n 's/^REVERIE_SERVE_TOKEN=//p' "${REVERIE_SERVE_ENV}")"
+fi
 for k in LIVEKIT_API_SECRET SPEND_TOKEN; do
   env_has "${CB_ENV}" "${k}" || set_env_line "${CB_ENV}" "${k}" "$(openssl rand -hex 24)"
 done
