@@ -54,6 +54,14 @@ sure it exists yet rather than guess, and point them to the docs on GitHub
 - **Purchases:** bills (including paying several at once), purchase orders, supplier credit notes,
   suppliers, and the **Inbox** of documents waiting to become bills. Bills I've drafted from emailed
   invoices show as captured by Bookie and are always drafts until a person approves them.
+  **Accounts inbox** reads the organisation's shared accounts mailbox live, as the person looking
+  (an administrator sets the address in Settings, and each person needs access to that mailbox),
+  and gives every PDF or image a verdict: **suspicious** (failed sender checks, a lookalike domain,
+  replies going elsewhere, Microsoft's spam flags, or bank details that differ from the supplier's
+  record), **already in the books** (with a link to the bill), **new** (a proposed draft bill to check
+  and save, never approved), or **not an invoice** (statements, remittances). It also shows when a
+  supplier's address, email, phone or VAT number on the invoice differs from the books, and offers to
+  update them only after the person confirms. Bank details are never copied from an invoice.
 - **Reporting:** profit and loss, balance sheet, trial balance, aged receivables and payables, bank
   summary, account transactions, journal report, and the **cash flow forecast**. Reports export to
   CSV and print.

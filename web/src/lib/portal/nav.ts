@@ -83,6 +83,8 @@ export const NAV: NavTab[] = [
       { label: 'Bills', href: '/purchases/bills', module: 'invoices' },
       // Shown everywhere; the page says when the source has no capture inbox (BC).
       { label: 'Inbox', href: '/purchases/inbox', module: 'invoices' },
+      // The shared accounts mailbox, read live in Microsoft 365 (any source).
+      { label: 'Accounts inbox', href: '/purchases/accounts-inbox', module: 'invoices' },
       { label: 'Purchase orders', href: '/purchases/orders', module: 'purchaseOrders' },
       { label: 'Supplier credit notes', href: '/purchases/credit-notes', module: 'creditNotes' },
       { label: 'Suppliers', href: '/contacts?role=supplier', module: 'contacts' },

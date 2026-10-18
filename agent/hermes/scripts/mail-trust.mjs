@@ -4,6 +4,7 @@
 // Prints JSON: from / sender / reply-to / return-path domains and the SPF, DKIM, DMARC and
 // composite-auth results Exchange Online recorded when the message arrived. Reads only; no body,
 // no attachments. Uses Bookie's delegated Graph sign-in from Agent Presence.
+// The portal's Accounts inbox applies the same checks from web/src/lib/mail/trust.ts: change both.
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 

@@ -29,6 +29,9 @@ export const DEMO_GUEST: AuthContext['user'] = {
   userType: 'Guest',
 };
 
+/** The demo tenant's fictional shared accounts mailbox (Purchases › Accounts inbox). */
+export const DEMO_MAILBOX = 'accounts@contoso.example';
+
 /** The demo tenant's display name, used in "Ask an administrator at …". */
 export const DEMO_TENANT_NAME = 'Contoso';
 

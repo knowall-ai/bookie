@@ -166,6 +166,13 @@ export interface Contact {
    * currency (BC sums a foreign-currency contact's entries without converting them).
    */
   balancesNote?: string;
+  /**
+   * The bank details on file for this contact, as the source holds them (Xero
+   * `BankAccountDetails`). `null`: the source keeps bank details and has none for
+   * this contact. `undefined`: the source doesn't expose them (Business Central's API).
+   * Read only: Bookie never changes a contact's bank details.
+   */
+  bankDetails?: string | null;
   updatedAt?: string;
 }
 

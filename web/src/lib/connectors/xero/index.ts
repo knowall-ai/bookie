@@ -17,6 +17,7 @@ import {
   fromXeroInvoice,
   today,
   toXeroContact,
+  keepOtherXeroEntries,
   toXeroInvoice,
   XERO_INVOICE_STATUS,
   type XeroContact,
@@ -183,7 +184,14 @@ function xeroContacts(client: XeroClient): ContactsModule {
     },
     get: one,
     create: (input) => save(toXeroContact(input)),
-    update: (id, input) => save(toXeroContact(input, id)),
+    async update(id, input) {
+      const body = toXeroContact(input, id);
+      if (!body.Addresses && !body.Phones) return save(body);
+      const current = await client.request<{ Contacts: XeroContact[] }>(
+        `Contacts/${encodeURIComponent(id)}`
+      );
+      return save(keepOtherXeroEntries(body, current.Contacts[0]));
+    },
     archive: (id) => save({ ContactID: id, ContactStatus: 'ARCHIVED' }),
   };
 }

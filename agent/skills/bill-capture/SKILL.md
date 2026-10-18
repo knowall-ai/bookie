@@ -138,7 +138,9 @@ composite-auth results. Then decide **trusted**, **unverified** or **suspicious*
 - **Suspicious** (any one is enough): DMARC `fail`, or compauth `fail`; `flaggedByMicrosoft` (Microsoft scored it as spam, phishing, spoofing or impersonation); the from domain is a lookalike
   of a known supplier or of the organisation's own domain (swapped or added letters, `rn` for `m`, a different TLD,
   extra words such as `-billing`); reply-to on a different domain from the sender; bank details that
-  differ from the supplier's record in Xero/BC; a payment link to a site that isn't the supplier's;
+  differ from the supplier's record in Xero/BC, or bank details on the invoice when the record has
+  none (the classic invoice-fraud signal: say "verify by phone using a number you already hold, not
+  the one on the invoice", and never propose or apply bank details from an invoice); a payment link to a site that isn't the supplier's;
   pressure ("urgent", "final notice", "legal action", "pay today to avoid"); the invoice is addressed
   to someone who doesn't exist at the organisation; or a supplier we have never dealt with sending a bill for
   something nobody ordered.

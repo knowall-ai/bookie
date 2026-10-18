@@ -9,6 +9,7 @@ import {
   removeConnection,
   searchPeople,
   updateAccessSettings,
+  updateAccountsMailbox,
   updateConnectorSettings,
 } from '@/lib/connections';
 import { ENTRA_ID, type DirectoryPerson } from '@/lib/directory/types';
@@ -157,6 +158,29 @@ export async function setMembersSeeAllAction(value: boolean): Promise<ActionResu
   try {
     const auth = await requireAuth('/portal/settings');
     await updateAccessSettings(auth, { type: 'membersSeeAll', value: z.boolean().parse(value) });
+    revalidatePath('/portal', 'layout');
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return { ok: false, error: describeError(error) };
+  }
+}
+
+/** Settings › Accounts inbox (members only; enforced in lib/connections.ts). Blank clears it. */
+export async function setAccountsMailboxAction(mailbox: string): Promise<ActionResult> {
+  try {
+    const auth = await requireAuth('/portal/settings');
+    const value = z
+      .union([
+        z.literal(''),
+        z
+          .string()
+          .trim()
+          .toLowerCase()
+          .email('Enter the mailbox address, like accounts@example.com.')
+          .max(320),
+      ])
+      .parse(mailbox.trim());
+    await updateAccountsMailbox(auth, value || undefined);
     revalidatePath('/portal', 'layout');
     return { ok: true, data: undefined };
   } catch (error) {

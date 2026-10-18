@@ -142,6 +142,7 @@ export function DocumentEditor({
   approveLabel = 'Approve',
   approveBody,
   brandingThemes = [],
+  confirmDraft,
 }: {
   heading: string;
   /** Empty or undefined when the source doesn't say: amounts then show without a symbol. */
@@ -177,10 +178,13 @@ export function DocumentEditor({
   approveBody?: string;
   /** Invoice templates; the picker only shows when there is a real choice (two or more). */
   brandingThemes?: EditorOption[];
+  /** Ask before saving the draft (it creates a document in the live books). */
+  confirmDraft?: { title: string; body: string; cta: string };
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [confirmApprove, setConfirmApprove] = useState(false);
+  const [confirmingDraft, setConfirmingDraft] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
   const multiCurrency = currencies.length > 0;
@@ -254,12 +258,21 @@ export function DocumentEditor({
     });
   };
 
+  const usedLines = () =>
+    values.lineItems.filter((l) => l.description || l.unitAmount || l.itemCode);
+  const problem = () =>
+    !values.contactId
+      ? `Choose a ${contactLabel.toLowerCase()}.`
+      : usedLines().length === 0
+        ? 'Add at least one line.'
+        : null;
+
   const submit = (intent: Intent) =>
     start(async () => {
       setError(null);
-      const lines = values.lineItems.filter((l) => l.description || l.unitAmount || l.itemCode);
-      if (!values.contactId) return setError(`Choose a ${contactLabel.toLowerCase()}.`);
-      if (lines.length === 0) return setError('Add at least one line.');
+      const lines = usedLines();
+      const invalid = problem();
+      if (invalid) return setError(invalid);
       const result = await save({
         ...values,
         // A rate only means something on a foreign-currency document.
@@ -269,6 +282,7 @@ export function DocumentEditor({
         status: intent === 'approve' ? 'authorised' : 'draft',
       });
       setConfirmApprove(false);
+      setConfirmingDraft(false);
       if (!result.ok) {
         setError(result.error);
         toast.error(result.error);
@@ -293,7 +307,10 @@ export function DocumentEditor({
       className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        submit('draft');
+        if (!confirmDraft) return submit('draft');
+        const invalid = problem();
+        setError(invalid);
+        if (!invalid) setConfirmingDraft(true);
       }}
     >
       <h1 className="text-ink text-2xl font-bold tracking-tight">{heading}</h1>
@@ -700,6 +717,24 @@ export function DocumentEditor({
           </Button>
         )}
       </div>
+
+      {confirmingDraft && confirmDraft && (
+        <ConfirmDialog
+          title={confirmDraft.title}
+          body={
+            <>
+              {confirmDraft.body}
+              {preview
+                ? ` Preview total ${formatMoney(preview.total, docCurrency)}; ${source} calculates the final figure.`
+                : ` ${source} calculates the tax and total.`}
+            </>
+          }
+          cta={confirmDraft.cta}
+          busy={pending}
+          onCancel={() => setConfirmingDraft(false)}
+          onConfirm={() => submit('draft')}
+        />
+      )}
 
       {confirmApprove && (
         <ConfirmDialog

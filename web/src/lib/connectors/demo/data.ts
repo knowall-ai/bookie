@@ -354,6 +354,8 @@ export function demoData(slug = 'contoso'): DemoData {
       name,
       email,
       phone: `0117 496 0${String(200 + i)}`,
+      // Fictional bank details on file, so the Accounts inbox can compare an invoice's.
+      bankDetails: `Sort code 04-00-0${i}, account 4100000${i}`,
       isCustomer: false,
       isSupplier: true,
       status: 'active' as const,

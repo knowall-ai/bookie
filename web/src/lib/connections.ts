@@ -188,6 +188,18 @@ export async function updateConnectorSettings(
   forgetBcDiscovery(auth);
 }
 
+/** Settings › Accounts inbox: the shared mailbox address, or `undefined` to clear it. Members only. */
+export async function updateAccountsMailbox(
+  auth: AuthContext,
+  mailbox: string | undefined
+): Promise<void> {
+  assertCanManageSettings(auth.user);
+  const store = configStoreFor(auth);
+  const settings = await store.getSettings();
+  settings.accountsMailbox = mailbox;
+  await store.saveSettings(settings);
+}
+
 /**
  * Settings › People and access. Members only, so a guest can never widen their
  * own access. Changes take effect on the next request (listOrgs re-reads them).

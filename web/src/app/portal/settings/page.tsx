@@ -15,6 +15,7 @@ import { BcCompanies } from '@/components/settings/BcCompanies';
 import { XeroStatusToast } from '@/components/settings/XeroStatusToast';
 import { BcLiveUpdates } from '@/components/settings/BcLiveUpdates';
 import { PeopleAccess } from '@/components/settings/PeopleAccess';
+import { AccountsMailbox } from '@/components/settings/AccountsMailbox';
 import { bcWebhooksConfigured } from '@/lib/webhooks/config';
 import { signInStatuses } from '@/lib/directory/graph';
 
@@ -164,6 +165,8 @@ export default async function SettingsPage({
             orgs={accessOrgs}
           />
         )}
+
+        {!storeError && <AccountsMailbox mailbox={settings.accountsMailbox} />}
 
         <section className="card p-5" aria-labelledby="data-title">
           <div className="flex items-start gap-4">

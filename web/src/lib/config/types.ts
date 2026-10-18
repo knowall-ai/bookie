@@ -79,6 +79,11 @@ export interface TenantSettings {
    * user's own plans (rent, salaries, a new contract), never accounting data.
    */
   forecast?: Record<string, { planned: PlannedItem[] }>;
+  /**
+   * The shared mailbox suppliers send bills to (Purchases › Accounts inbox). Bookie reads
+   * it live with each person's own Microsoft 365 access; it stores only the address.
+   */
+  accountsMailbox?: string;
 }
 
 export const DEFAULT_SETTINGS: TenantSettings = {
