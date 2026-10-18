@@ -10,15 +10,18 @@ import {
 } from '@/lib/bitcoin/wallets';
 import { Badge } from '@/components/ui/Badge';
 import { buttonClass } from '@/components/ui/Button';
-import { BtcAmount, GbpValueView } from './BitcoinParts';
+import { BtcAmount, FiatValueView } from './BitcoinParts';
 
 async function WalletBalance({
   auth,
   scope,
+  currency,
   wallet,
 }: {
   auth: AuthContext;
   scope: WalletScope;
+  /** The organisation's base currency, or undefined when its books don't say. */
+  currency: string | undefined;
   wallet: WalletSummary;
 }) {
   const load = await loadWalletSummary(auth, scope, wallet);
@@ -30,7 +33,7 @@ async function WalletBalance({
     );
   }
   const { confirmedSats, pendingSats } = load.scan.balance;
-  const gbp = await valueBalance(confirmedSats, load.source);
+  const value = await valueBalance(confirmedSats, load.source, currency);
   return (
     <>
       <div>
@@ -45,9 +48,11 @@ async function WalletBalance({
         </dd>
       </div>
       <div>
-        <dt className="text-faint text-xs font-semibold tracking-wide uppercase">Value in GBP</dt>
+        <dt className="text-faint text-xs font-semibold tracking-wide uppercase">
+          Value in {currency ?? 'base currency'}
+        </dt>
         <dd className="text-ink mt-1 text-lg font-semibold">
-          <GbpValueView value={gbp} className="items-start" />
+          <FiatValueView value={value} className="items-start" />
         </dd>
       </div>
     </>
@@ -58,11 +63,14 @@ async function WalletBalance({
 export function BitcoinWalletCard({
   auth,
   scope,
+  currency,
   wallet,
   href,
 }: {
   auth: AuthContext;
   scope: WalletScope;
+  /** The organisation's base currency, or undefined when its books don't say. */
+  currency: string | undefined;
   wallet: WalletSummary;
   href: string;
 }) {
@@ -92,7 +100,7 @@ export function BitcoinWalletCard({
         <Suspense
           fallback={<p className="text-faint col-span-2 text-sm">Reading the blockchain…</p>}
         >
-          <WalletBalance auth={auth} scope={scope} wallet={wallet} />
+          <WalletBalance auth={auth} scope={scope} wallet={wallet} currency={currency} />
         </Suspense>
       </dl>
       <div className="border-line flex flex-wrap gap-2 border-t px-5 py-3">

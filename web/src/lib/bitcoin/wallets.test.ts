@@ -8,13 +8,15 @@ import { addWalletSchema } from '@/lib/portal/actions/bitcoin-schema';
 import { DEMO_WALLET_ID, DEMO_WALLET_ORG } from './demo';
 import {
   NO_ELECTRUM,
-  PENDING_GBP_REASON,
+  PENDING_VALUE_REASON,
   addWallet,
   electrumSetting,
   electrumStatus,
   listWallets,
   loadWallet,
   removeWallet,
+  baseCurrencyOf,
+  valueBalance,
   valueTransactions,
   walletsForOrg,
   type WalletScope,
@@ -258,11 +260,43 @@ describe('demo wallet', () => {
     expect(wallet.demo).toBe(true);
     if (load.status !== 'ok') throw new Error('expected the demo wallet to load');
     expect(load.source).toBe('demo');
-    const rows = await valueTransactions(load.scan.transactions, 'demo');
+    const rows = await valueTransactions(load.scan.transactions, 'demo', 'GBP');
     const pending = rows.find((r) => r.pending)!;
-    expect(pending.gbp).toEqual({ ok: false, reason: PENDING_GBP_REASON });
+    expect(pending.value).toEqual({ ok: false, reason: PENDING_VALUE_REASON });
     const priced = rows.find((r) => !r.pending)!;
-    expect(priced.gbp.ok && priced.gbp.rate.label).toMatch(/^Demo price \(fictional\)/);
+    expect(priced.value.ok && priced.value.rate.label).toMatch(/^Demo price \(fictional\)/);
+  });
+});
+
+describe('values in the base currency', () => {
+  it('reads the base currency from the books, and leaves it undefined when they do not say', async () => {
+    expect(await baseCurrencyOf({ organisation: async () => ({ baseCurrency: 'usd' }) })).toBe(
+      'USD'
+    );
+    expect(await baseCurrencyOf({ organisation: async () => ({}) })).toBeUndefined();
+    expect(
+      await baseCurrencyOf({
+        organisation: async () => {
+          throw new Error('down');
+        },
+      })
+    ).toBeUndefined();
+  });
+
+  it('gives no value when the base currency is unknown or not quoted', async () => {
+    expect(await valueBalance(100_000, 'electrum', undefined)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/base currency isn't available/),
+    });
+    expect(await valueBalance(100_000, 'electrum', 'X1')).toMatchObject({ ok: false });
+  });
+
+  it('never prices the demo (GBP) in another currency', async () => {
+    const { load } = await loadWallet(demo(), demoScope(DEMO_WALLET_ORG), DEMO_WALLET_ID);
+    if (load.status !== 'ok') throw new Error('expected the demo wallet to load');
+    const rows = await valueTransactions(load.scan.transactions, 'demo', 'USD');
+    expect(rows.every((r) => !r.value.ok)).toBe(true);
+    expect(await valueBalance(1, 'demo', 'USD')).toMatchObject({ ok: false });
   });
 });
 

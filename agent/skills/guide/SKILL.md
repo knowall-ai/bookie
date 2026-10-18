@@ -65,8 +65,10 @@ sure it exists yet rather than guess, and point them to the docs on GitHub
 
 A Bitcoin wallet can appear under **Accounting › Bank accounts**, read live from the blockchain:
 balance (confirmed, and pending separately), and each transaction with its date, confirmations, fee
-when the wallet paid it, and a GBP value that says which Kraken price and time it used ("—" with the
-reason when there isn't one, and always for pending transactions).
+when the wallet paid it, and what it was worth at the time in the organisation's base currency, from
+the Kraken price nearest its block time, labelled with that price and time ("—" with the reason when
+there isn't one, and always for pending transactions). That value is for information: Business
+Central posts at its own daily exchange rate, so the two never match exactly.
 
 - **How to add one:** for a **Business Central** company, put the wallet's xpub, ypub, zpub or output
   descriptor on the bank account card in Business Central (the *Bitcoin Wallet* group, from the

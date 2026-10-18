@@ -10,7 +10,9 @@ const BIP84_XPUB =
   'xpub6CatWdiZiodmUeTDp8LT5or8nmbKNcuyvz7WyksVFkKB4RHwCD3XyuvPEbvqAQY3rAPshWcMLoP2fMFMKHPJ4ZeZXYVUhLv1VMrjPC7PW6V';
 
 test.describe('Bitcoin wallets', () => {
-  test('shows the demo wallet as a bank account with BTC and GBP balances', async ({ page }) => {
+  test('shows the demo wallet as a bank account with BTC and base-currency balances', async ({
+    page,
+  }) => {
     await page.goto(`${ORG}/accounting/bank`);
     await expect(page.getByRole('heading', { name: 'Bitcoin wallets' })).toBeVisible();
     const card = page.getByRole('article', { name: 'Contoso Treasury' });
@@ -19,7 +21,7 @@ test.describe('Bitcoin wallets', () => {
     await expect(card).toContainText('Demo price (fictional)');
   });
 
-  test('lists wallet transactions; pending ones have no GBP value', async ({ page }) => {
+  test('lists wallet transactions; pending ones have no value', async ({ page }) => {
     await page.goto(`${ORG}/accounting/bank`);
     await page
       .getByRole('article', { name: 'Contoso Treasury' })

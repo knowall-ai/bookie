@@ -1,36 +1,52 @@
 /**
- * GBP values for Bitcoin amounts, from Kraken's public market data only (XBTGBP).
+ * Values for Bitcoin amounts in the organisation's base currency, from Kraken's public
+ * market data only: the pair XBT<currency> (XBTGBP, XBTUSD, XBTEUR, or any other that
+ * Kraken lists). A currency Kraken doesn't quote has no value: Bookie never converts
+ * through another currency at a rate it made up.
  *
- * - A confirmed transaction is valued at the Kraken daily close of the UTC day its
- *   block was mined (`OHLC?interval=1440`, about the last 720 days), and only once
- *   that day has closed.
- * - Otherwise (older than the OHLC window, or today) at the first Kraken trade at or
- *   after the block time (`Trades?since=`), if one happened within six hours.
- * - The balance is valued at Kraken's latest trade.
+ * - A confirmed transaction is valued at its own time: the Kraken trade nearest the
+ *   second its block was mined (`Trades?since=`, Kraken's full trade history), labelled
+ *   "Kraken XBTUSD at 14:32 UTC, 10 Oct 2026". Payments are worked out in sats at the
+ *   moment of payment, so the price at that moment is the one that matters.
+ * - Only when that lookup isn't possible (Kraken's rate limit, or no trade within six
+ *   hours) the daily close of the block's UTC day (`OHLC?interval=1440`, about the last
+ *   720 days, closed days only), labelled as a fallback.
+ * - The balance is valued at Kraken's latest trade, with its time.
  *
  * Every value carries its source and rate time. Where Kraken can't give a rate the
  * value is undefined with the reason: Bookie never uses today's price for an old
- * amount, and never prices a pending transaction (it has no block time yet).
+ * amount, and never prices a pending transaction (Electrum gives no first-seen time).
+ * Values are for display only: reconciliation matches satoshis and txids, never these.
  * Market prices are public data, not anyone's books, so they are cached in memory.
  */
 
-export const KRAKEN_PAIR = 'XBTGBP';
 const KRAKEN = 'https://api.kraken.com/0/public';
 const DAY = 86_400;
-/** How far after the block time a Kraken trade may be and still price it. */
+/** How far from the block time a Kraken trade may be and still price it. */
 export const MAX_TRADE_GAP_SECONDS = 6 * 3600;
+/** The trade lookup starts this long before the block time, to find the nearest trade either side. */
+const LOOKBACK_SECONDS = 15 * 60;
 
-export interface GbpRate {
-  /** GBP per 1 BTC. */
-  gbpPerBtc: number;
+/** Kraken's pair for BTC in `currency` (ISO 4217), e.g. XBTUSD; undefined for a malformed code. */
+export function krakenPair(currency: string): string | undefined {
+  const code = currency.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code) && code !== 'BTC' && code !== 'XBT' ? `XBT${code}` : undefined;
+}
+
+export interface FiatRate {
+  /** Units of `currency` per 1 BTC. */
+  perBtc: number;
+  /** ISO currency the rate is in. */
+  currency: string;
   source: 'kraken-daily-close' | 'kraken-trade' | 'demo';
   /** When the rate applies (ISO): the close time, or the trade time. */
   rateTime: string;
-  /** "Kraken XBTGBP daily close, 17 Oct 2026" */
+  /** "Kraken XBTUSD daily close, 17 Oct 2026" */
   label: string;
 }
 
-export type GbpValue = { ok: true; gbp: number; rate: GbpRate } | { ok: false; reason: string };
+export type FiatValue =
+  { ok: true; amount: number; currency: string; rate: FiatRate } | { ok: false; reason: string };
 
 export interface Candle {
   /** Start of the UTC day, unix seconds. */
@@ -45,7 +61,11 @@ export interface Trade {
 }
 
 export class KrakenError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** Kraken doesn't list this pair at all. */
+    readonly unknownPair = false
+  ) {
     super(message);
     this.name = 'KrakenError';
   }
@@ -56,15 +76,17 @@ interface KrakenEnvelope {
   result?: Record<string, unknown>;
 }
 
-/** The pair's rows in a Kraken result (`XXBTZGBP`), ignoring `last`. */
+/** The pair's rows in a Kraken result (`XXBTZUSD`), ignoring `last`. */
 function pairRows(json: unknown): unknown[] {
   const body = json as KrakenEnvelope;
   if (!body || typeof body !== 'object')
     throw new KrakenError('Kraken sent an unreadable response.');
-  if (body.error && body.error.length > 0)
-    throw new KrakenError(`Kraken: ${body.error.join(', ')}`);
+  if (body.error && body.error.length > 0) {
+    const unknown = body.error.some((e) => /Unknown asset pair/i.test(e));
+    throw new KrakenError(`Kraken: ${body.error.join(', ')}`, unknown);
+  }
   const entry = Object.entries(body.result ?? {}).find(([key]) => key !== 'last');
-  if (!entry || !Array.isArray(entry[1])) throw new KrakenError('Kraken returned no XBTGBP data.');
+  if (!entry || !Array.isArray(entry[1])) throw new KrakenError('Kraken returned no price data.');
   return entry[1];
 }
 
@@ -107,64 +129,88 @@ const dateLabel = (unix: number) =>
     timeZone: 'UTC',
   });
 
+/** "14:32 UTC, 10 Oct 2026" */
 const timeLabel = (unix: number) =>
-  `${new Date(unix * 1000).toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
+  `${new Date(unix * 1000).toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     timeZone: 'UTC',
-  })} UTC`;
+  })} UTC, ${dateLabel(unix)}`;
 
-/** The closed daily candle covering `blockTime`, as a rate, or undefined. */
+/**
+ * The closed daily candle covering `blockTime`, as a fallback rate (labelled so), or
+ * undefined. Only used when the trade at the block time can't be looked up.
+ */
 export function dailyCloseRate(
   candles: Candle[],
   blockTime: number,
-  now: number
-): GbpRate | undefined {
+  now: number,
+  currency: string
+): FiatRate | undefined {
   const dayStart = blockTime - (blockTime % DAY);
   const candle = candles.find((c) => c.time === dayStart);
   // Today's candle is still open: its "close" is just the latest trade.
   if (!candle || candle.time + DAY > now) return undefined;
   return {
-    gbpPerBtc: candle.close,
+    perBtc: candle.close,
+    currency,
     source: 'kraken-daily-close',
     rateTime: new Date((candle.time + DAY) * 1000).toISOString(),
-    label: `Kraken ${KRAKEN_PAIR} daily close, ${dateLabel(candle.time)}`,
+    label: `Kraken ${krakenPair(currency)} daily close, ${dateLabel(candle.time)} (fallback: the price at the block time wasn't available)`,
   };
 }
 
-/** The first trade at or after `blockTime`, within the allowed gap. */
-export function tradeRate(trades: Trade[], blockTime: number): GbpRate | undefined {
-  const trade = trades.find((t) => t.time >= blockTime);
-  if (!trade || trade.time - blockTime > MAX_TRADE_GAP_SECONDS) return undefined;
-  return {
-    gbpPerBtc: trade.price,
-    source: 'kraken-trade',
-    rateTime: new Date(Math.floor(trade.time * 1000)).toISOString(),
-    label: `Kraken ${KRAKEN_PAIR} trade, ${timeLabel(trade.time)}`,
-  };
+const tradeRateOf = (trade: Trade, currency: string, label: string): FiatRate => ({
+  perBtc: trade.price,
+  currency,
+  source: 'kraken-trade',
+  rateTime: new Date(Math.floor(trade.time * 1000)).toISOString(),
+  label,
+});
+
+/** The trade nearest `at` (either side), within the allowed gap: "Kraken XBTUSD at 14:32 UTC, 10 Oct 2026". */
+export function nearestTradeRate(
+  trades: Trade[],
+  at: number,
+  currency: string
+): FiatRate | undefined {
+  let best: Trade | undefined;
+  for (const t of trades) {
+    if (!best || Math.abs(t.time - at) < Math.abs(best.time - at)) best = t;
+  }
+  if (!best || Math.abs(best.time - at) > MAX_TRADE_GAP_SECONDS) return undefined;
+  return tradeRateOf(best, currency, `Kraken ${krakenPair(currency)} at ${timeLabel(best.time)}`);
 }
 
-export function latestTradeRate(trades: Trade[]): GbpRate | undefined {
+export function latestTradeRate(trades: Trade[], currency: string): FiatRate | undefined {
   const trade = trades.at(-1);
   if (!trade) return undefined;
+  return tradeRateOf(
+    trade,
+    currency,
+    `Kraken ${krakenPair(currency)} last trade at ${timeLabel(trade.time)}`
+  );
+}
+
+/** sats × rate, to the cent (2 decimals). */
+export function valueFor(sats: number, rate: FiatRate): FiatValue {
   return {
-    gbpPerBtc: trade.price,
-    source: 'kraken-trade',
-    rateTime: new Date(Math.floor(trade.time * 1000)).toISOString(),
-    label: `Kraken ${KRAKEN_PAIR} last trade, ${timeLabel(trade.time)}`,
+    ok: true,
+    amount: Math.round((sats / 1e8) * rate.perBtc * 100) / 100,
+    currency: rate.currency,
+    rate,
   };
 }
 
-/** sats × rate, to the penny. */
-export function gbpFor(sats: number, rate: GbpRate): GbpValue {
-  return { ok: true, gbp: Math.round((sats / 1e8) * rate.gbpPerBtc * 100) / 100, rate };
+/** Why there's no value at all in this currency (no pair, or no currency). */
+export function noPairReason(currency: string | undefined): string | undefined {
+  if (!currency) return "The organisation's base currency isn't available, so there is no value.";
+  if (!krakenPair(currency)) return `There is no Kraken price for BTC in ${currency}.`;
+  return undefined;
 }
 
 /* ------------------------------------------------------------------ */
-/* Fetching (cached: public market data, not tenant data)              */
+/* Fetching (cached per pair: public market data, not tenant data)     */
 /* ------------------------------------------------------------------ */
 
 type Fetch = typeof fetch;
@@ -184,107 +230,169 @@ async function krakenJson(fetchImpl: Fetch, path: string): Promise<unknown> {
   return response.json();
 }
 
+const unknownPairReason = (currency: string) =>
+  `Kraken doesn't list ${krakenPair(currency)}, so there is no BTC price in ${currency}. Bookie doesn't convert through another currency.`;
+
 const OHLC_TTL_MS = 10 * 60_000;
 const LATEST_TTL_MS = 60_000;
 /** Trade lookups per pricing call; Kraken's public API allows about one call a second. */
-export const MAX_TRADE_LOOKUPS = 8;
+export const MAX_TRADE_LOOKUPS = 12;
 
-let ohlcCache: { at: number; value: Promise<Candle[]> } | undefined;
-let latestCache: { at: number; value: Promise<GbpRate | undefined> } | undefined;
-const tradeCache = new Map<number, GbpRate | null>();
+const ohlcCache = new Map<string, { at: number; value: Promise<Candle[]> }>();
+const latestCache = new Map<string, { at: number; value: Promise<FiatRate | undefined> }>();
+const tradeCache = new Map<string, FiatRate | null>();
 
 /** Forget cached prices (tests). */
 export function clearKrakenCache() {
-  ohlcCache = undefined;
-  latestCache = undefined;
+  ohlcCache.clear();
+  latestCache.clear();
   tradeCache.clear();
 }
 
-function dailyCandles(fetchImpl: Fetch, nowMs: number): Promise<Candle[]> {
-  if (ohlcCache && nowMs - ohlcCache.at < OHLC_TTL_MS) return ohlcCache.value;
-  const value = krakenJson(fetchImpl, `OHLC?pair=${KRAKEN_PAIR}&interval=1440`).then(
-    parseKrakenOhlc
-  );
-  ohlcCache = { at: nowMs, value };
+function cached<T>(
+  map: Map<string, { at: number; value: Promise<T> }>,
+  key: string,
+  ttl: number,
+  nowMs: number,
+  load: () => Promise<T>
+): Promise<T> {
+  const hit = map.get(key);
+  if (hit && nowMs - hit.at < ttl) return hit.value;
+  const value = load();
+  map.set(key, { at: nowMs, value });
   value.catch(() => {
-    if (ohlcCache?.value === value) ohlcCache = undefined;
+    if (map.get(key)?.value === value) map.delete(key);
   });
   return value;
 }
 
-/** Kraken's latest XBTGBP trade, for valuing a balance now. */
+/** Kraken's latest BTC trade in `currency`, for valuing a balance now. */
 export async function latestRate(
+  currency: string,
   fetchImpl: Fetch = fetch,
   nowMs = Date.now()
-): Promise<GbpRate | undefined> {
-  if (latestCache && nowMs - latestCache.at < LATEST_TTL_MS) return latestCache.value;
-  const value = krakenJson(fetchImpl, `Trades?pair=${KRAKEN_PAIR}`).then((json) =>
-    latestTradeRate(parseKrakenTrades(json))
+): Promise<FiatRate | undefined> {
+  const pair = krakenPair(currency);
+  if (!pair) return undefined;
+  return cached(latestCache, pair, LATEST_TTL_MS, nowMs, () =>
+    krakenJson(fetchImpl, `Trades?pair=${pair}`).then((json) =>
+      latestTradeRate(parseKrakenTrades(json), currency.toUpperCase())
+    )
   );
-  latestCache = { at: nowMs, value };
-  value.catch(() => {
-    if (latestCache?.value === value) latestCache = undefined;
-  });
-  return value;
+}
+
+/** The balance's value at Kraken's latest trade, or the reason there isn't one. */
+export async function valueNow(
+  sats: number,
+  currency: string | undefined,
+  fetchImpl: Fetch = fetch
+): Promise<FiatValue> {
+  const missing = noPairReason(currency);
+  if (missing) return { ok: false, reason: missing };
+  try {
+    const rate = await latestRate(currency!, fetchImpl);
+    return rate
+      ? valueFor(sats, rate)
+      : { ok: false, reason: `Kraken returned no recent ${krakenPair(currency!)} trade.` };
+  } catch (error) {
+    if (error instanceof KrakenError && error.unknownPair) {
+      return { ok: false, reason: unknownPairReason(currency!.toUpperCase()) };
+    }
+    return { ok: false, reason: (error as Error).message || 'Kraken prices are unavailable.' };
+  }
 }
 
 /**
- * Rates for a set of block times (one page of transactions). Keys are the block
- * times; a missing key comes back with a reason instead of a value.
+ * Rates for a set of block times (one page of transactions) in `currency`. Keys are
+ * the block times; a missing rate comes back as the reason instead.
  */
 export async function ratesForBlockTimes(
   blockTimes: number[],
+  currency: string | undefined,
   options: { fetchImpl?: Fetch; nowMs?: number } = {}
-): Promise<Map<number, GbpRate | string>> {
+): Promise<Map<number, FiatRate | string>> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const nowMs = options.nowMs ?? Date.now();
   const now = Math.floor(nowMs / 1000);
-  const out = new Map<number, GbpRate | string>();
+  const out = new Map<number, FiatRate | string>();
   const unique = [...new Set(blockTimes)].sort((a, b) => b - a);
   if (unique.length === 0) return out;
-
-  let candles: Candle[] = [];
-  let ohlcError: string | undefined;
-  try {
-    candles = await dailyCandles(fetchImpl, nowMs);
-  } catch (error) {
-    ohlcError = error instanceof KrakenError ? error.message : 'Kraken prices are unavailable.';
+  const missing = noPairReason(currency);
+  if (missing) {
+    for (const time of unique) out.set(time, missing);
+    return out;
   }
+  const code = currency!.trim().toUpperCase();
+  const pair = krakenPair(code)!;
+  const noTrade = `Kraken has no ${pair} trade within six hours of the block time.`;
+
+  // Daily candles, fetched only if a fallback is needed.
+  let candles: Promise<Candle[] | string> | undefined;
+  const fallback = async (time: number, why: string): Promise<FiatRate | string> => {
+    candles ??= cached(ohlcCache, pair, OHLC_TTL_MS, nowMs, () =>
+      krakenJson(fetchImpl, `OHLC?pair=${pair}&interval=1440`).then(parseKrakenOhlc)
+    ).catch((error: unknown) =>
+      error instanceof KrakenError && error.unknownPair
+        ? unknownPairReason(code)
+        : error instanceof KrakenError
+          ? error.message
+          : 'Kraken prices are unavailable.'
+    );
+    const list = await candles;
+    if (typeof list === 'string') return list;
+    return dailyCloseRate(list, time, now, code) ?? why;
+  };
 
   let lookups = 0;
   for (const time of unique) {
-    const close = dailyCloseRate(candles, time, now);
-    if (close) {
-      out.set(time, close);
+    const key = `${pair}:${time}`;
+    const hit = tradeCache.get(key);
+    if (hit) {
+      out.set(time, hit);
       continue;
     }
-    const cached = tradeCache.get(time);
-    if (cached !== undefined) {
-      out.set(time, cached ?? 'Kraken has no XBTGBP trade within six hours of the block time.');
+    if (hit === null) {
+      out.set(time, await fallback(time, noTrade));
       continue;
     }
     if (lookups >= MAX_TRADE_LOOKUPS) {
       out.set(
         time,
-        'Not looked up yet: Kraken limits how fast Bookie may ask. Reload in a minute.'
+        await fallback(
+          time,
+          'Not looked up yet: Kraken limits how fast Bookie may ask. Reload in a minute.'
+        )
       );
       continue;
     }
-    lookups++;
     try {
+      // The trades from just before the block time; if they stop short of it, the next page.
+      lookups++;
       const trades = parseKrakenTrades(
-        await krakenJson(fetchImpl, `Trades?pair=${KRAKEN_PAIR}&since=${time}`)
+        await krakenJson(fetchImpl, `Trades?pair=${pair}&since=${time - LOOKBACK_SECONDS}`)
       );
-      const rate = tradeRate(trades, time);
+      if (!trades.some((t) => t.time >= time) && lookups < MAX_TRADE_LOOKUPS) {
+        lookups++;
+        trades.push(
+          ...parseKrakenTrades(await krakenJson(fetchImpl, `Trades?pair=${pair}&since=${time}`))
+        );
+      }
+      const rate = nearestTradeRate(trades, time, code);
       // Only remember a miss once enough time has passed for a trade to have happened.
-      if (rate || now - time > MAX_TRADE_GAP_SECONDS) tradeCache.set(time, rate ?? null);
+      if (rate || now - time > MAX_TRADE_GAP_SECONDS) tradeCache.set(key, rate ?? null);
       if (tradeCache.size > 5_000) tradeCache.clear();
-      out.set(time, rate ?? 'Kraken has no XBTGBP trade within six hours of the block time.');
+      out.set(time, rate ?? (await fallback(time, noTrade)));
     } catch (error) {
+      if (error instanceof KrakenError && error.unknownPair) {
+        for (const t of unique) out.set(t, unknownPairReason(code));
+        return out;
+      }
       out.set(
         time,
-        ohlcError ??
-          (error instanceof KrakenError ? error.message : 'Kraken prices are unavailable.')
+        await fallback(
+          time,
+          error instanceof KrakenError ? error.message : 'Kraken prices are unavailable.'
+        )
       );
     }
   }

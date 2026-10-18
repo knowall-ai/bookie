@@ -27,7 +27,7 @@ import {
   type WalletDescriptor,
 } from './descriptor';
 import { ElectrumClient, ElectrumError, parseElectrumUrl, type ElectrumServer } from './electrum';
-import { gbpFor, latestRate, ratesForBlockTimes, type GbpRate, type GbpValue } from './kraken';
+import { ratesForBlockTimes, valueFor, valueNow, type FiatValue } from './kraken';
 import { scanWallet, type ChainTransaction, type WalletScan } from './scan';
 
 /* ------------------------------------------------------------------ */
@@ -430,47 +430,65 @@ export function clearWalletScans() {
 }
 
 /* ------------------------------------------------------------------ */
-/* GBP values                                                          */
+/* Values in the organisation's base currency                          */
 /* ------------------------------------------------------------------ */
 
 export interface WalletTransactionRow extends ChainTransaction {
   /** UTC date of the block. */
   date?: IsoDate;
-  gbp: GbpValue;
+  value: FiatValue;
 }
 
-export const PENDING_GBP_REASON = 'Pending: it has no block time yet, so it has no rate.';
+export const PENDING_VALUE_REASON = 'Pending: it has no block time yet, so it has no rate.';
 
+/**
+ * Each transaction valued in `currency` (the organisation's base currency, from its
+ * books; undefined = not available) at Kraken's price for its block, or the reason.
+ */
 export async function valueTransactions(
   transactions: ChainTransaction[],
-  source: 'electrum' | 'demo'
+  source: 'electrum' | 'demo',
+  currency: string | undefined
 ): Promise<WalletTransactionRow[]> {
   const times = transactions.flatMap((t) => (t.blockTime ? [t.blockTime] : []));
-  const rates = source === 'demo' ? demoRates(times) : await ratesForBlockTimes(times);
+  const rates =
+    source === 'demo' ? demoRates(times, currency) : await ratesForBlockTimes(times, currency);
   return transactions.map((t) => {
     const rate = t.blockTime ? rates.get(t.blockTime) : undefined;
-    const gbp: GbpValue = !t.blockTime
-      ? { ok: false, reason: PENDING_GBP_REASON }
+    const value: FiatValue = !t.blockTime
+      ? { ok: false, reason: PENDING_VALUE_REASON }
       : typeof rate === 'object'
-        ? gbpFor(t.netSats, rate)
+        ? valueFor(t.netSats, rate)
         : { ok: false, reason: rate ?? 'Kraken prices are unavailable.' };
     return {
       ...t,
       date: t.blockTime ? new Date(t.blockTime * 1000).toISOString().slice(0, 10) : undefined,
-      gbp,
+      value,
     };
   });
 }
 
-/** The confirmed balance in GBP at Kraken's latest trade. */
-export async function valueBalance(sats: number, source: 'electrum' | 'demo'): Promise<GbpValue> {
-  if (source === 'demo') return gbpFor(sats, DEMO_LATEST_RATE);
+/** The confirmed balance in `currency` at Kraken's latest trade. */
+export async function valueBalance(
+  sats: number,
+  source: 'electrum' | 'demo',
+  currency: string | undefined
+): Promise<FiatValue> {
+  if (source === 'demo') {
+    return currency === DEMO_LATEST_RATE.currency
+      ? valueFor(sats, DEMO_LATEST_RATE)
+      : { ok: false, reason: `The demo has prices in ${DEMO_LATEST_RATE.currency} only.` };
+  }
+  return valueNow(sats, currency);
+}
+
+/** The organisation's base currency as its books report it, or undefined (never guessed). */
+export async function baseCurrencyOf(connector: {
+  organisation(): Promise<{ baseCurrency?: string }>;
+}): Promise<string | undefined> {
   try {
-    const rate: GbpRate | undefined = await latestRate();
-    return rate
-      ? gbpFor(sats, rate)
-      : { ok: false, reason: 'Kraken returned no recent XBTGBP trade.' };
-  } catch (error) {
-    return { ok: false, reason: (error as Error).message || 'Kraken prices are unavailable.' };
+    return (await connector.organisation()).baseCurrency?.trim().toUpperCase() || undefined;
+  } catch {
+    return undefined;
   }
 }

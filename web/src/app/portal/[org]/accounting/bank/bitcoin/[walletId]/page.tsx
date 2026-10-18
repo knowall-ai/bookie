@@ -5,6 +5,7 @@ import { WalletError } from '@/lib/bitcoin/errors';
 import { shortTxid } from '@/lib/bitcoin/format';
 import {
   loadWallet,
+  baseCurrencyOf,
   valueBalance,
   valueTransactions,
   type WalletTransactionRow,
@@ -18,13 +19,13 @@ import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/States';
 import { NotAvailableValue } from '@/components/ui/Money';
 import { SourceNote } from '@/components/accounting/SourceNote';
-import { BtcAmount, GbpValueView } from '@/components/bitcoin/BitcoinParts';
+import { BtcAmount, FiatValueView } from '@/components/bitcoin/BitcoinParts';
 
 export const metadata = { title: 'Bitcoin wallet' };
 
 const PAGE_SIZE = 50;
 
-const columns: Column<WalletTransactionRow>[] = [
+const columnsFor = (currency: string | undefined): Column<WalletTransactionRow>[] => [
   {
     key: 'date',
     header: 'Date',
@@ -93,9 +94,9 @@ const columns: Column<WalletTransactionRow>[] = [
   },
   {
     key: 'gbp',
-    header: 'Value in GBP',
+    header: `Value in ${currency ?? 'base currency'}`,
     align: 'right',
-    cell: (t) => <GbpValueView value={t.gbp} />,
+    cell: (t) => <FiatValueView value={t.value} />,
   },
 ];
 
@@ -164,9 +165,10 @@ export default async function Page({
   const { scan, source } = load;
   const page = Math.max(1, Math.floor(Number(query.page)) || 1);
   const slice = scan.transactions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const [rows, balanceGbp] = await Promise.all([
-    valueTransactions(slice, source),
-    valueBalance(scan.balance.confirmedSats, source),
+  const currency = await baseCurrencyOf(connector);
+  const [rows, balanceValue] = await Promise.all([
+    valueTransactions(slice, source, currency),
+    valueBalance(scan.balance.confirmedSats, source, currency),
   ]);
   const listPath = `${base}/accounting/bank/bitcoin/${encodeURIComponent(wallet.id)}`;
 
@@ -210,10 +212,10 @@ export default async function Page({
         </div>
         <div className="card px-5 py-4">
           <p className="text-faint text-xs font-semibold tracking-wide uppercase">
-            Confirmed balance in GBP
+            Confirmed balance in {currency ?? 'base currency'}
           </p>
           <p className="text-ink mt-1 text-xl font-semibold">
-            <GbpValueView value={balanceGbp} className="items-start" />
+            <FiatValueView value={balanceValue} className="items-start" />
           </p>
         </div>
       </div>
@@ -221,7 +223,7 @@ export default async function Page({
       <SourceNote>
         {source === 'demo'
           ? 'Demo organisation: the transactions and prices are fictional.'
-          : 'GBP values come from Kraken (XBTGBP): the daily close of the UTC day the block was mined, or the first Kraken trade after the block time when that day has not closed or is older than Kraken’s daily history. Each figure says which. Pending transactions have no value until they are mined.'}
+          : `Values in ${currency ?? 'the base currency'} are what each transaction was worth at the time: the Kraken trade nearest its block time (XBT${currency ?? '…'}), or, when that can’t be looked up, the day’s close, labelled as a fallback. Each figure says which. They are for information only: they aren’t what Business Central posts, which uses its own daily exchange rate. Pending transactions have no value until they are mined.`}
       </SourceNote>
 
       <p className="text-muted mb-3 text-sm" aria-live="polite">
@@ -229,7 +231,7 @@ export default async function Page({
         · {scan.used.receive} receive and {scan.used.change} change addresses used
       </p>
       <DataTable
-        columns={columns}
+        columns={columnsFor(currency)}
         rows={rows}
         rowKey={(t) => t.txid}
         empty={

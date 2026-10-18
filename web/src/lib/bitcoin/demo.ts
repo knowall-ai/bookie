@@ -5,7 +5,7 @@
  */
 import { hex } from '@scure/base';
 import { sha256 } from '@noble/hashes/sha2.js';
-import type { GbpRate } from './kraken';
+import type { FiatRate } from './kraken';
 import type { ChainTransaction, WalletScan } from './scan';
 
 export const DEMO_WALLET_ID = 'demo-contoso-treasury';
@@ -110,17 +110,28 @@ const demoLabel = (time: number) =>
     timeZone: 'UTC',
   })}`;
 
-/** Fictional rates for the demo wallet's block times. */
-export function demoRates(blockTimes: number[]): Map<number, GbpRate | string> {
-  const out = new Map<number, GbpRate | string>();
+/** The demo prices are fictional GBP, the demo organisation's base currency. */
+export const DEMO_PRICE_CURRENCY = 'GBP';
+
+/** Fictional rates for the demo wallet's block times, in GBP only. */
+export function demoRates(
+  blockTimes: number[],
+  currency: string | undefined
+): Map<number, FiatRate | string> {
+  const out = new Map<number, FiatRate | string>();
   for (const time of blockTimes) {
     const tx = DEMO_TXS.find((t) => t.time && at(t.time) === time);
+    if (currency !== DEMO_PRICE_CURRENCY) {
+      out.set(time, `The demo has prices in ${DEMO_PRICE_CURRENCY} only.`);
+      continue;
+    }
     if (!tx?.demoRate) {
       out.set(time, 'No demo price for this date.');
       continue;
     }
     out.set(time, {
-      gbpPerBtc: tx.demoRate,
+      perBtc: tx.demoRate,
+      currency: DEMO_PRICE_CURRENCY,
       source: 'demo',
       rateTime: new Date(time * 1000).toISOString(),
       label: demoLabel(time),
@@ -129,8 +140,9 @@ export function demoRates(blockTimes: number[]): Map<number, GbpRate | string> {
   return out;
 }
 
-export const DEMO_LATEST_RATE: GbpRate = {
-  gbpPerBtc: 52_000,
+export const DEMO_LATEST_RATE: FiatRate = {
+  perBtc: 52_000,
+  currency: DEMO_PRICE_CURRENCY,
   source: 'demo',
   rateTime: '2026-10-17T12:00:00.000Z',
   label: 'Demo price (fictional), 17 Oct 2026',
