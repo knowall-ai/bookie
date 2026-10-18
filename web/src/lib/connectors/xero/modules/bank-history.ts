@@ -16,7 +16,12 @@
  *    in base currency, movements are not), get weekly points instead: three more
  *    Bank Summary calls for the closing balance a week, two and three weeks ago.
  *
- * That's four calls (seven at most), cached five minutes per tenant and organisation.
+ *    When those are read, every daily series must also hit them, or it goes weekly.
+ *
+ * The opening tie-out can't see two unlisted movements that cancel out between
+ * checkpoints (a manual journal and its reversal): docs/BANK_BALANCE_HISTORY.adoc.
+ * That's four calls (seven at most) in rounds of three or fewer, cached five
+ * minutes per tenant and organisation.
  */
 import type { BalanceHistory, BankBalanceHistories, IsoDate } from '@/lib/domain/types';
 import { xeroDate, type XeroClient } from '../client';
@@ -128,6 +133,18 @@ export function xeroWeeklyHistory(
   };
 }
 
+/** True when a daily series matches Bank Summary's closing balance on every checkpoint date. */
+export function hitsCheckpoints(
+  history: BalanceHistory,
+  id: string,
+  checkpoints: { date: IsoDate; closing: Map<string, number> }[]
+): boolean {
+  return checkpoints.every((c) => {
+    const point = history.points.find((p) => p.date === c.date);
+    return !!point && tiesOut(point.balance, c.closing.get(id) ?? 0);
+  });
+}
+
 const dateTime = (date: IsoDate) => `DateTime(${date.replaceAll('-', ',')})`;
 
 export function xeroBalanceHistory(
@@ -143,11 +160,16 @@ export function xeroBalanceHistory(
       client
         .request<{ Reports: XeroReport[] }>('Reports/BankSummary', { query: { fromDate, toDate } })
         .then((r) => r.Reports[0]);
-    const [accounts, summary, transactions, payments, base] = await Promise.all([
+    // Two rounds of at most three calls: Xero allows five at once per organisation,
+    // and the page around this is reading too.
+    const [accounts, summary, base] = await Promise.all([
       client.request<{ Accounts: XeroAccount[] }>('Accounts', {
         query: { where: 'Type=="BANK" AND Status=="ACTIVE"' },
       }),
       summaryFor(start, to).then(bankSummaryBalances),
+      baseCurrency().catch(() => undefined),
+    ]);
+    const [transactions, payments] = await Promise.all([
       client
         .request<{ BankTransactions: XeroBankTransaction[] }>('BankTransactions', {
           query: { where: window, page: 1, pageSize: MAX_MERGE },
@@ -158,7 +180,6 @@ export function xeroBalanceHistory(
           query: { where: window, page: 1, pageSize: MAX_MERGE },
         })
         .catch(() => undefined),
-      baseCurrency().catch(() => undefined),
     ]);
     // A full page may mean more: then the movements are incomplete and can't be used.
     const complete =
@@ -180,6 +201,8 @@ export function xeroBalanceHistory(
     const result: Record<string, BalanceHistory> = { ...daily };
     let note: string | undefined;
     if (weekly.length) {
+      // The opening tie-out proves the window's net, not each day. The weekly Bank
+      // Summaries are being read anyway, so every daily series must hit them too.
       const dates = [7, 14, 21].map((n) => addDays(from, n));
       const checkpoints = await Promise.all(
         dates.map(async (date) => ({
@@ -188,6 +211,12 @@ export function xeroBalanceHistory(
         }))
       ).catch(() => undefined);
       if (checkpoints) {
+        for (const id of Object.keys(daily)) {
+          if (!hitsCheckpoints(daily[id], id, checkpoints)) {
+            delete result[id];
+            weekly.push(id);
+          }
+        }
         for (const id of weekly) {
           // Bank Summary's figures are in base currency, foreign-currency accounts included,
           // so without the base currency there's no saying what they're in.

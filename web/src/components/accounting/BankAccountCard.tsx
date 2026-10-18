@@ -44,7 +44,8 @@ export function BankAccountCard({
         </div>
         <div className="min-w-0 flex-1">
           <h2 id={`bank-${account.id}`} className="text-ink truncate font-semibold">
-            <Link href={href} className="hover:text-brand-bright transition-colors">
+            {/* The card body below is the keyboard way in; this is for the mouse. */}
+            <Link href={href} className="hover:text-brand-bright transition-colors" tabIndex={-1}>
               {account.name}
             </Link>
           </h2>
@@ -60,7 +61,7 @@ export function BankAccountCard({
       <Link
         href={href}
         className="hover:bg-surface-2/40 focus-visible:bg-surface-2/40 block flex-1 px-5 py-4 transition-colors"
-        aria-label={`${account.name}: account transactions`}
+        aria-label={`${account.name}: balance and history`}
         aria-describedby={`bank-history-${account.id}`}
         data-testid="bank-account-card"
       >

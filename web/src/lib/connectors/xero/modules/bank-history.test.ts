@@ -3,7 +3,7 @@ import type { XeroClient, XeroRequest } from '../client';
 import type { XeroReport } from '../reports';
 import type { XeroAccount } from './accounts';
 import type { XeroBankTransaction, XeroPayment } from './bank';
-import { xeroBank } from './bank';
+import { bankSummaryBalances, xeroBank } from './bank';
 import {
   XERO_FEED_NOTE,
   xeroBalanceHistory,
@@ -271,6 +271,66 @@ describe('xeroBalanceHistory', () => {
     // Savings isn't on any Bank Summary: nothing on it, so a flat zero, as on the card.
     expect(result.accounts[SAVINGS].points.every((p) => p.balance === 0)).toBe(true);
     expect(result.accounts[CURRENT].interval).toBe('week');
+  });
+
+  it('moves a daily series to weekly when it misses a Bank Summary checkpoint', async () => {
+    // Current ties out over the window, but a journal and its reversal Xero's lists
+    // don't show moved it in between: the 4 Oct checkpoint gives it away.
+    const { client } = fakeClient((path, request) => {
+      if (path === 'Accounts') return { Accounts: [ACCOUNTS[0], ACCOUNTS[2]] };
+      if (path === 'Reports/BankSummary') {
+        if (request.query?.fromDate === '2026-09-21') {
+          return {
+            Reports: [
+              summary([
+                [CURRENT, 1000, 1000],
+                [EURO, 500, 500],
+              ]),
+            ],
+          };
+        }
+        const current = request.query?.toDate === '2026-10-04' ? 1200 : 1000;
+        return {
+          Reports: [
+            summary([
+              [CURRENT, current, current],
+              [EURO, 500, 500],
+            ]),
+          ],
+        };
+      }
+      if (path === 'BankTransactions') return { BankTransactions: [] };
+      return { Payments: [] };
+    });
+    const result = await xeroBalanceHistory(client, async () => 'GBP');
+    expect(result.accounts[CURRENT].interval).toBe('week');
+    expect(result.accounts[CURRENT].points.map((p) => p.balance)).toEqual([
+      1000, 1000, 1200, 1000, 1000,
+    ]);
+  });
+
+  it('reads Bank Summary opening and closing by column header', () => {
+    const report = summary([[CURRENT, 100, 130]]);
+    // A layout with an extra column: positions would read the wrong figures.
+    report.Rows![0] = {
+      RowType: 'Header',
+      Cells: [
+        'Bank Accounts',
+        'FX Gain',
+        'Opening Balance',
+        'Cash Received',
+        'Closing Balance',
+      ].map((Value) => ({ Value })),
+    };
+    const section = report.Rows![1] as { Rows: { Cells: { Value?: string }[] }[] };
+    section.Rows[0].Cells = [
+      section.Rows[0].Cells[0],
+      { Value: '5' },
+      { Value: '100' },
+      { Value: '30' },
+      { Value: '130' },
+    ];
+    expect(bankSummaryBalances(report).get(CURRENT)).toEqual({ opening: 100, closing: 130 });
   });
 
   it('is on the bank module, with the feed note', () => {

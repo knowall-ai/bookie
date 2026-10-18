@@ -35,15 +35,12 @@ export function historyFor(all: BankBalanceHistories, accountId: string) {
   return all.accounts[accountId] ?? all.accounts[accountId.toLowerCase()];
 }
 
-/** "14:05" when a cached history is more than a minute old, so it never passes for live. */
+/** "read 3 min ago" when a cached history is a minute old or more, so it never passes for live. */
 export function readAtLabel(readAt: string, now = Date.now()): string | undefined {
   const at = Date.parse(readAt);
-  if (Number.isNaN(at) || now - at < 60_000) return undefined;
-  return new Date(at).toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/London',
-  });
+  if (Number.isNaN(at)) return undefined;
+  const minutes = Math.floor((now - at) / 60_000);
+  return minutes >= 1 ? `read ${minutes} min ago` : undefined;
 }
 
 function HistoryNote({ children }: { children: React.ReactNode }) {
@@ -85,7 +82,7 @@ async function LoadedHistory({
         <span>{shortDate(first.date)}</span>
         <span>
           {history.interval === 'week' ? 'Weekly, last' : 'Last'} {WEEKS} weeks
-          {readAt ? `, read at ${readAt}` : ''}
+          {readAt ? `, ${readAt}` : ''}
         </span>
         <span>{shortDate(last.date)}</span>
       </p>
@@ -113,10 +110,9 @@ export function BankCardHistory({
   return (
     <Suspense
       fallback={
-        <div
-          className="bg-surface-2/60 h-[72px] animate-pulse rounded-md"
-          aria-label="Loading balance history"
-        />
+        <div className="bg-surface-2/60 h-[72px] animate-pulse rounded-md" role="status">
+          <span className="sr-only">Loading balance history</span>
+        </div>
       }
     >
       <LoadedHistory histories={histories} accountId={accountId} source={source} />

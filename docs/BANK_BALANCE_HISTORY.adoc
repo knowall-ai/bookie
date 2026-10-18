@@ -26,7 +26,10 @@ walk back a day at a time, taking off each day's movements, summing in whole cen
 transactions and payments, kept only when they walk back exactly to Bank Summary's opening
 balance. Otherwise (manual journals to a bank account, more than 1,000 items in four weeks), and
 for foreign-currency accounts, weekly points straight from Bank Summary, in base currency as Xero
-reports them. See link:XERO_COVERAGE.adoc[Xero API coverage] for the calls.
+reports them. Whenever those weekly Bank Summaries are read, every daily series must also hit
+their closing balances or it goes weekly too. The one case the checks can't see is two movements
+Xero's lists don't show (a manual journal to a bank account and its reversal) that cancel out
+between two checks. See link:XERO_COVERAGE.adoc[Xero API coverage] for the calls.
 
 |Business Central with the Bookie BC extension
 |Daily closing balances from the extension's `bankAccountBalances` (Balance, the sum of all the
@@ -43,8 +46,13 @@ posts to, so the card says "Balance history isn't available from Business Centra
 |===
 
 Histories are cached for five minutes. The cache key starts with the Entra tenant id from the
-verified sign-in, then the connection (Xero) or environment and company (BC). A history older than
-a minute shows the time it was read ("read at 14:05") so a cached chart never passes for live.
+verified sign-in, then the connection (Xero) or environment and company (BC). A history read a
+minute or more ago says so ("read 3 min ago"), so a cached chart never passes for live. Pages
+start the history read after their own calls (Xero allows five at once per organisation), and the
+Xero read itself runs in rounds of three calls or fewer.
+
+The window ends on today's date in UTC. Early in the day east of UTC, the last point is
+yesterday's closing balance, so it can differ from the balance shown above it.
 
 == Freshness
 

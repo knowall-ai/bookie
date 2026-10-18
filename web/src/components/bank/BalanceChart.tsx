@@ -56,7 +56,11 @@ export function BalanceChart({
   return (
     <div style={{ height }} aria-hidden data-testid="balance-chart">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={points} margin={{ top: 4, right: 2, bottom: 2, left: 2 }}>
+        <AreaChart
+          accessibilityLayer={false}
+          data={points}
+          margin={{ top: 4, right: 2, bottom: 2, left: 2 }}
+        >
           <defs>
             <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={LINE} stopOpacity={0.28} />

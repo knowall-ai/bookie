@@ -141,8 +141,17 @@ export function bankSummaryBalances(
 ): Map<string, { opening?: number; closing: number }> {
   const summary = fromXeroReport('bank-summary', report);
   const balances = new Map<string, { opening?: number; closing: number }>();
+  // Read by header so a new column can't swap opening and closing. A header with
+  // only the first label (as some responses have) keeps Xero's documented order.
+  const column = (label: RegExp, position: number) => {
+    const found = summary.columns.findIndex((c) => label.test(c));
+    return found >= 0 ? found : summary.columns.length <= 1 ? position : -1;
+  };
+  const openingAt = column(/^opening balance$/i, 1);
+  const closingAt = column(/^closing balance$/i, 4);
   for (const row of summary.sections.flatMap((s) => s.rows)) {
-    const [, opening, , , closing] = row.cells;
+    const opening = openingAt >= 0 ? row.cells[openingAt] : undefined;
+    const closing = closingAt >= 0 ? row.cells[closingAt] : undefined;
     if (row.kind === 'row' && row.accountId && typeof closing === 'number') {
       balances.set(row.accountId, {
         opening: typeof opening === 'number' ? opening : undefined,

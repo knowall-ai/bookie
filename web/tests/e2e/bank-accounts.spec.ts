@@ -73,9 +73,15 @@ test.describe('Bank account cards', () => {
       await expect(card.getByText(/^Balance over the last 4 weeks: /)).toBeAttached();
 
       // Hovering the chart shows a day's balance.
-      const box = (await card.getByTestId('balance-chart').boundingBox())!;
-      await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
-      await expect(card.locator('.recharts-tooltip-wrapper')).toContainText('£');
+      // Recharts sizes itself after hydration, so hover again until the tooltip answers.
+      await expect(async () => {
+        const box = (await card.getByTestId('balance-chart').boundingBox())!;
+        await page.mouse.move(box.x + 2, box.y + 2);
+        await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
+        await expect(card.locator('.recharts-tooltip-wrapper')).toContainText('£', {
+          timeout: 1000,
+        });
+      }).toPass();
 
       // The chart is part of the link to the account's transactions.
       await card.getByTestId('balance-chart').click();
