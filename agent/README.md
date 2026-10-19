@@ -134,6 +134,27 @@ Exact steps:
    Or create it in the portal and run `./41-install-bc-mcp.sh --vm`, which prompts for it. Diary the expiry.
 6. **Smoke test:** `--vm` mints a token and prints how many companies BC shows. Nothing else.
 
+### Demo mode: a fictional company for customer demos
+
+On a call, anyone can say "switch to demo mode". Until the call ends Bookie then works only in a demo
+company with fictional data (Microsoft's CRONUS, in a BC Sandbox), may share its figures with everyone
+on the call, may draft documents there once someone confirms out loud, and won't touch or mention any
+real books, even if asked. Demo mode only narrows what he sees, which is why anyone may switch it on;
+it never applies in Teams chats or email.
+
+1. In the **demo environment** (not production), repeat steps 2 to 4 for the same app, with permission
+   sets `D365 READ`, `D365 SALES DOC, EDIT`, `D365 PURCH DOC, EDIT`, `D365 CUSTOMER, EDIT`,
+   `D365 VENDOR, EDIT`, plus `BOOKIE READ` and `BOOKIE BTC READ` if the Bookie extensions are
+   installed there. Never a set that posts.
+2. Set `DEMO_BC_ENVIRONMENT`, `DEMO_BC_COMPANY` and `DEMO_ORG_NAME` in `config.env` and re-run step 04.
+   It adds the `business-central-demo` MCP server and the demo-mode sections of SOUL.md and the voice
+   persona, and refuses a demo environment that is the same as `BC_ENVIRONMENT`.
+3. For Bitcoin in the demo, add a bank account with a real watch-only descriptor (a small wallet kept
+   for demos) using the Bookie Bitcoin extension, and post its transactions, so the reconcile has real
+   chain data to compare. Bookie never shows made-up chain data.
+
+Demo mode is enforced by Bookie's instructions; the real BC servers stay registered during a demo.
+
 ## Voice and Teams: Agent Presence with GPT-Live-1
 
 - `deploy/23-setup-call-bot.sh` installs Presence from a **pinned commit** (`PRESENCE_PIN`) of

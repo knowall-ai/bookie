@@ -28,17 +28,34 @@ else
   BC_TOOLS="[get_schema, list_items, get_items_by_field]"
 fi
 
+# Demo mode needs both a demo environment and company, and the environment must not be the real one.
+DEMO_ON=0
+if [ -n "${DEMO_BC_ENVIRONMENT:-}" ] || [ -n "${DEMO_BC_COMPANY:-}" ]; then
+  [ -n "${DEMO_BC_ENVIRONMENT:-}" ] && [ -n "${DEMO_BC_COMPANY:-}" ] \
+    || die "demo mode needs both DEMO_BC_ENVIRONMENT and DEMO_BC_COMPANY (or neither)"
+  [ "${DEMO_BC_ENVIRONMENT}" != "${BC_ENVIRONMENT:-}" ] \
+    || die "DEMO_BC_ENVIRONMENT must be a separate environment from BC_ENVIRONMENT (${BC_ENVIRONMENT}): demo mode shares figures with outsiders"
+  DEMO_ON=1
+  DEMO_ORG_NAME="${DEMO_ORG_NAME:-${DEMO_BC_COMPANY}}"
+fi
+
 AUTHORISED_UPNS="${AUTHORISED_UPNS:-no one yet (an administrator has not authorised anyone)}"
 AUTHORISED_NAMES="${AUTHORISED_NAMES:-the people listed in my instructions}"
 OWNER_NAME="${OWNER_NAME:-your administrator}"
 VARS=(AGENT_NAME AGENT_DISPLAY_NAME AGENT_UPN COMPANY_NAME VM_NAME ORGANISATIONS AUTHORISED_UPNS AUTHORISED_NAMES OWNER_NAME PRINCIPAL_LINE
       MODEL_MAIN AZURE_AI_BASE_URL AI_RESOURCE_NAME TIMEZONE AGENT_REPO PRESENCE_DIR HERMES_DIR
       HERMES_WEBHOOK_PORT HERMES_API_PORT GRAPH_WEBHOOK_SECRET BC_ENVIRONMENT BC_COMPANY BC_COMPANY_2
-      REVERIE_EMBEDDINGS BC_TOOLS)
+      REVERIE_EMBEDDINGS BC_TOOLS DEMO_BC_ENVIRONMENT DEMO_BC_COMPANY DEMO_ORG_NAME)
+
+# Keep or drop a "# >>> name" ... "# <<< name" block (YAML) or "<!-- >>> name -->" block (Markdown).
+block() { # block NAME KEEP(0|1)
+  if [ "$2" = 1 ]; then sed -E "/(# |<!-- )(>>>|<<<) $1( -->)?\$/d"
+  else sed -E "/(# |<!-- )>>> $1( -->)?\$/,/(# |<!-- )<<< $1( -->)?\$/d"; fi
+}
 
 case "${1:-}" in
-  --soul)    render_template "${AGENT_DIR}/hermes/SOUL.md" "${VARS[@]}"; exit 0 ;;
-  --persona) render_template "${AGENT_DIR}/hermes/voice_persona.md" "${VARS[@]}"; exit 0 ;;
+  --soul)    render_template "${AGENT_DIR}/hermes/SOUL.md" "${VARS[@]}" | block demo-mode "${DEMO_ON}"; exit 0 ;;
+  --persona) render_template "${AGENT_DIR}/hermes/voice_persona.md" "${VARS[@]}" | block demo-mode "${DEMO_ON}"; exit 0 ;;
 esac
 
 render_config() {
@@ -47,7 +64,7 @@ render_config() {
   if [ -z "${BC_COMPANY_2:-}" ]; then
     out="$(printf '%s\n' "${out}" | sed '/# >>> bc-company-2/,/# <<< bc-company-2/d')"
   fi
-  printf '%s\n' "${out}"
+  printf '%s\n' "${out}" | block bc-demo "${DEMO_ON}"
 }
 
 if [ "${1:-}" = "--check" ]; then
