@@ -96,13 +96,20 @@ The full text is `agent/hermes/SOUL.md`. In short:
 Bookie can email people outside the organisation (payment chasers, replies to suppliers), but none of
 it leaves without a person's approval:
 
-* Exchange transport rule *Moderate AI Agents External Outbound* holds external mail from every
-  member of the *AI Agents* group (Bookie, Sallie, Poppie...) for the moderators (at KnowAll, Ben,
-  and Edi once knowall-ai/sallie#109 merges; either can act). It replaced the old *Block AI Agents
-  External Outbound* rule. The rule is tenant-wide and has one owner, knowall-ai/sallie
-  `deploy/25-enable-email-moderation.ps1`. Bookie's step 08 (`agent/deploy/08-restrict-email.ps1`)
-  only checks it: it warns and exits 1 if moderation isn't enabled and enforcing, an expected
-  moderator (`EMAIL_MODERATORS`) is missing, or the old block rule is back, and never changes a rule.
+* Two kinds of Exchange transport rule hold external mail for the moderators (`EMAIL_MODERATORS`;
+  at KnowAll Ben and Edi, either can act). Internal mail is not moderated.
+** *Moderate External Outbound - Bookie*: Bookie's own rule, created by
+   `agent/deploy/14-email-moderation.ps1` (step 14). It is his on/off switch:
+   `pwsh ./14-email-moderation.ps1 -Moderation Off` lets his external mail go out without approval,
+   `-Moderation On` holds it again. Re-running without the flag keeps the current state.
+** *Moderate AI Agents External Outbound*: the catch-all for the whole *AI Agents* group, owned by
+   knowall-ai/sallie `deploy/25`. It skips (`ExceptIfFrom`) agents that have their own rule, so a new
+   agent is moderated before its rule exists. Step 14 adds Bookie to that list only after his own rule
+   is in force, keeps every other agent's entry, and changes nothing else on the catch-all.
+* `agent/deploy/08-restrict-email.ps1` (step 08) only checks. It fails (exit 1) if the catch-all
+  isn't enabled and enforcing for the group with the expected moderators, has any exception other
+  than `ExceptIfFrom`, skips an agent that has no rule of its own, or the old *Block AI Agents
+  External Outbound* rule is back. Bookie's own rule switched off, or not created yet, is a warning.
   Without moderation, Exchange rejects Bookie's external mail and chasers are drafts.
 * The moderator gets an *Approval requested* message with the original attached and approves or
   rejects it in Outlook, or in the *Approvals* tab on Bookie's page in the Agents Portal (built for
