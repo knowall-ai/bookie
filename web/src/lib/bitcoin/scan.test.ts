@@ -4,7 +4,7 @@ import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
 import { electrumScriptHash, parseWalletInput, scriptDeriver } from './descriptor';
 import { ElectrumClient, ElectrumError, parseElectrumUrl } from './electrum';
-import { MAX_TRANSACTIONS, headerTime, scanWallet } from './scan';
+import { MAX_TRANSACTIONS, firstUnusedReceiveIndex, headerTime, scanWallet } from './scan';
 import { btcToSats, formatBtc, satsToBtc, satsToBtcNumber, shortTxid } from './format';
 
 /*
@@ -365,6 +365,17 @@ describe('scanWallet', () => {
     client.close();
     expect(scan.used).toEqual({ receive: 0, change: 1 });
     expect(scan.nextReceiveIndex).toBe(0);
+  });
+
+  it('checks the chain now for the first unused receive address from a cached index', async () => {
+    const client = await ElectrumClient.connect(await fakeServer(fixtureHandler));
+    // Receive 0 and 1 were paid (say, after a cached scan said 0): the first unused is 2.
+    expect(await firstUnusedReceiveIndex(wallet, client, 0)).toBe(2);
+    expect(await firstUnusedReceiveIndex(wallet, client, 2)).toBe(2);
+    await expect(firstUnusedReceiveIndex(wallet, client, 0, 2)).rejects.toThrow(
+      /have all been used/
+    );
+    client.close();
   });
 
   it('stops rather than read an enormous history', async () => {

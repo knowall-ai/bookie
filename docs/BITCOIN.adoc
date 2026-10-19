@@ -177,12 +177,15 @@ Each wallet's card on the Bank accounts page, and the top of its own page, shows
 * The address is *fresh*: Bookie derives it on the server from the wallet's descriptor at the receive
   index after the highest one with any history (`nextReceiveIndex` from the scan; 0 for an empty wallet).
   It's not the count of used addresses, because the chain can have gaps. The browser never chooses the
-  index. Once the address receives a payment, the next scan moves on to a new one.
+  index. Because the scan may come from the five-minute cache, opening the dialog also asks the
+  Electrum server about that address (and the ones after it) at that moment, so an address paid
+  since the scan isn't offered again.
 * The QR code is a BIP21 URI, `bitcoin:<address>`, drawn black on white with a four-module quiet zone
   so phone cameras read it. The address is shown in full with a *Copy* button, with the network
   (testnet is labelled as not real bitcoin).
 * An optional *amount* in BTC adds `?amount=` to the URI. It must be above zero, have at most 8 decimal
-  places and be no more than 21 million BTC.
+  places and be no more than 21 million BTC. While the amount is invalid the QR code is hidden, so it
+  never asks for an amount other than the one typed.
 * Without a live scan (no Electrum server, a server error, a testnet wallet or an unusable descriptor),
   Bookie can't know which addresses are used, so it shows the reason ("Can't pick an unused address
   without reading the chain: ...") instead of a guessed address.

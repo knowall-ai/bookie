@@ -39,7 +39,12 @@ import {
   type FiatValue,
 } from './kraken';
 import { dailyBalances } from './history';
-import { scanWallet, type ChainTransaction, type WalletScan } from './scan';
+import {
+  firstUnusedReceiveIndex,
+  scanWallet,
+  type ChainTransaction,
+  type WalletScan,
+} from './scan';
 
 /* ------------------------------------------------------------------ */
 /* Electrum server configuration                                       */
@@ -443,19 +448,22 @@ async function loadResolved(
   try {
     return { status: 'ok', scan: await hit.value, source: 'electrum', electrum: electrumStatus() };
   } catch (error) {
-    // ElectrumError and WalletError messages are fixed sentences, safe to show; the
-    // socket or server detail (which can name the host) goes to the server log only.
-    if (error instanceof ElectrumError) {
-      console.error('[bookie] wallet scan failed:', error.message, error.detail ?? '');
-      return { status: 'error', message: error.message };
-    }
-    if (error instanceof WalletError) return { status: 'error', message: error.message };
-    console.error('[bookie] wallet scan failed', error);
-    return {
-      status: 'error',
-      message: 'Bookie could not read this wallet from the Electrum server.',
-    };
+    return { status: 'error', message: chainErrorMessage(error) };
   }
+}
+
+/**
+ * ElectrumError and WalletError messages are fixed sentences, safe to show; the
+ * socket or server detail (which can name the host) goes to the server log only.
+ */
+function chainErrorMessage(error: unknown): string {
+  if (error instanceof ElectrumError) {
+    console.error('[bookie] wallet scan failed:', error.message, error.detail ?? '');
+    return error.message;
+  }
+  if (error instanceof WalletError) return error.message;
+  console.error('[bookie] wallet scan failed', error);
+  return 'Bookie could not read this wallet from the Electrum server.';
 }
 
 /* ------------------------------------------------------------------ */
@@ -479,16 +487,31 @@ export async function receiveAddress(
   const { summary, descriptor } = await resolveWallet(auth, scope, walletId);
   const network = descriptor?.network ?? summary.network;
   const load = await loadResolved(auth, scope, summary, descriptor);
-  if (load.status !== 'ok' || !descriptor) {
-    const message =
-      load.status !== 'ok' ? load.message : (summary.problem ?? 'This wallet has no descriptor.');
-    return {
-      ok: false,
-      reason: `Can’t pick an unused address without reading the chain: ${message}`,
-      network,
-    };
+  const unavailable = (message: string): ReceiveAddress => ({
+    ok: false,
+    reason: `Can’t pick an unused address without reading the chain: ${message}`,
+    network,
+  });
+  if (load.status !== 'ok') return unavailable(load.message);
+  if (!descriptor) return unavailable(summary.problem ?? 'This wallet has no descriptor.');
+  let index = load.scan.nextReceiveIndex;
+  const setting = electrumSetting();
+  if (load.source === 'electrum' && setting.configured) {
+    // The scan may be from the cache: check the chain now, so an address paid in the
+    // last few minutes isn't offered again.
+    try {
+      const client = await ElectrumClient.connect(setting.server, {
+        certSha256: setting.certSha256,
+      });
+      try {
+        index = await firstUnusedReceiveIndex(descriptor, client, index);
+      } finally {
+        client.close();
+      }
+    } catch (error) {
+      return unavailable(chainErrorMessage(error));
+    }
   }
-  const index = load.scan.nextReceiveIndex;
   const { address } = scriptDeriver(descriptor)('receive', index);
   return { ok: true, address, index, network: descriptor.network, demo: summary.demo };
 }

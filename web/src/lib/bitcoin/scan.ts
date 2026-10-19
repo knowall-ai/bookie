@@ -129,6 +129,29 @@ async function mapLimit<T, R>(
   return results;
 }
 
+/**
+ * The first receive index from `start` with no history, asked of the server now: a
+ * cached scan can be minutes old, and an address paid since then isn't fresh any more.
+ * Gives up after `gapLimit` used addresses in a row rather than walk the chain.
+ */
+export async function firstUnusedReceiveIndex(
+  descriptor: WalletDescriptor,
+  electrum: ElectrumApi,
+  start: number,
+  gapLimit = GAP_LIMIT
+): Promise<number> {
+  const derive = scriptDeriver(descriptor);
+  for (let index = start; index < start + gapLimit; index++) {
+    const history = await electrum.request<HistoryEntry[]>('blockchain.scripthash.get_history', [
+      electrumScriptHash(derive('receive', index).script),
+    ]);
+    if (!history?.length) return index;
+  }
+  throw new WalletError(
+    `The next ${gapLimit} receive addresses have all been used since the wallet was read. Try again in a few minutes.`
+  );
+}
+
 export interface ScanOptions {
   gapLimit?: number;
   concurrency?: number;

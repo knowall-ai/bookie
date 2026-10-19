@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { Check, Copy, QrCode, X } from 'lucide-react';
 import type { ReceiveAddress } from '@/lib/bitcoin/wallets';
@@ -18,13 +18,23 @@ type State =
 /** "Receive" on a wallet page: a fresh address from the server, as a BIP21 QR code. */
 export function ReceiveButton({ orgKey, walletId }: { orgKey: string; walletId: string }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
   return (
     <>
-      <Button variant="primary" onClick={() => setOpen(true)} data-testid="wallet-receive">
+      <Button
+        ref={triggerRef}
+        variant="primary"
+        onClick={() => setOpen(true)}
+        data-testid="wallet-receive"
+      >
         <QrCode className="h-4 w-4" aria-hidden />
         Receive
       </Button>
-      {open && <ReceiveDialog orgKey={orgKey} walletId={walletId} onClose={() => setOpen(false)} />}
+      {open && <ReceiveDialog orgKey={orgKey} walletId={walletId} onClose={close} />}
     </>
   );
 }
@@ -40,6 +50,7 @@ function ReceiveDialog({
 }) {
   const [state, setState] = useState<State>({ status: 'loading' });
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -61,7 +72,24 @@ function ReceiveDialog({
 
   useEffect(() => {
     closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return onClose();
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      // Keep Tab inside the dialog while it is open.
+      const focusable = [
+        ...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input'),
+      ];
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -74,6 +102,7 @@ function ReceiveDialog({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="receive-title"
@@ -142,6 +171,7 @@ function ReceiveDetails({
   const [copied, setCopied] = useState(false);
   const parsed = amount.trim() ? parseBtcAmount(amount) : undefined;
   const amountBtc = parsed?.ok ? parsed.btc : undefined;
+  const invalid = parsed !== undefined && !parsed.ok;
   const uri = bip21Uri(address, amountBtc);
 
   useEffect(() => {
@@ -184,17 +214,31 @@ function ReceiveDetails({
         </p>
       )}
       <div className="flex flex-col items-center gap-2">
-        <div
-          role="img"
-          aria-label={label}
-          data-testid="receive-qr"
-          data-uri={uri}
-          className="h-60 w-60 rounded-lg bg-white [&>svg]:h-full [&>svg]:w-full"
-          // The SVG is the qrcode library's output for our own URI: modules only, no text.
-          dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
-        />
-        <p className="text-faint text-xs" data-testid="receive-qr-caption">
-          {amountBtc ? `Asks for ${amountBtc} BTC` : 'No amount in this code'}
+        {invalid ? (
+          // Never a code that asks for a different amount than the one typed.
+          <div
+            className="border-line text-muted flex h-60 w-60 items-center justify-center rounded-lg border border-dashed p-6 text-center text-sm"
+            data-testid="receive-qr-hidden"
+          >
+            Correct the amount to show the QR code.
+          </div>
+        ) : (
+          <div
+            role="img"
+            aria-label={label}
+            data-testid="receive-qr"
+            data-uri={uri}
+            className="h-60 w-60 rounded-lg bg-white [&>svg]:h-full [&>svg]:w-full"
+            // The SVG is the qrcode library's output for our own URI: modules only, no text.
+            dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
+          />
+        )}
+        <p className="text-faint text-xs" aria-live="polite" data-testid="receive-qr-caption">
+          {invalid
+            ? 'No QR code until the amount is valid'
+            : amountBtc
+              ? `Asks for ${amountBtc} BTC`
+              : 'No amount in this code'}
         </p>
       </div>
 
@@ -236,6 +280,7 @@ function ReceiveDetails({
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           aria-invalid={parsed ? !parsed.ok : undefined}
+          aria-describedby={parsed && !parsed.ok ? 'receive-amount-error' : undefined}
           data-testid="receive-amount"
         />
       </Field>

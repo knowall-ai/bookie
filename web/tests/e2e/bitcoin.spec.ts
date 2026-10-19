@@ -155,10 +155,13 @@ test.describe('Bitcoin wallets', () => {
 
     await dialog.getByLabel('Amount (BTC, optional)').fill('0.000000001');
     await expect(dialog).toContainText('BTC has at most 8 decimal places.');
-    await expect(qr).toHaveAttribute('data-uri', `bitcoin:${text}`);
+    // Never a code for a different amount than the one typed.
+    await expect(qr).toBeHidden();
+    await expect(dialog.getByTestId('receive-qr-hidden')).toBeVisible();
 
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
+    await expect(page.getByTestId('wallet-receive')).toBeFocused();
   });
 
   test('refuses a private key', async ({ page }) => {
