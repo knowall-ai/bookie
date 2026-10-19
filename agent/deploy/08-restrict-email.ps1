@@ -103,24 +103,28 @@ try {
     $exempt = @($block.ExceptIfFrom | ForEach-Object { "$_" })
     if ($Moderators.Count -gt 0) {
         Write-Host "==> External mail from $AgentUPN will be held for approval by: $($Moderators -join ', ')"
-        if (Get-TransportRule -Identity $moderateRule -ErrorAction SilentlyContinue) {
-            Set-TransportRule -Identity $moderateRule `
-                -From $AgentUPN `
-                -SentToScope NotInOrganization `
-                -ModerateMessageByUser $Moderators `
-                -Priority 0 -ErrorAction Stop
-        } else {
-            New-TransportRule -Name $moderateRule `
-                -From $AgentUPN `
-                -SentToScope NotInOrganization `
-                -ModerateMessageByUser $Moderators `
-                -Priority 0 -ErrorAction Stop
+        # Rebuild the rule from scratch each run, so no leftover Audit mode or exception survives.
+        # Block Bookie again first, so his mail is never unmoderated while the rule is rebuilt.
+        if ($exempt -contains $AgentUPN) {
+            $exempt = @($exempt | Where-Object { $_ -ne $AgentUPN })
+            Set-TransportRule -Identity $outboundRule -ExceptIfFrom $(if ($exempt.Count) { $exempt } else { $null }) -ErrorAction Stop
         }
-        Enable-TransportRule -Identity $moderateRule -ErrorAction Stop
+        if (Get-TransportRule -Identity $moderateRule -ErrorAction SilentlyContinue) {
+            Remove-TransportRule -Identity $moderateRule -Confirm:$false -ErrorAction Stop
+        }
+        New-TransportRule -Name $moderateRule `
+            -From $AgentUPN `
+            -SentToScope NotInOrganization `
+            -ModerateMessageByUser $Moderators `
+            -Mode Enforce `
+            -Enabled $true `
+            -Priority 0 -ErrorAction Stop | Out-Null
         # Only lift the block once moderation is definitely in force, or external mail would leave unapproved.
         $check = Get-TransportRule -Identity $moderateRule -ErrorAction Stop
-        if ($check.State -ne 'Enabled' -or -not $check.ModerateMessageByUser -or "$($check.SentToScope)" -ne 'NotInOrganization') {
-            throw "'$moderateRule' is not enabled with moderators; leaving $AgentUPN blocked."
+        $exceptions = @($check.PSObject.Properties | Where-Object { $_.Name -like 'ExceptIf*' -and $_.Value })
+        if ($check.State -ne 'Enabled' -or "$($check.Mode)" -ne 'Enforce' -or -not $check.ModerateMessageByUser -or
+            "$($check.SentToScope)" -ne 'NotInOrganization' -or $exceptions.Count -gt 0) {
+            throw "'$moderateRule' is not enforcing moderation with no exceptions; leaving $AgentUPN blocked."
         }
         if ($exempt -notcontains $AgentUPN) {
             Write-Host "==> Exempting $AgentUPN from '$outboundRule' (the moderation rule covers it)"

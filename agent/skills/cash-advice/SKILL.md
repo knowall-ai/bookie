@@ -67,8 +67,10 @@ his external mail outright: use a draft instead.
    asking them to reply if there is a problem. Sign off `Bookie pp <the person who asked>`, or as that
    person when it's a draft they'll send themselves.
 2. Where it goes, in this order:
-   - **Sent from Bookie's own mailbox, held for approval**, when the person asked Bookie to send it:
-     `node ~/presence/scripts/graph.mjs send-mail --json <file>` (message object: `subject`, `body`
+   - **Sent from Bookie's own mailbox, held for approval**, when the person asked Bookie to send it
+     and moderation is set up. If Exchange rejects it outright ("AI agents are not permitted to send
+     external email"), moderation isn't set up: tell the person, and use one of the drafts below.
+     Send with `node ~/presence/scripts/graph.mjs send-mail --json <file>` (message object: `subject`, `body`
      HTML, `toRecipients`; copy the person who asked). Exchange holds it and the moderator approves
      or rejects it. Tell the person it is awaiting approval, not sent.
    - **A draft in the sender's own mailbox** when they have shared their mailbox with Bookie or made

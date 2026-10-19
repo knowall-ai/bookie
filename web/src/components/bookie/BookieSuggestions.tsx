@@ -21,13 +21,23 @@ const SEVERITY = {
 
 /** Dismissed for this browser session only; nothing is stored on the server. */
 const dismissedKey = (orgKey: string) => `bookie:dismissed:${orgKey}`;
+/** Steps already carried out, so a reload doesn't offer (say) the same email again. */
+const doneKey = (orgKey: string) => `bookie:done:${orgKey}`;
 
-function readDismissed(orgKey: string): string[] {
+function readIds(key: string): string[] {
   if (typeof window === 'undefined') return [];
   try {
-    return JSON.parse(sessionStorage.getItem(dismissedKey(orgKey)) ?? '[]') as string[];
+    return JSON.parse(sessionStorage.getItem(key) ?? '[]') as string[];
   } catch {
     return [];
+  }
+}
+
+function addId(key: string, id: string) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify([...readIds(key), id]));
+  } catch {
+    // Storage unavailable: the in-memory state still applies.
   }
 }
 
@@ -47,14 +57,13 @@ export function BookieSuggestions({
   onNavigate?: () => void;
   className?: string;
 }) {
-  const [dismissed, setDismissed] = useState(() => readDismissed(orgKey));
+  const [dismissed, setDismissed] = useState(() => readIds(dismissedKey(orgKey)));
   const shown = suggestions.filter((s) => !dismissed.includes(s.id));
   if (shown.length === 0) return null;
 
   const dismiss = (id: string) => {
-    const next = [...dismissed, id];
-    sessionStorage.setItem(dismissedKey(orgKey), JSON.stringify(next));
-    setDismissed(next);
+    addId(dismissedKey(orgKey), id);
+    setDismissed([...dismissed, id]);
   };
 
   return (
@@ -90,7 +99,7 @@ function SuggestionCard({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [confirming, setConfirming] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(() => readIds(doneKey(orgKey)).includes(suggestion.id));
   const { title, reason, subject, action } = suggestion;
   const severity = SEVERITY[suggestion.severity];
   const Icon = severity.icon;
@@ -105,6 +114,7 @@ function SuggestionCard({
         return;
       }
       toast.success(action.done);
+      addId(doneKey(orgKey), suggestion.id);
       setDone(true);
       router.refresh();
     });

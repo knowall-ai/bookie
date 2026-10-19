@@ -82,6 +82,11 @@ describe('BookieSuggestions', () => {
     await waitFor(() => expect(screen.getByText('Done')).toBeTruthy());
     expect(invoiceAction).toHaveBeenCalledWith('demo', 'inv-1', 'approve');
     expect(refresh).toHaveBeenCalled();
+    // A reload doesn't offer the same step again.
+    cleanup();
+    render(<BookieSuggestions orgKey="demo" suggestions={[approve]} />);
+    expect(screen.getByText('Done')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
   it('remembers a dismissal for the session', () => {
