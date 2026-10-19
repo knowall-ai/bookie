@@ -99,6 +99,25 @@ mcp_servers:
       prompts: false
       resources: false
   # <<< bc-company-2
+  # >>> bc-demo
+  # Demo mode (SOUL.md): a demo company with fictional data (e.g. Microsoft's CRONUS) in a separate,
+  # non-production BC environment. Drafts are allowed here, so the write tools are registered; BC
+  # grants Bookie's app only READ and EDIT permission sets in that environment, never a POST set.
+  business-central-demo:
+    command: "mcp-business-central"
+    args: []
+    env:
+      BC_URL_SERVER: "https://api.businesscentral.dynamics.com/v2.0/${BC_TENANT_ID}/{{DEMO_BC_ENVIRONMENT}}/api/v2.0"
+      BC_COMPANY: "{{DEMO_BC_COMPANY}}"
+      BC_AUTH_TYPE: "client_credentials"
+      BC_TENANT_ID: "${BC_TENANT_ID}"
+      BC_CLIENT_ID: "${BC_CLIENT_ID}"
+      BC_CLIENT_SECRET: "${BC_CLIENT_SECRET}"
+    tools:
+      include: [get_schema, list_items, get_items_by_field, create_item, update_item]
+      prompts: false
+      resources: false
+  # <<< bc-demo
   # Reverie's read tools for explicit lookups ("what do we know about Fabrikam's finance team?").
   # Writes go through the memory plugin's own `reverie` tool only, so the no-ledger-data rule has
   # one enforcement point.

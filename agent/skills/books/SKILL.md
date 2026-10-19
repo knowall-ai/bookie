@@ -29,6 +29,11 @@ is this install's own configuration, so read it there rather than assuming. In B
 server takes the company's *name*, which can differ from the display name people use (a company shown
 as "Contoso Ltd" may be named "My Company"); `ORGANISATIONS` gives both where they differ.
 
+**Demo mode** (SOUL.md, calls only): a lookup that starts with "DEMO MODE:" uses only the
+`business-central-demo` server (the demo company, fictional data) and the Bitcoin wallets with
+`BC_ENVIRONMENT=<demo environment>` and `--company "<demo company>"`, both from SOUL.md. No Xero, no
+other BC server, no Reverie facts about real organisations for that lookup.
+
 Rules:
 - If the person names the organisation, use it. If their question implies one (currency, country,
   a customer only one organisation has), say which you picked. If it is still ambiguous, **ask**.
