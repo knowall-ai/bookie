@@ -9,6 +9,7 @@
 #   "Moderate External Outbound - Bookie"   Bookie's own rule and on/off switch, owned by step 14.
 # EMAIL_MODERATORS lists who should be on both. Exits 1 if external email could go out unmoderated
 # by mistake or the old block rule is back; Bookie's own rule switched off or missing only warns.
+# knowall-ai/sallie deploy/08 is the same check with Sallie's names: keep the two in step.
 # Supplier invoices still reach the shared mailbox accounts@ (not a group member);
 # Bookie reads them there through the FullAccess grant of step 10.
 # Adapted for Bookie from knowall-ai/poppie-hermes. Idempotent (existing rules/policies are kept).

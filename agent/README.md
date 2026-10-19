@@ -247,7 +247,7 @@ PowerShell 7 with ExchangeOnlineManagement and MicrosoftTeams (or IPPS) modules,
 | 3 | local | `./05-create-entra-user.sh` | initial password (prompted) |
 | 4 | local | `./06-add-to-ai-agents-group.sh` | Exchange admin sign-in (pwsh) |
 | 5 | local | `./07-assign-license.sh --list`, then `./07-assign-license.sh` | **a free licence seat with Teams** |
-| 6 | local | `pwsh ./14-email-moderation.ps1`, then `pwsh ./08-restrict-email.ps1` | Exchange admin sign-in. 14 creates Bookie's own moderation rule (switch it with `-Moderation Off\|On`); 08 only checks the rules. The AI Agents catch-all is owned by knowall-ai/sallie deploy/25 |
+| 6 | local | `pwsh ./14-email-moderation.ps1`, then `pwsh ./08-restrict-email.ps1` | Exchange admin sign-in. 14 creates Bookie's own moderation rule (switch it with `-Moderation Off\|On`); 08 only checks the rules. The AI Agents catch-all is owned by knowall-ai/sallie deploy/25: run that first (if 14 runs first it only warns) |
 | 7 | local | `pwsh ./09-restrict-teams.ps1` (or `-FallbackMessagingPolicy`) | **Teams/Compliance admin PowerShell** |
 | 8 | local | `pwsh ./10-grant-accounts-mailbox.ps1` | Exchange admin; then create the two `Bookie/...` folders in accounts@ |
 | 9 | local | `./12-lockdown-nsg.sh` | |

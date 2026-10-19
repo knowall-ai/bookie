@@ -22,6 +22,8 @@
 #   pwsh ./14-email-moderation.ps1 -Moderation On   # hold Bookie's external email again
 #
 # Re-running without -Moderation keeps whatever on/off state his rule is in.
+# Run knowall-ai/sallie deploy/25 first: it owns the catch-all. If this runs first it only warns
+# (Bookie's own rule still holds his mail) and adds him to the catch-all's skip list next time.
 # Moderators come from EMAIL_MODERATORS (space or comma separated); any one of
 # them can approve or reject. Step 08 checks the result.
 # =============================================================================
