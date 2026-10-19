@@ -4,7 +4,12 @@ import { bookieInstructions } from '@/lib/bookie/prompt';
 import { bookieContext, rateLimit } from '@/lib/bookie/session';
 import { bookieToolContext } from '@/lib/bookie/tool-context';
 import { runTool, toolsFor, toolStatus } from '@/lib/bookie/tools';
-import { buildSuggestion, MAX_SUGGESTIONS, suggestToolDefinition } from '@/lib/bookie/suggestions';
+import {
+  buildSuggestion,
+  MAX_HOME_SUGGESTIONS,
+  MAX_SUGGESTIONS,
+  suggestToolDefinition,
+} from '@/lib/bookie/suggestions';
 import type { BookieSuggestion } from '@/lib/bookie/suggestion-types';
 
 export const dynamic = 'force-dynamic';
@@ -60,8 +65,9 @@ export async function POST(request: Request) {
   /** A card for the user, checked against the live record; the result goes back to Bookie. */
   const suggest = async (rawArgs: string) => {
     if (!connector) return { shown: false, error: 'No organisation is open.' };
-    if (suggestions.length >= MAX_SUGGESTIONS)
-      return { shown: false, error: `At most ${MAX_SUGGESTIONS} suggestions per answer.` };
+    const limit = mode === 'insights' ? MAX_HOME_SUGGESTIONS : MAX_SUGGESTIONS;
+    if (suggestions.length >= limit)
+      return { shown: false, error: `At most ${limit} suggestions per answer.` };
     const result = await buildSuggestion(connector, base, rawArgs);
     if (!result.ok) return { shown: false, error: result.error };
     if (!suggestions.some((s) => s.id === result.suggestion.id))

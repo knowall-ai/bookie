@@ -14,6 +14,8 @@ import type { BookieSuggestion, SuggestionAction, SuggestionSubject } from './su
  */
 
 export const MAX_SUGGESTIONS = 5;
+/** Bookie's take on Home is short: three cards at most. */
+export const MAX_HOME_SUGGESTIONS = 3;
 
 const ACTIONS = [
   'approve_invoice',
