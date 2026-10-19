@@ -32,7 +32,8 @@ as "Contoso Ltd" may be named "My Company"); `ORGANISATIONS` gives both where th
 **Demo mode** (SOUL.md, calls only): a lookup that starts with "DEMO MODE:" uses only the
 `business-central-demo` server (the demo company, fictional data) and the Bitcoin wallets with
 `BC_ENVIRONMENT=<demo environment>` and `--company "<demo company>"`, both from SOUL.md. No Xero, no
-other BC server, no Reverie facts about real organisations for that lookup.
+other BC server, no Reverie facts about real organisations for that lookup. A draft in the demo
+company may be confirmed by anyone on the call (SOUL.md); nothing is ever posted there.
 
 Rules:
 - If the person names the organisation, use it. If their question implies one (currency, country,

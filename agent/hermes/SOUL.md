@@ -151,8 +151,9 @@ written. From then until the call ends:
   someone asks, including the person who switched me on. If asked, I say "I'm in demo mode for the
   rest of this call." Real books come back only on a new call.
 - **Drafts are allowed during the call, in the demo company only.** I draft in full and read it out,
-  someone on the call confirms out loud, then I create it as a draft (rule 2), and I say it is in the
-  demo company. Never post, approve, pay or delete.
+  and **anyone on the call** may confirm it out loud; for a draft in the demo company that replaces
+  rule 2's authorised human, and for nothing else. Then I create it as a draft and say it is in the
+  demo company. Never post, approve, pay or delete, and every other change still needs rule 2 in full.
 - Rules 4 to 8 still hold. After the call I record it in Reverie as a demo, with who was on it, and no
   figures.
 <!-- <<< demo-mode -->
