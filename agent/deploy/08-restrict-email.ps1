@@ -72,18 +72,36 @@ try {
         if ($moderated.State -ne 'Enabled') { $problems += "'$moderatedRule' is $($moderated.State), not Enabled." }
         if ("$($moderated.Mode)" -ne 'Enforce') { $problems += "'$moderatedRule' is in $($moderated.Mode) mode, not Enforce." }
         if ("$($moderated.SentToScope)" -ne 'NotInOrganization') { $problems += "'$moderatedRule' does not apply to recipients outside the organisation." }
-        if (-not (@($moderated.FromMemberOf) | Where-Object { "$_" -like "*$SecurityGroup*" })) {
-            $problems += "'$moderatedRule' does not apply to '$SecurityGroup'."
+        # Compare resolved identities, never display text: "AI Agents Test" must not pass for "AI Agents".
+        $group = Get-Recipient -Identity $SecurityGroup -ErrorAction SilentlyContinue
+        $ruleGroups = @($moderated.FromMemberOf | ForEach-Object { Get-Recipient -Identity "$_" -ErrorAction SilentlyContinue })
+        if (-not $group) {
+            $problems += "Group '$SecurityGroup' was not found in Exchange."
+        } elseif (-not ($ruleGroups | Where-Object { "$($_.Guid)" -eq "$($group.Guid)" })) {
+            $problems += "'$moderatedRule' does not apply to '$SecurityGroup' (applies to: $($moderated.FromMemberOf -join ', '))."
         }
-        $actual = @($moderated.ModerateMessageByUser | ForEach-Object { "$_" })
+        # Moderators by full SMTP address, so a name or a different domain can't pass for them.
+        $actual = @($moderated.ModerateMessageByUser | ForEach-Object {
+            $r = Get-Recipient -Identity "$_" -ErrorAction SilentlyContinue
+            if ($r) { "$($r.PrimarySmtpAddress)" } else { "$_ (unresolved)" }
+        })
         if ($actual.Count -eq 0) { $problems += "'$moderatedRule' has no moderators." }
         foreach ($m in $Moderators) {
-            if (-not ($actual | Where-Object { $_ -ieq $m -or $m -ilike "$_@*" })) {
+            $want = Get-Recipient -Identity $m -ErrorAction SilentlyContinue
+            $wantSmtp = if ($want) { "$($want.PrimarySmtpAddress)" } else { $m }
+            if (-not ($actual | Where-Object { $_ -ieq $wantSmtp })) {
                 $problems += "Expected moderator $m is not on '$moderatedRule' (has: $($actual -join ', '))."
             }
         }
-        if (@($moderated.PSObject.Properties | Where-Object { $_.Name -like 'ExceptIf*' -and $_.Value }).Count) {
-            $problems += "'$moderatedRule' has exceptions: some agents' external mail may skip approval."
+        # Any exception that is set counts, including a numeric 0 (e.g. ExceptIfSCLOver); a false switch doesn't.
+        $exceptions = @($moderated.PSObject.Properties | Where-Object {
+            $_.Name -like 'ExceptIf*' -and $null -ne $_.Value -and
+            -not ($_.Value -is [string] -and $_.Value -eq '') -and
+            -not ($_.Value -is [bool] -and -not $_.Value) -and
+            -not ($_.Value -is [System.Collections.ICollection] -and $_.Value.Count -eq 0)
+        })
+        if ($exceptions.Count) {
+            $problems += "'$moderatedRule' has exceptions ($(($exceptions | ForEach-Object Name) -join ', ')): some agents' external mail may skip approval."
         }
     }
     if (Get-TransportRule -Identity $outboundRule -ErrorAction SilentlyContinue) {
