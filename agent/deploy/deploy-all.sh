@@ -21,7 +21,7 @@ PLAN=(
   "local|05-create-entra-user.sh|Entra user ${AGENT_UPN} (prompts for the initial password)"
   "local|06-add-to-ai-agents-group.sh|AI Agents groups (Entra + Exchange; pwsh sign-in)"
   "local|07-assign-license.sh|M365 licence (needs a free seat)"
-  "local|pwsh:08-restrict-email.ps1|Transport rules: AI agents internal-only email"
+  "local|pwsh:08-restrict-email.ps1|Check the shared AI Agents email moderation rule (check only)"
   "local|pwsh:09-restrict-teams.ps1|Information Barriers (or -FallbackMessagingPolicy)"
   "local|pwsh:10-grant-accounts-mailbox.ps1|FullAccess on ${ACCOUNTS_MAILBOX:-<no accounts mailbox>} (bill capture)"
   "local|12-lockdown-nsg.sh|NSG: SSH/RDP from your IP only"

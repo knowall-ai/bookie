@@ -1,16 +1,13 @@
 # =============================================================================
-# Step 8: Restrict Email - Exchange Transport Rules
+# Step 8: Check Email - Exchange Transport Rules (check only)
 # Runs: Windows PowerShell (Exchange Online Management module)
 # =============================================================================
-# This script sets the transport rules for AI agents' external email. The rules apply to all members of the "AI Agents"
-# security group.
-#
-# With EMAIL_MODERATORS set, the group's external mail is moderated instead of blocked: the
-# shared rule "Moderate AI Agents External Outbound" holds each message and sends the
-# moderators an "Approval requested" message, which they approve or reject in Outlook or the
-# Agents Portal's Approvals tab. knowall-ai/sallie (deploy/25) manages the same rule; keep the
-# moderators the same in both. With no moderation rule and EMAIL_MODERATORS empty, the agents
-# stay internal-only.
+# CHECK ONLY. Verifies the shared transport rules for the AI agents' external email and warns
+# loudly if they are wrong; it never creates or changes anything. The rules are tenant-wide and
+# owned by knowall-ai/sallie deploy/25-enable-email-moderation.ps1: "Moderate AI Agents External
+# Outbound" holds external mail from every member of the "AI Agents" group until a moderator
+# approves it (Outlook, or the Agents Portal's Approvals tab). EMAIL_MODERATORS lists who should be
+# on it. Exits 1 if moderation isn't in force or the old block rule is back.
 # Supplier invoices still reach the shared mailbox accounts@ (not a group member);
 # Bookie reads them there through the FullAccess grant of step 10.
 # Adapted for Bookie from knowall-ai/poppie-hermes. Idempotent (existing rules/policies are kept).
@@ -41,7 +38,7 @@ if (-not $InternalDomain -and $AdminUPN) {
     $InternalDomain = $AdminUPN.Split('@')[1]
 }
 
-Write-Host "==> Step 8: Restricting email for '$SecurityGroup' group members" -ForegroundColor Cyan
+Write-Host "==> Step 8: Checking email rules for '$SecurityGroup' group members" -ForegroundColor Cyan
 
 # Install the module if not already installed
 if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
@@ -59,91 +56,54 @@ if ($IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop') {
 }
 
 try {
-    # The AI Agents group shares these rules with every KnowAll agent (Sallie, Poppie...).
-    # knowall-ai/sallie deploy/25-enable-email-moderation.ps1 manages the same moderation rule:
-    # keep EMAIL_MODERATORS the same in both, and never re-create a block rule once
-    # moderation is in force, or every agent's external email is blocked again.
+    # CHECK ONLY: this script never creates or changes a transport rule. The AI Agents rules are
+    # tenant-wide and shared by every agent; knowall-ai/sallie deploy/25-enable-email-moderation.ps1
+    # is their single owner. Two repos setting the same rule would drift (whichever ran last would
+    # win), and re-creating the old block rules would stop every agent's external email.
     $outboundRule  = "Block AI Agents External Outbound"
     $inboundRule   = "Block AI Agents External Inbound"
     $moderatedRule = "Moderate AI Agents External Outbound"
+    $problems = @()
 
     $moderated = Get-TransportRule -Identity $moderatedRule -ErrorAction SilentlyContinue
-    if ($Moderators.Count -gt 0) {
-        Write-Host "==> External mail from '$SecurityGroup' is held for approval by: $($Moderators -join ', ')"
-        if ($moderated) {
-            Set-TransportRule -Identity $moderatedRule `
-                -FromMemberOf $SecurityGroup `
-                -SentToScope NotInOrganization `
-                -ModerateMessageByUser $Moderators `
-                -Mode Enforce `
-                -Priority 0 -ErrorAction Stop
-            Enable-TransportRule -Identity $moderatedRule -ErrorAction Stop
-        } else {
-            New-TransportRule -Name $moderatedRule `
-                -FromMemberOf $SecurityGroup `
-                -SentToScope NotInOrganization `
-                -ModerateMessageByUser $Moderators `
-                -Mode Enforce `
-                -Enabled $true `
-                -Priority 0 -ErrorAction Stop | Out-Null
-        }
-    } elseif ($moderated) {
-        Write-Host "    EMAIL_MODERATORS is empty: leaving '$moderatedRule' as it is (moderators: $($moderated.ModerateMessageByUser -join ', '))."
-    }
-
-    $moderated = Get-TransportRule -Identity $moderatedRule -ErrorAction SilentlyContinue
-    $enforced = $moderated -and $moderated.State -eq 'Enabled' -and "$($moderated.Mode)" -eq 'Enforce' -and
-        $moderated.ModerateMessageByUser -and "$($moderated.SentToScope)" -eq 'NotInOrganization'
-    if ($moderated -and -not $enforced) {
-        Write-Warning "'$moderatedRule' exists but is not enabled and enforcing with moderators."
-    }
-    if ($moderated -and @($moderated.PSObject.Properties | Where-Object { $_.Name -like 'ExceptIf*' -and $_.Value }).Count) {
-        Write-Warning "'$moderatedRule' has exceptions: some agents' external mail may skip approval."
-    }
-
-    if ($enforced) {
-        # Moderation covers outbound mail, so the old block would only reject what should be held.
-        if (Get-TransportRule -Identity $outboundRule -ErrorAction SilentlyContinue) {
-            Write-Host "==> Removing '$outboundRule' (moderation is in force)"
-            Remove-TransportRule -Identity $outboundRule -Confirm:$false -ErrorAction Stop
-        }
-        # Inbound is left as it is: with moderation the agents may need replies from outside.
+    if (-not $moderated) {
+        $problems += "'$moderatedRule' is missing: Bookie's external email is not held for approval."
     } else {
-        # No working moderation: agents stay internal-only.
-        if (Get-TransportRule -Identity $outboundRule -ErrorAction SilentlyContinue) {
-            Write-Host "    Rule '$outboundRule' already exists. Skipping."
-        } else {
-            Write-Host "==> Creating transport rule: $outboundRule"
-            New-TransportRule -Name $outboundRule `
-                -FromMemberOf $SecurityGroup `
-                -SentToScope NotInOrganization `
-                -RejectMessageReasonText "AI agents are not permitted to send external email." `
-                -Priority 0 -ErrorAction Stop
+        if ($moderated.State -ne 'Enabled') { $problems += "'$moderatedRule' is $($moderated.State), not Enabled." }
+        if ("$($moderated.Mode)" -ne 'Enforce') { $problems += "'$moderatedRule' is in $($moderated.Mode) mode, not Enforce." }
+        if ("$($moderated.SentToScope)" -ne 'NotInOrganization') { $problems += "'$moderatedRule' does not apply to recipients outside the organisation." }
+        if (-not (@($moderated.FromMemberOf) | Where-Object { "$_" -like "*$SecurityGroup*" })) {
+            $problems += "'$moderatedRule' does not apply to '$SecurityGroup'."
         }
-        # Block INBOUND external email TO AI Agents
-        # Exception: allow internal users to forward external emails to AI agents
-        # (when a colleague forwards an external email, the original external sender triggers the rule,
-        # but the -ExceptIfSenderDomainIs exception allows it because the forwarder is internal)
-        if (Get-TransportRule -Identity $inboundRule -ErrorAction SilentlyContinue) {
-            Write-Host "    Rule '$inboundRule' already exists. Updating exception for internal forwarding..."
-            Set-TransportRule -Identity $inboundRule -ExceptIfSenderDomainIs $InternalDomain
-        } else {
-            Write-Host "==> Creating transport rule: $inboundRule"
-            Write-Host "    (with exception for forwarded emails from $InternalDomain)"
-            New-TransportRule -Name $inboundRule `
-                -SentToMemberOf $SecurityGroup `
-                -FromScope NotInOrganization `
-                -ExceptIfSenderDomainIs $InternalDomain `
-                -RejectMessageReasonText "External email to AI agents is not permitted." `
-                -Priority 1
+        $actual = @($moderated.ModerateMessageByUser | ForEach-Object { "$_" })
+        if ($actual.Count -eq 0) { $problems += "'$moderatedRule' has no moderators." }
+        foreach ($m in $Moderators) {
+            if (-not ($actual | Where-Object { $_ -ieq $m -or $m -ilike "$_@*" })) {
+                $problems += "Expected moderator $m is not on '$moderatedRule' (has: $($actual -join ', '))."
+            }
+        }
+        if (@($moderated.PSObject.Properties | Where-Object { $_.Name -like 'ExceptIf*' -and $_.Value }).Count) {
+            $problems += "'$moderatedRule' has exceptions: some agents' external mail may skip approval."
         }
     }
+    if (Get-TransportRule -Identity $outboundRule -ErrorAction SilentlyContinue) {
+        $problems += "'$outboundRule' still exists: it rejects external mail that should be held for approval."
+    }
+    if (Get-TransportRule -Identity $inboundRule -ErrorAction SilentlyContinue) {
+        Write-Warning "'$inboundRule' exists: replies from outside the organisation won't reach the agents."
+    }
 
-    # Verify rules
     Write-Host ""
     Write-Host "==> Transport rules for AI Agents:" -ForegroundColor Green
     Get-TransportRule | Where-Object { $_.Name -like "*AI Agents*" } |
         Format-List Name, State, Mode, Priority, FromMemberOf, SentToScope, ModerateMessageByUser
+    if ($problems.Count) {
+        $problems | ForEach-Object { Write-Warning $_ }
+        Write-Host "==> Fix these with knowall-ai/sallie deploy/25-enable-email-moderation.ps1, not here." -ForegroundColor Red
+        $script:failed = $true
+    } else {
+        Write-Host "==> OK: external mail from '$SecurityGroup' is held for approval by $($actual -join ', ')." -ForegroundColor Green
+    }
 } finally {
     # Disconnect
     Write-Host "==> Disconnecting from Exchange Online..."
@@ -152,3 +112,4 @@ try {
 
 Write-Host ""
 Write-Host "==> Next: Run 09-restrict-teams.ps1 from this same machine."
+if ($script:failed) { exit 1 }
