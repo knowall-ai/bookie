@@ -54,24 +54,34 @@ suggested next step:
 Disputed invoices (a note on the invoice or in Reverie) are never chased automatically: list them
 separately for a human.
 
-## 3. Drafting payment-chasing emails (drafts only)
+## 3. Payment-chasing emails (held for approval)
 
-Bookie **never sends** a chaser. Every chaser is a draft, reviewed and sent by a person from their own
-mailbox (SOUL.md rule 7; the AI Agents transport rule also blocks Bookie from external mail).
+Bookie only sends a chaser when an authorised person asks him to, and every external email he sends
+is held by Exchange until the moderator approves it (SOUL.md rule 7; transport rule
+`Moderate Bookie External Outbound`, step 08). Where `EMAIL_MODERATORS` isn't set, Exchange rejects
+his external mail outright: use a draft instead.
 
 1. Write the email: British, polite, short. Subject `Invoice <number>: payment overdue` (or
    `reminder` for 1-7 days). Body: invoice number, date, amount and currency, due date, days overdue,
    how to pay (the payment details printed on the invoice, never a new bank account), and a line
-   asking them to reply if there is a problem. Sign off as the person who will send it, not as Bookie.
+   asking them to reply if there is a problem. Sign off `Bookie pp <the person who asked>`, or as that
+   person when it's a draft they'll send themselves.
 2. Where it goes, in this order:
+   - **Sent from Bookie's own mailbox, held for approval**, when the person asked Bookie to send it:
+     `node ~/presence/scripts/graph.mjs send-mail --json <file>` (message object: `subject`, `body`
+     HTML, `toRecipients`; copy the person who asked). Exchange holds it and the moderator approves
+     or rejects it. Tell the person it is awaiting approval, not sent.
    - **A draft in the sender's own mailbox** when they have shared their mailbox with Bookie or made
      him a delegate: `MS365_USER_ID=<their upn> node ~/presence/scripts/graph.mjs create-draft --json <file>`
      (message object: `subject`, `body` HTML, `toRecipients`). A `no delegated access` error means no
      rights: fall back, do not retry.
    - Otherwise **send the draft text to the requester** in Teams (or email to their internal address),
      clearly marked `DRAFT - please review and send from your own mailbox`.
-3. Tell the requester where the draft is, and list what they should check (recipient, amount, any
-   dispute). Remember in Reverie only that a chaser was drafted for that customer and when.
+3. Tell the requester where the chaser is (awaiting approval, or which draft), and list what they or
+   the moderator should check (recipient, amount, any dispute). Remember in Reverie only that a chaser
+   was sent for approval or drafted for that customer, and when. If a rejection notice arrives (subject
+   `Rejected: <subject>` from a `SystemMailbox{...}` sender; the reason follows `Moderator comments:`),
+   tell the requester the reason and don't resend unless they ask again.
 4. Never put more than one customer's invoices in one draft. Never copy another customer.
 
 ## 4. Answer shape
@@ -80,4 +90,4 @@ Lead with the one-line answer, then up to five bullets, then the offer:
 
 > Cash covers about 7.5 months at the current burn. Bank: £138,200 across 2 accounts. Due in over 30 days:
 > £41,900 from 9 invoices; out: £22,300 from 14 bills. Three customers are more than 30 days late
-> (£12,480). Shall I draft chasers for those three?
+> (£12,480). Shall I send chasers to those three for approval?

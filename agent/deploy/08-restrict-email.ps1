@@ -6,8 +6,11 @@
 # receiving external email. The rules apply to all members of the "AI Agents"
 # security group.
 #
-# For Bookie this is a feature, not a limit: payment-chasing emails to customers are
-# drafts a person sends from their own mailbox (cash-advice skill), never sends by Bookie.
+# With EMAIL_MODERATORS set, Bookie's own external mail is moderated instead of blocked:
+# Exchange holds each message and sends the moderator an "Approval requested" message,
+# which they approve or reject in Outlook or in the Agents Portal's Approvals tab. Bookie is
+# exempted from the group's block rule so it can't reject the message first. With
+# EMAIL_MODERATORS empty, Bookie stays internal-only like every other agent.
 # Supplier invoices still reach the shared mailbox accounts@ (not a group member);
 # Bookie reads them there through the FullAccess grant of step 10.
 # Adapted for Bookie from knowall-ai/poppie-hermes. Idempotent (existing rules/policies are kept).
@@ -28,6 +31,10 @@ function Get-ConfigValue {
 }
 
 $SecurityGroup   = Get-ConfigValue -Key "SECURITY_GROUP" -File $ConfigFile
+$AgentUPN        = Get-ConfigValue -Key "AGENT_UPN" -File $ConfigFile
+$AgentName       = Get-ConfigValue -Key "AGENT_DISPLAY_NAME" -File $ConfigFile
+if (-not $AgentName) { $AgentName = "Bookie" }
+$Moderators      = @((Get-ConfigValue -Key "EMAIL_MODERATORS" -File $ConfigFile) -split '\s+' | Where-Object { $_ })
 $AdminUPN        = $env:M365_ADMIN_UPN
 if (-not $AdminUPN) { $AdminUPN = Read-Host "Exchange admin UPN" }
 $InternalDomain  = Get-ConfigValue -Key "M365_DOMAIN" -File $ConfigFile
@@ -47,7 +54,12 @@ if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
 
 # Connect to Exchange Online
 Write-Host "==> Connecting to Exchange Online as $AdminUPN..."
-Connect-ExchangeOnline -UserPrincipalName $AdminUPN
+# Linux and macOS have no embedded browser for the sign-in: use a device code there.
+if ($IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop') {
+    Connect-ExchangeOnline -UserPrincipalName $AdminUPN
+} else {
+    Connect-ExchangeOnline -UserPrincipalName $AdminUPN -Device
+}
 
 try {
     # Block OUTBOUND external email from AI Agents
@@ -85,10 +97,45 @@ try {
             -Priority 1
     }
 
+    # MODERATE the agent's own external mail (instead of blocking it)
+    $moderateRule = "Moderate $AgentName External Outbound"
+    $block = Get-TransportRule -Identity $outboundRule
+    $exempt = @($block.ExceptIfFrom | ForEach-Object { "$_" })
+    if ($Moderators.Count -gt 0) {
+        Write-Host "==> External mail from $AgentUPN will be held for approval by: $($Moderators -join ', ')"
+        if (Get-TransportRule -Identity $moderateRule -ErrorAction SilentlyContinue) {
+            Set-TransportRule -Identity $moderateRule `
+                -From $AgentUPN `
+                -SentToScope NotInOrganization `
+                -ModerateMessageByUser $Moderators `
+                -Priority 0
+        } else {
+            New-TransportRule -Name $moderateRule `
+                -From $AgentUPN `
+                -SentToScope NotInOrganization `
+                -ModerateMessageByUser $Moderators `
+                -Priority 0
+        }
+        if ($exempt -notcontains $AgentUPN) {
+            Write-Host "==> Exempting $AgentUPN from '$outboundRule' (the moderation rule covers it)"
+            Set-TransportRule -Identity $outboundRule -ExceptIfFrom (@($exempt) + $AgentUPN)
+        }
+    } else {
+        Write-Host "    EMAIL_MODERATORS is empty: $AgentUPN stays internal-only."
+        if (Get-TransportRule -Identity $moderateRule -ErrorAction SilentlyContinue) {
+            Remove-TransportRule -Identity $moderateRule -Confirm:$false
+        }
+        if ($exempt -contains $AgentUPN) {
+            $rest = @($exempt | Where-Object { $_ -ne $AgentUPN })
+            Set-TransportRule -Identity $outboundRule -ExceptIfFrom $(if ($rest.Count) { $rest } else { $null })
+        }
+    }
+
     # Verify rules
     Write-Host ""
-    Write-Host "==> Transport rules for AI Agents:" -ForegroundColor Green
-    Get-TransportRule | Where-Object { $_.Name -like "*AI Agents*" } | Format-List Name, State, Priority
+    Write-Host "==> Transport rules for AI Agents and ${AgentName}:" -ForegroundColor Green
+    Get-TransportRule | Where-Object { $_.Name -like "*AI Agents*" -or $_.Name -eq $moderateRule } |
+        Format-List Name, State, Priority, From, ExceptIfFrom, SentToScope, ModerateMessageByUser
 
 } finally {
     # Disconnect
