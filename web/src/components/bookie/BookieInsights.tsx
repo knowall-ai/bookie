@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { RotateCcw } from 'lucide-react';
+import type { BookieSuggestion } from '@/lib/bookie/suggestion-types';
 import { BookieAvatar } from './BookieAvatar';
+import { BookieSuggestions } from './BookieSuggestions';
 
 type State =
   | { kind: 'loading'; status: string }
-  | { kind: 'ready'; text: string; at: string }
+  | { kind: 'ready'; text: string; at: string; suggestions?: BookieSuggestion[] }
   | { kind: 'error'; message: string }
   | { kind: 'off' };
 
@@ -59,13 +61,18 @@ export function BookieInsights({ orgKey }: { orgKey: string }) {
           for (const raw of events) {
             const line = raw.replace(/^data: /, '');
             if (!line) continue;
-            const event = JSON.parse(line) as { type: string; text: string };
+            const event = JSON.parse(line) as {
+              type: string;
+              text: string;
+              suggestions?: BookieSuggestion[];
+            };
             if (event.type === 'status') setState({ kind: 'loading', status: event.text });
             if (event.type === 'error') throw new Error(event.text);
             if (event.type === 'message') {
               const ready: State = {
                 kind: 'ready',
                 text: event.text,
+                suggestions: event.suggestions ?? [],
                 at: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
               };
               sessionStorage.setItem(cacheKey(orgKey), JSON.stringify(ready));
@@ -122,9 +129,19 @@ export function BookieInsights({ orgKey }: { orgKey: string }) {
           )}
           {state.kind === 'error' && <p className="text-muted mt-1 text-sm">{state.message}</p>}
           {state.kind === 'ready' && (
-            <div className="bookie-md text-body mt-1.5 text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{state.text}</ReactMarkdown>
-            </div>
+            <>
+              <div className="bookie-md text-body mt-1.5 text-sm">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{state.text}</ReactMarkdown>
+              </div>
+              {state.suggestions?.length ? (
+                <div className="mt-3">
+                  <h3 className="text-muted mb-1.5 text-xs font-medium tracking-wide uppercase">
+                    Suggested next steps
+                  </h3>
+                  <BookieSuggestions orgKey={orgKey} suggestions={state.suggestions} />
+                </div>
+              ) : null}
+            </>
           )}
           <p className="text-faint mt-2 text-[11px]">
             Worked out live from your books. Check important figures.

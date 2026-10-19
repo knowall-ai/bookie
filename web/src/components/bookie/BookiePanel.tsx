@@ -5,13 +5,17 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ArrowUp, Mic, MicOff, PhoneOff, RotateCcw, Users, X } from 'lucide-react';
 import { cn } from '@/lib/ui/cn';
+import type { BookieSuggestion } from '@/lib/bookie/suggestion-types';
 import { BookieAvatar } from './BookieAvatar';
+import { BookieSuggestions } from './BookieSuggestions';
 import { useBookieVoice } from './useBookieVoice';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   via?: 'voice';
+  /** Next steps Bookie suggested with this answer, shown as cards with buttons. */
+  suggestions?: BookieSuggestion[];
 }
 
 const SUGGESTIONS = [
@@ -32,7 +36,7 @@ async function askBookie(
   orgKey: string | undefined,
   messages: Message[],
   onStatus: (text: string) => void
-): Promise<string> {
+): Promise<{ text: string; suggestions: BookieSuggestion[] }> {
   const response = await fetch('/api/bookie/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -49,6 +53,7 @@ async function askBookie(
   const decoder = new TextDecoder();
   let buffer = '';
   let answer = '';
+  let suggestions: BookieSuggestion[] = [];
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -58,13 +63,20 @@ async function askBookie(
     for (const raw of events) {
       const line = raw.replace(/^data: /, '');
       if (!line) continue;
-      const event = JSON.parse(line) as { type: string; text: string };
+      const event = JSON.parse(line) as {
+        type: string;
+        text: string;
+        suggestions?: BookieSuggestion[];
+      };
       if (event.type === 'status') onStatus(event.text);
-      if (event.type === 'message') answer = event.text;
+      if (event.type === 'message') {
+        answer = event.text;
+        suggestions = event.suggestions ?? [];
+      }
       if (event.type === 'error') throw new Error(event.text);
     }
   }
-  return answer;
+  return { text: answer, suggestions };
 }
 
 export function BookiePanel({
@@ -126,7 +138,10 @@ export function BookiePanel({
         next.filter((m) => !m.via),
         setStatus
       );
-      setMessages((m) => [...m, { role: 'assistant', content: answer }]);
+      setMessages((m) => [
+        ...m,
+        { role: 'assistant', content: answer.text, suggestions: answer.suggestions },
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Bookie could not answer just now.');
     } finally {
@@ -273,11 +288,20 @@ export function BookiePanel({
             ) : (
               <div key={i} className="flex gap-2.5">
                 <BookieAvatar className="mt-0.5 h-7 w-7 shrink-0" />
-                <div className="bookie-md bg-surface border-line text-body max-w-[88%] rounded-2xl rounded-tl-md border px-3.5 py-2.5 text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                  {m.via === 'voice' && (
-                    <p className="text-faint mt-1 text-[10px] tracking-wide uppercase">Spoken</p>
-                  )}
+                <div className="max-w-[88%] min-w-0 space-y-2">
+                  <div className="bookie-md bg-surface border-line text-body rounded-2xl rounded-tl-md border px-3.5 py-2.5 text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                    {m.via === 'voice' && (
+                      <p className="text-faint mt-1 text-[10px] tracking-wide uppercase">Spoken</p>
+                    )}
+                  </div>
+                  {orgKey && m.suggestions?.length ? (
+                    <BookieSuggestions
+                      orgKey={orgKey}
+                      suggestions={m.suggestions}
+                      onNavigate={onClose}
+                    />
+                  ) : null}
                 </div>
               </div>
             )
