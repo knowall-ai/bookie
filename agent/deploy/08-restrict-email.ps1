@@ -108,26 +108,33 @@ try {
                 -From $AgentUPN `
                 -SentToScope NotInOrganization `
                 -ModerateMessageByUser $Moderators `
-                -Priority 0
+                -Priority 0 -ErrorAction Stop
         } else {
             New-TransportRule -Name $moderateRule `
                 -From $AgentUPN `
                 -SentToScope NotInOrganization `
                 -ModerateMessageByUser $Moderators `
-                -Priority 0
+                -Priority 0 -ErrorAction Stop
+        }
+        Enable-TransportRule -Identity $moderateRule -ErrorAction Stop
+        # Only lift the block once moderation is definitely in force, or external mail would leave unapproved.
+        $check = Get-TransportRule -Identity $moderateRule -ErrorAction Stop
+        if ($check.State -ne 'Enabled' -or -not $check.ModerateMessageByUser -or "$($check.SentToScope)" -ne 'NotInOrganization') {
+            throw "'$moderateRule' is not enabled with moderators; leaving $AgentUPN blocked."
         }
         if ($exempt -notcontains $AgentUPN) {
             Write-Host "==> Exempting $AgentUPN from '$outboundRule' (the moderation rule covers it)"
-            Set-TransportRule -Identity $outboundRule -ExceptIfFrom (@($exempt) + $AgentUPN)
+            Set-TransportRule -Identity $outboundRule -ExceptIfFrom (@($exempt) + $AgentUPN) -ErrorAction Stop
         }
     } else {
         Write-Host "    EMAIL_MODERATORS is empty: $AgentUPN stays internal-only."
-        if (Get-TransportRule -Identity $moderateRule -ErrorAction SilentlyContinue) {
-            Remove-TransportRule -Identity $moderateRule -Confirm:$false
-        }
+        # Restore the block before removing moderation, so there's never a gap.
         if ($exempt -contains $AgentUPN) {
             $rest = @($exempt | Where-Object { $_ -ne $AgentUPN })
-            Set-TransportRule -Identity $outboundRule -ExceptIfFrom $(if ($rest.Count) { $rest } else { $null })
+            Set-TransportRule -Identity $outboundRule -ExceptIfFrom $(if ($rest.Count) { $rest } else { $null }) -ErrorAction Stop
+        }
+        if (Get-TransportRule -Identity $moderateRule -ErrorAction SilentlyContinue) {
+            Remove-TransportRule -Identity $moderateRule -Confirm:$false -ErrorAction Stop
         }
     }
 

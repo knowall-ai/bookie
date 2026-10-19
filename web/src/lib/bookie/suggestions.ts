@@ -73,7 +73,7 @@ const PAGES: Record<
 export const suggestToolDefinition: ToolDefinition = {
   type: 'function',
   name: 'suggest_action',
-  description: `Show the user a recommended next step as a card with a button they can action in the portal. Call it once per step (at most ${MAX_SUGGESTIONS} per answer), only for steps you recommend in your answer. You never run the step: the user clicks and, for anything that writes to the books, confirms. approve_invoice: approve a draft or submitted invoice or bill (id). email_invoice: email an approved sales invoice to the customer, e.g. a reminder for an overdue one (id). open_invoice: open an invoice or bill, e.g. to record a payment (id). open_contact: open a customer or supplier (id). open_bank_account: open a bank account's register, e.g. to reconcile (id). pay_bills: open Pay bills to pay several approved bills at once. open_page: open a filtered list (page). Ids are the ones the other tools returned. The result says whether the card was shown; if not, don't mention the button.`,
+  description: `Show the user a recommended next step as a card with a button they can action in the portal. Call it once per step (at most ${MAX_SUGGESTIONS} per answer), only for steps you recommend in your answer. You never run the step: the user clicks and, for anything that writes to the books, confirms. approve_invoice: approve a draft or submitted invoice or bill (id). email_invoice: email an approved sales invoice to the customer, e.g. a reminder for an overdue one (id). open_invoice: open an invoice or bill, e.g. to record a payment (id). open_contact: open a customer or supplier (id). open_bank_account: open a bank account's register, e.g. to reconcile (id). pay_bills: open Pay bills to pay several approved bills at once. open_page: open a filtered list (page). Ids are the ones the other tools returned. Keep amounts and dates out of title and reason (the card shows the source's figures). The result says whether the card was shown; if not, don't mention the button.`,
   parameters: {
     type: 'object',
     properties: {
@@ -82,12 +82,13 @@ export const suggestToolDefinition: ToolDefinition = {
       page: { type: 'string', enum: Object.keys(PAGES), description: 'For open_page' },
       title: {
         type: 'string',
-        description: 'The step in a few words, e.g. "Chase Fabrikam\'s overdue invoice"',
+        description:
+          'The step in a few words, no figures or dates, e.g. "Chase Fabrikam\'s overdue invoice"',
       },
       reason: {
         type: 'string',
         description:
-          'One sentence on why, with the real figure, e.g. "GBP 1,200.00, 16 days overdue."',
+          'One sentence on why, without amounts or dates: the card shows the record\'s own figures from the source. E.g. "Their oldest unpaid invoice; they usually pay once reminded."',
       },
       severity: {
         type: 'string',
