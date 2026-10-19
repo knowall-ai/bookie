@@ -51,3 +51,6 @@ export const postJournalSchema = z.object({
     .max(80)
     .regex(/^[\w-]+$/, 'Unknown journal batch.'),
 });
+
+/** The Receive dialog names a wallet only: the address index is the server's choice. */
+export const receiveAddressSchema = z.object({ orgKey, walletId });

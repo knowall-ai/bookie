@@ -5,7 +5,8 @@ import { SettingsAccessError } from '@/lib/auth/access';
 import { configStoreFor } from '@/lib/config';
 import type { BitcoinWalletsModule, SourceBitcoinWallets } from '@/lib/connectors/types';
 import { addWalletSchema } from '@/lib/portal/actions/bitcoin-schema';
-import { DEMO_WALLET_ID, DEMO_WALLET_ORG } from './demo';
+import { DEMO_WALLET_ID, DEMO_WALLET_ZPUB, DEMO_WALLET_ORG } from './demo';
+import { parseWalletInput, scriptDeriver } from './descriptor';
 import {
   NO_ELECTRUM,
   PENDING_VALUE_REASON,
@@ -14,6 +15,7 @@ import {
   electrumStatus,
   listWallets,
   loadWallet,
+  receiveAddress,
   removeWallet,
   baseCurrencyOf,
   valueBalance,
@@ -265,6 +267,38 @@ describe('demo wallet', () => {
     expect(pending.value).toEqual({ ok: false, reason: PENDING_VALUE_REASON });
     const priced = rows.find((r) => !r.pending)!;
     expect(priced.value.ok && priced.value.rate.label).toMatch(/^Demo price \(fictional\)/);
+  });
+});
+
+describe('receiveAddress', () => {
+  it('derives the demo wallet’s next receive address from its (public test) key', async () => {
+    const receive = await receiveAddress(demo(), demoScope(DEMO_WALLET_ORG), DEMO_WALLET_ID);
+    // The demo fixtures use receive 0..3, so the next one is 4.
+    const expected = scriptDeriver(parseWalletInput(DEMO_WALLET_ZPUB))('receive', 4).address;
+    expect(receive).toEqual({
+      ok: true,
+      address: expected,
+      index: 4,
+      network: 'mainnet',
+      demo: true,
+    });
+  });
+
+  it('gives the reason, never a guessed address, when the chain can’t be read', async () => {
+    const auth = demo();
+    const added = await addWallet(auth, { name: 'Cold', orgKey: DEMO_WALLET_ORG, key: ZPUB });
+    const receive = await receiveAddress(auth, demoScope(DEMO_WALLET_ORG), added.id);
+    expect(receive).toEqual({
+      ok: false,
+      reason: `Can’t pick an unused address without reading the chain: ${NO_ELECTRUM}`,
+      network: 'mainnet',
+    });
+  });
+
+  it('doesn’t find another organisation’s wallet', async () => {
+    await expect(
+      receiveAddress(demo(), demoScope('demo.contoso-wholesale'), DEMO_WALLET_ID)
+    ).rejects.toThrow('Wallet not found.');
   });
 });
 

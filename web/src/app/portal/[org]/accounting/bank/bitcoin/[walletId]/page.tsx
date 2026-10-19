@@ -25,6 +25,7 @@ import { NotAvailableValue } from '@/components/ui/Money';
 import { SourceNote } from '@/components/accounting/SourceNote';
 import { BtcAmount, FiatValueView } from '@/components/bitcoin/BitcoinParts';
 import { BitcoinBalancePanel } from '@/components/bitcoin/BitcoinBalancePanel';
+import { ReceiveButton } from '@/components/bitcoin/ReceiveDialog';
 
 export const metadata = { title: 'Bitcoin wallet' };
 
@@ -131,6 +132,7 @@ export default async function Page({
     <PageHeader
       title={wallet.name}
       crumbs={crumbs}
+      actions={<ReceiveButton orgKey={org.key} walletId={wallet.id} />}
       meta={
         <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <span>{wallet.typeLabel}</span>

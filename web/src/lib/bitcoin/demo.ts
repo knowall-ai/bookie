@@ -12,6 +12,14 @@ export const DEMO_WALLET_ID = 'demo-contoso-treasury';
 export const DEMO_WALLET_ORG = 'demo.contoso';
 export const DEMO_WALLET_BC_BANK = 'BTC-TREASURY';
 
+/**
+ * The demo wallet's key: the public BIP84 test vector account (mnemonic "abandon … about"),
+ * so its receive addresses are real derivations, not made-up strings. Anyone can spend
+ * from it, which the Receive dialog says: never send real bitcoin to it.
+ */
+export const DEMO_WALLET_ZPUB =
+  'zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31mGDtKsAYz2oz2AGutZYs';
+
 const fakeTxid = (label: string) =>
   hex.encode(sha256(new TextEncoder().encode(`bookie-demo:${label}`)));
 const at = (iso: string) => Date.parse(iso) / 1000;
@@ -92,12 +100,15 @@ export function demoWalletScan(now = new Date()): WalletScan {
   });
   const confirmed = transactions.filter((t) => !t.pending).reduce((s, t) => s + t.netSats, 0);
   const pending = transactions.filter((t) => t.pending).reduce((s, t) => s + t.netSats, 0);
+  const used = { receive: 4, change: 2 };
   return {
     tip: { height: TIP, time: at('2026-10-17T12:00:00Z') },
     transactions,
     balance: { confirmedSats: confirmed, pendingSats: pending },
-    used: { receive: 4, change: 2 },
+    used,
     derived: { receive: 24, change: 22 },
+    // The fixtures' receive addresses are 0..3 with no gaps, so the next one is 4.
+    nextReceiveIndex: used.receive,
     scannedAt: now.toISOString(),
   };
 }

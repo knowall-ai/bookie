@@ -15,6 +15,7 @@ import {
   DEMO_LATEST_RATE,
   DEMO_WALLET_BC_BANK,
   DEMO_WALLET_ID,
+  DEMO_WALLET_ZPUB,
   DEMO_WALLET_ORG,
   demoDailyRates,
   demoRates,
@@ -23,6 +24,7 @@ import {
 import {
   describeWallet,
   parseWalletInput,
+  scriptDeriver,
   type Network,
   type ScriptType,
   type WalletDescriptor,
@@ -301,7 +303,7 @@ async function resolveWallet(
     return fromSourceWallet(scope.org.key, source);
   }
   if (auth.mode === 'demo' && id === DEMO_WALLET_ID && scope.org.key === DEMO_WALLET_ORG) {
-    return { summary: DEMO_RECORD };
+    return { summary: DEMO_RECORD, descriptor: parseWalletInput(DEMO_WALLET_ZPUB) };
   }
   const record = (await records(auth)).find((r) => r.id === id && r.orgKey === scope.org.key);
   if (!record) throw notFound();
@@ -454,6 +456,41 @@ async function loadResolved(
       message: 'Bookie could not read this wallet from the Electrum server.',
     };
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Receiving a payment                                                 */
+/* ------------------------------------------------------------------ */
+
+export type ReceiveAddress =
+  | { ok: true; address: string; index: number; network: Network; demo?: boolean }
+  | { ok: false; reason: string; network?: Network };
+
+/**
+ * A fresh receive address: derived here from the wallet's descriptor at the scan's
+ * `nextReceiveIndex` (never an index from the browser). Without a live scan Bookie
+ * can't know which addresses are used, so it gives the reason, never a guessed address.
+ */
+export async function receiveAddress(
+  auth: AuthContext,
+  scope: WalletScope,
+  walletId: string
+): Promise<ReceiveAddress> {
+  const { summary, descriptor } = await resolveWallet(auth, scope, walletId);
+  const network = descriptor?.network ?? summary.network;
+  const load = await loadResolved(auth, scope, summary, descriptor);
+  if (load.status !== 'ok' || !descriptor) {
+    const message =
+      load.status !== 'ok' ? load.message : (summary.problem ?? 'This wallet has no descriptor.');
+    return {
+      ok: false,
+      reason: `Can’t pick an unused address without reading the chain: ${message}`,
+      network,
+    };
+  }
+  const index = load.scan.nextReceiveIndex;
+  const { address } = scriptDeriver(descriptor)('receive', index);
+  return { ok: true, address, index, network: descriptor.network, demo: summary.demo };
 }
 
 /** Forget cached scans (tests). */

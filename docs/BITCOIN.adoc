@@ -170,6 +170,27 @@ Each wallet's card on the Bank accounts page, and the top of its own page, shows
   date (today at the last trade), and the source is labelled. Days without a price are left out;
 * *Last checked*: when Bookie last read the wallet from Electrum, and the block height it read at.
 
+== Receiving a payment
+
+*Receive* on a wallet's page opens a dialog with a QR code someone can scan to pay the wallet:
+
+* The address is *fresh*: Bookie derives it on the server from the wallet's descriptor at the receive
+  index after the highest one with any history (`nextReceiveIndex` from the scan; 0 for an empty wallet).
+  It's not the count of used addresses, because the chain can have gaps. The browser never chooses the
+  index. Once the address receives a payment, the next scan moves on to a new one.
+* The QR code is a BIP21 URI, `bitcoin:<address>`, drawn black on white with a four-module quiet zone
+  so phone cameras read it. The address is shown in full with a *Copy* button, with the network
+  (testnet is labelled as not real bitcoin).
+* An optional *amount* in BTC adds `?amount=` to the URI. It must be above zero, have at most 8 decimal
+  places and be no more than 21 million BTC.
+* Without a live scan (no Electrum server, a server error, a testnet wallet or an unusable descriptor),
+  Bookie can't know which addresses are used, so it shows the reason ("Can't pick an unused address
+  without reading the chain: ...") instead of a guessed address.
+
+It is read-only (nothing is written to Business Central) and uses the same organisation and tenant
+checks as the wallet page (`bitcoinReceiveAddressAction` re-resolves the organisation with
+`orgContext()` and the wallet from its source).
+
 == Values in the organisation's currency ("worth at the time")
 
 Each figure is in the organisation's *base currency*, as its books report it (Business Central's local
@@ -331,7 +352,10 @@ mainnet wallets only.
 
 With `BOOKIE_DEV_AUTH=demo`, Contoso Coffee Roasters has a fictional wallet, *Contoso Treasury*, read
 from fixtures (`web/src/lib/bitcoin/demo.ts`). Its transaction ids are hashes of made-up labels and
-its prices are labelled "Demo price (fictional)". Production refuses demo mode.
+its prices are labelled "Demo price (fictional)". Production refuses demo mode. Its Receive address is
+derived from the public BIP84 test vector key (`DEMO_WALLET_ZPUB`) at the index after the fixtures'
+receive addresses, so it is a real derivation, not a made-up string; the dialog warns that anyone can
+spend from that key and never to send real bitcoin to it.
 
 == Code map
 
@@ -344,6 +368,8 @@ its prices are labelled "Demo price (fictional)". Production refuses demo mode.
 | `web/src/lib/bitcoin/descriptor.ts` | Parse keys and descriptors (SLIP-0132 prefixes, BIP380 checksum), derive scripts and addresses with `@scure/bip32` and `@scure/btc-signer`
 | `web/src/lib/bitcoin/electrum.ts` | Electrum JSON-RPC client over TLS or TCP, pipelined with a cap on requests in flight
 | `web/src/lib/bitcoin/scan.ts` | Gap-limit scan, transaction parsing, amounts, fees, confirmations
+| `web/src/lib/bitcoin/receive.ts` | BIP21 URI and the Receive amount's validation (pure)
+| `web/src/components/bitcoin/ReceiveDialog.tsx` | The Receive button and dialog (QR code with `qrcode`)
 | `web/src/lib/bitcoin/kraken.ts` | Kraken OHLC and trade parsing, rate selection, values in the base currency
 | `web/src/lib/bitcoin/wallets.ts` | Wallets per organisation (Business Central or sealed settings), members-only changes, the scan cache
 | `web/src/lib/portal/actions/bitcoin.ts` | Server actions (zod-validated, org re-resolved with `orgContext()`)
@@ -355,7 +381,8 @@ its prices are labelled "Demo price (fictional)". Production refuses demo mode.
 
 Tests: `descriptor.test.ts` checks the BIP84, BIP86 and BIP49 test vectors and a Bitcoin Core
 multisig vector; `scan.test.ts` runs the scanner against a fake Electrum server on localhost;
-`kraken.test.ts` parses Kraken responses and rate rules; `bitcoin.test.ts` (BC module) and
+`kraken.test.ts` parses Kraken responses and rate rules; `receive.test.ts` covers the BIP21 URI and
+amount rules; `bitcoin.test.ts` (BC module) and
 `wallets.test.ts` cover where wallets come from; `reconcile.test.ts`, `reconcile-service.test.ts` and
 `bitcoin-reconcile.test.ts` (BC module) cover matching, journal lines, drafting and the posting guard;
 `tests/e2e/bitcoin.spec.ts` covers the demo wallet and adding and removing one, and
