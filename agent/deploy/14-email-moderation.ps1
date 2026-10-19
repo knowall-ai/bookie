@@ -50,6 +50,20 @@ function Resolve-Smtp {
     return $Identity.ToLower()
 }
 
+# A rule may hold mail only under exactly the conditions we expect: an extra condition or any
+# exception (an existing rule keeps them through Set-TransportRule) would let some mail skip it.
+function Get-ShapeProblems($Rule, [string[]]$Conditions) {
+    $issues = @()
+    if ($null -eq $Rule.PSObject.Properties['Conditions']) { return @("'$($Rule.Name)' doesn't report its conditions, so it can't be verified.") }
+    foreach ($c in @($Rule.Conditions | ForEach-Object { "$_".Split('.')[-1] })) {
+        if ($Conditions -notcontains $c) { $issues += "'$($Rule.Name)' has an extra condition: $c." }
+    }
+    foreach ($e in @($Rule.Exceptions | Where-Object { $_ } | ForEach-Object { "$_".Split('.')[-1] })) {
+        $issues += "'$($Rule.Name)' has an exception: $e."
+    }
+    return $issues
+}
+
 $AgentUPN   = Get-ConfigValue -Key "AGENT_UPN" -File $ConfigFile
 $AgentName  = Get-ConfigValue -Key "AGENT_DISPLAY_NAME" -File $ConfigFile
 $Moderators = @((Get-ConfigValue -Key "EMAIL_MODERATORS" -File $ConfigFile) -split '[\s,;]+' | Where-Object { $_ })
@@ -136,11 +150,21 @@ try {
         $agentSmtp = Resolve-Smtp $AgentUPN
         if (-not $catchAll) {
             Write-Warning "'$CatchAllRule' doesn't exist yet (knowall-ai/sallie deploy/25 creates it). $AgentName's own rule covers him."
-        } elseif ("$($own.Mode)" -ne 'Enforce' -or ($own.State -ne 'Enabled' -and -not $existing)) {
-            Write-Warning "'$AgentRule' is not enforcing, so $AgentName stays under '$CatchAllRule'."
+        } elseif ($shape = @(Get-ShapeProblems $own @('FromPredicate', 'SentToScopePredicate'))) {
+            $shape | ForEach-Object { Write-Warning $_ }
+            Write-Warning "So $AgentName stays under '$CatchAllRule'. Fix or delete '$AgentRule' and re-run."
             $failed = $true
+        } elseif ("$($own.Mode)" -ne 'Enforce') {
+            Write-Warning "'$AgentRule' is in $($own.Mode) mode, not Enforce, so $AgentName stays under '$CatchAllRule'."
+            $failed = $true
+        } elseif (($skippedNow = @($catchAll.ExceptIfFrom | Where-Object { $_ } | ForEach-Object { Resolve-Smtp "$_" })) -notcontains $agentSmtp -and
+            $own.State -ne 'Enabled') {
+            # Never skip him while his own rule is off: that would switch his moderation off unasked.
+            Write-Warning "'$AgentRule' is switched off and '$CatchAllRule' doesn't skip him yet, so his email is still held by the catch-all. Run -Moderation On, then re-run."
         } else {
-            $skipped = @($catchAll.ExceptIfFrom | Where-Object { $_ } | ForEach-Object { Resolve-Smtp "$_" })
+            # Exchange can't lock a rule: read the list as late as possible, and check after writing,
+            # so another agent's deploy appending at the same moment is at least noticed.
+            $skipped = @((Get-TransportRule -Identity $CatchAllRule -ErrorAction Stop).ExceptIfFrom | Where-Object { $_ } | ForEach-Object { Resolve-Smtp "$_" })
             if ($skipped -contains $agentSmtp) {
                 Write-Host "    '$CatchAllRule' already skips $agentSmtp."
             } else {

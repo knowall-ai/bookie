@@ -83,6 +83,19 @@ try {
             -not ($Value -is [bool] -and -not $Value) -and
             -not ($Value -is [System.Collections.ICollection] -and $Value.Count -eq 0)
     }
+    # A rule may hold mail only under exactly the conditions we expect: an extra condition (e.g.
+    # "subject contains") or exception would let other mail skip moderation.
+    function Get-ShapeProblems($Rule, [string[]]$Conditions, [string[]]$Exceptions) {
+        $issues = @()
+        if ($null -eq $Rule.PSObject.Properties['Conditions']) { return @("'$($Rule.Name)' doesn't report its conditions, so it can't be verified.") }
+        foreach ($c in @($Rule.Conditions | ForEach-Object { "$_".Split('.')[-1] })) {
+            if ($Conditions -notcontains $c) { $issues += "'$($Rule.Name)' has an extra condition: $c." }
+        }
+        foreach ($e in @($Rule.Exceptions | Where-Object { $_ } | ForEach-Object { "$_".Split('.')[-1] })) {
+            if ($Exceptions -notcontains $e) { $issues += "'$($Rule.Name)' has an unexpected exception: $e." }
+        }
+        return $issues
+    }
     function Test-Moderators($Rule) {
         $actual = @($Rule.ModerateMessageByUser | ForEach-Object { Resolve-Smtp "$_" })
         if ($actual.Count -eq 0) { $script:problems += "'$($Rule.Name)' has no moderators." }
@@ -110,16 +123,27 @@ try {
             $problems += "'$catchAllRule' does not apply to '$SecurityGroup' (applies to: $($catchAll.FromMemberOf -join ', '))."
         }
         Test-Moderators $catchAll
+        $problems += @(Get-ShapeProblems $catchAll @('FromMemberOfPredicate', 'SentToScopePredicate') @('FromPredicate'))
         # Its only allowed exception is an agent with a rule of its own.
         foreach ($e in @($catchAll.PSObject.Properties | Where-Object { $_.Name -like 'ExceptIf*' -and $_.Name -ne 'ExceptIfFrom' -and (Test-Set $_.Value) })) {
             $problems += "'$catchAllRule' has an unexpected exception: $($e.Name)."
         }
+        # A skipped agent must have its own rule that really holds its mail. That rule switched off
+        # is the agent's on/off switch (a warning); in Audit mode, or with extra conditions, it isn't.
         $agentRules = @(Get-TransportRule | Where-Object { $_.Name -like 'Moderate External Outbound - *' })
-        $covered = @($agentRules | ForEach-Object { $_.From } | Where-Object { $_ } | ForEach-Object { Resolve-Smtp "$_" })
         foreach ($skipped in @($catchAll.ExceptIfFrom | Where-Object { $_ })) {
             $smtp = Resolve-Smtp "$skipped"
-            if ($covered -notcontains $smtp) {
+            $rules = @($agentRules | Where-Object { @($_.From | ForEach-Object { Resolve-Smtp "$_" }) -contains $smtp })
+            $good = @($rules | Where-Object {
+                "$($_.Mode)" -eq 'Enforce' -and "$($_.SentToScope)" -eq 'NotInOrganization' -and $_.ModerateMessageByUser -and
+                -not @(Get-ShapeProblems $_ @('FromPredicate', 'SentToScopePredicate') @()).Count
+            })
+            if (-not $rules) {
                 $problems += "$smtp is skipped by '$catchAllRule' but has no 'Moderate External Outbound - <Agent>' rule: its external email goes out unmoderated."
+            } elseif (-not $good) {
+                $problems += "$smtp is skipped by '$catchAllRule' but its own rule doesn't hold its external email (Audit mode, no moderators or extra conditions): $(($rules | ForEach-Object Name) -join ', ')."
+            } elseif (-not ($good | Where-Object State -eq 'Enabled')) {
+                Write-Warning "Moderation is switched OFF for ${smtp}: its external email is delivered without approval."
             }
         }
     }
@@ -135,6 +159,7 @@ try {
             $problems += "'$agentRule' does not match $AgentUPN (From: $($own.From -join ', '))."
         }
         Test-Moderators $own
+        $problems += @(Get-ShapeProblems $own @('FromPredicate', 'SentToScopePredicate') @())
         if ($own.State -ne 'Enabled') {
             Write-Warning "Moderation is switched OFF for ${AgentName}: his external email is delivered without approval (step 14 -Moderation On)."
         }
