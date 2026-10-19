@@ -96,11 +96,13 @@ The full text is `agent/hermes/SOUL.md`. In short:
 Bookie can email people outside the organisation (payment chasers, replies to suppliers), but none of
 it leaves without a person's approval:
 
-* `agent/deploy/08-restrict-email.ps1` (step 08) creates the Exchange transport rule *Moderate Bookie
-  External Outbound*: mail from `AGENT_UPN` to recipients outside the organisation is held for the
-  moderators in `EMAIL_MODERATORS`. Bookie is exempted from the shared *Block AI Agents External
-  Outbound* rule so it can't reject his mail first. With `EMAIL_MODERATORS` empty, Bookie stays
-  internal-only and chasers are drafts, as before. Internal mail is not moderated.
+* Exchange transport rule *Moderate AI Agents External Outbound* holds external mail from every
+  member of the *AI Agents* group (Bookie, Sallie, Poppie...) for the moderators (at KnowAll, Ben or
+  Edi; either can act). It replaced the old *Block AI Agents External Outbound* rule. It is shared:
+  `agent/deploy/08-restrict-email.ps1` (step 08, `EMAIL_MODERATORS`) and knowall-ai/sallie
+  `deploy/25-enable-email-moderation.ps1` both manage it, so keep their moderators the same. Step 08
+  never re-creates a block rule while moderation is in force; with no moderation it keeps the agents
+  internal-only, and chasers are drafts. Internal mail is not moderated.
 * The moderator gets an *Approval requested* message with the original attached and approves or
   rejects it in Outlook, or in the *Approvals* tab on Bookie's page in the Agents Portal (built for
   Sallie, keyed per agent), which lists every held outgoing email. The tab finds them by Bookie's UPN, read from the

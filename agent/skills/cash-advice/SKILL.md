@@ -57,9 +57,9 @@ separately for a human.
 ## 3. Payment-chasing emails (held for approval)
 
 Bookie only sends a chaser when an authorised person asks him to, and every external email he sends
-is held by Exchange until the moderator approves it (SOUL.md rule 7; transport rule
-`Moderate Bookie External Outbound`, step 08). Where `EMAIL_MODERATORS` isn't set, Exchange rejects
-his external mail outright: use a draft instead.
+is held by Exchange until the moderator approves it (SOUL.md rule 7; the shared transport rule
+`Moderate AI Agents External Outbound`, step 08). Without moderation, Exchange rejects his external
+mail outright: use a draft instead.
 
 1. Write the email: British, polite, short. Subject `Invoice <number>: payment overdue` (or
    `reminder` for 1-7 days). Body: invoice number, date, amount and currency, due date, days overdue,
