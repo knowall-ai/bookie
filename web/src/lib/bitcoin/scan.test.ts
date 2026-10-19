@@ -4,7 +4,7 @@ import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
 import { electrumScriptHash, parseWalletInput, scriptDeriver } from './descriptor';
 import { ElectrumClient, ElectrumError, parseElectrumUrl } from './electrum';
-import { MAX_TRANSACTIONS, headerTime, scanWallet } from './scan';
+import { MAX_TRANSACTIONS, firstUnusedReceiveIndex, headerTime, scanWallet } from './scan';
 import { btcToSats, formatBtc, satsToBtc, satsToBtcNumber, shortTxid } from './format';
 
 /*
@@ -254,6 +254,8 @@ describe('scanWallet', () => {
     expect(scan.used).toEqual({ receive: 2, change: 1 });
     // Gap limit 20 after the last used address on each chain.
     expect(scan.derived).toEqual({ receive: 22, change: 21 });
+    // Receive 0 and 1 have history, so a fresh address comes from index 2.
+    expect(scan.nextReceiveIndex).toBe(2);
 
     const [first, second, third] = scan.transactions;
     expect(first).toMatchObject({
@@ -329,6 +331,53 @@ describe('scanWallet', () => {
     expect(methodsSeen.filter((m) => m === 'blockchain.transaction.get')).toHaveLength(2);
   });
 
+  it('picks the receive index after the highest used one, not after the used count', async () => {
+    // Receive 0 and 5 have history and 1..4 don't: two used, but 1..4 may already have been
+    // handed out by the wallet app, so the next fresh address is 6.
+    const recv5 = derive('receive', 5).script;
+    const gapped = rawTx([{ txid: 'dd'.repeat(32), index: 0 }], [{ script: recv5, sats: 7_000 }]);
+    const txs = new Map([...TXS, [gapped.id, gapped.hex]]);
+    const handler: Handler = (method, params) => {
+      if (method === 'blockchain.scripthash.get_history') {
+        if (params[0] === electrumScriptHash(recv0)) return [{ tx_hash: funding.id, height: 100 }];
+        if (params[0] === electrumScriptHash(recv5)) return [{ tx_hash: gapped.id, height: 101 }];
+        return [];
+      }
+      if (method === 'blockchain.transaction.get') return txs.get(String(params[0]));
+      return fixtureHandler(method, params);
+    };
+    const client = await ElectrumClient.connect(await fakeServer(handler));
+    const scan = await scanWallet(wallet, client);
+    client.close();
+    expect(scan.used.receive).toBe(2);
+    expect(scan.nextReceiveIndex).toBe(6);
+  });
+
+  it('ignores the change chain when picking the next receive index', async () => {
+    const handler: Handler = (method, params) =>
+      method === 'blockchain.scripthash.get_history'
+        ? params[0] === electrumScriptHash(change0)
+          ? [{ tx_hash: spend.id, height: 105 }]
+          : []
+        : fixtureHandler(method, params);
+    const client = await ElectrumClient.connect(await fakeServer(handler));
+    const scan = await scanWallet(wallet, client);
+    client.close();
+    expect(scan.used).toEqual({ receive: 0, change: 1 });
+    expect(scan.nextReceiveIndex).toBe(0);
+  });
+
+  it('checks the chain now for the first unused receive address from a cached index', async () => {
+    const client = await ElectrumClient.connect(await fakeServer(fixtureHandler));
+    // Receive 0 and 1 were paid (say, after a cached scan said 0): the first unused is 2.
+    expect(await firstUnusedReceiveIndex(wallet, client, 0)).toBe(2);
+    expect(await firstUnusedReceiveIndex(wallet, client, 2)).toBe(2);
+    await expect(firstUnusedReceiveIndex(wallet, client, 0, 2)).rejects.toThrow(
+      /have all been used/
+    );
+    client.close();
+  });
+
   it('stops rather than read an enormous history', async () => {
     const many = Array.from({ length: MAX_TRANSACTIONS + 1 }, (_, i) => ({
       tx_hash: i.toString(16).padStart(64, '0'),
@@ -358,6 +407,7 @@ describe('scanWallet', () => {
     expect(scan.transactions).toEqual([]);
     expect(scan.balance).toEqual({ confirmedSats: 0, pendingSats: 0 });
     expect(scan.derived).toEqual({ receive: 20, change: 20 });
+    expect(scan.nextReceiveIndex).toBe(0);
   });
 });
 

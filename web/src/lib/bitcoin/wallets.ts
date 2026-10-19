@@ -15,6 +15,7 @@ import {
   DEMO_LATEST_RATE,
   DEMO_WALLET_BC_BANK,
   DEMO_WALLET_ID,
+  DEMO_WALLET_ZPUB,
   DEMO_WALLET_ORG,
   demoDailyRates,
   demoRates,
@@ -23,6 +24,7 @@ import {
 import {
   describeWallet,
   parseWalletInput,
+  scriptDeriver,
   type Network,
   type ScriptType,
   type WalletDescriptor,
@@ -37,7 +39,12 @@ import {
   type FiatValue,
 } from './kraken';
 import { dailyBalances } from './history';
-import { scanWallet, type ChainTransaction, type WalletScan } from './scan';
+import {
+  firstUnusedReceiveIndex,
+  scanWallet,
+  type ChainTransaction,
+  type WalletScan,
+} from './scan';
 
 /* ------------------------------------------------------------------ */
 /* Electrum server configuration                                       */
@@ -301,7 +308,7 @@ async function resolveWallet(
     return fromSourceWallet(scope.org.key, source);
   }
   if (auth.mode === 'demo' && id === DEMO_WALLET_ID && scope.org.key === DEMO_WALLET_ORG) {
-    return { summary: DEMO_RECORD };
+    return { summary: DEMO_RECORD, descriptor: parseWalletInput(DEMO_WALLET_ZPUB) };
   }
   const record = (await records(auth)).find((r) => r.id === id && r.orgKey === scope.org.key);
   if (!record) throw notFound();
@@ -441,19 +448,72 @@ async function loadResolved(
   try {
     return { status: 'ok', scan: await hit.value, source: 'electrum', electrum: electrumStatus() };
   } catch (error) {
-    // ElectrumError and WalletError messages are fixed sentences, safe to show; the
-    // socket or server detail (which can name the host) goes to the server log only.
-    if (error instanceof ElectrumError) {
-      console.error('[bookie] wallet scan failed:', error.message, error.detail ?? '');
-      return { status: 'error', message: error.message };
-    }
-    if (error instanceof WalletError) return { status: 'error', message: error.message };
-    console.error('[bookie] wallet scan failed', error);
-    return {
-      status: 'error',
-      message: 'Bookie could not read this wallet from the Electrum server.',
-    };
+    return { status: 'error', message: chainErrorMessage(error) };
   }
+}
+
+/**
+ * ElectrumError and WalletError messages are fixed sentences, safe to show; the
+ * socket or server detail (which can name the host) goes to the server log only.
+ */
+function chainErrorMessage(error: unknown): string {
+  if (error instanceof ElectrumError) {
+    console.error('[bookie] wallet scan failed:', error.message, error.detail ?? '');
+    return error.message;
+  }
+  if (error instanceof WalletError) return error.message;
+  console.error('[bookie] wallet scan failed', error);
+  return 'Bookie could not read this wallet from the Electrum server.';
+}
+
+/* ------------------------------------------------------------------ */
+/* Receiving a payment                                                 */
+/* ------------------------------------------------------------------ */
+
+export type ReceiveAddress =
+  | { ok: true; address: string; index: number; network: Network; demo?: boolean }
+  | { ok: false; reason: string; network?: Network };
+
+/**
+ * A fresh receive address: derived here from the wallet's descriptor at the scan's
+ * `nextReceiveIndex` (never an index from the browser). Without a live scan Bookie
+ * can't know which addresses are used, so it gives the reason, never a guessed address.
+ */
+export async function receiveAddress(
+  auth: AuthContext,
+  scope: WalletScope,
+  walletId: string
+): Promise<ReceiveAddress> {
+  const { summary, descriptor } = await resolveWallet(auth, scope, walletId);
+  const network = descriptor?.network ?? summary.network;
+  const load = await loadResolved(auth, scope, summary, descriptor);
+  const unavailable = (message: string): ReceiveAddress => ({
+    ok: false,
+    reason: `Can’t pick an unused address without reading the chain: ${message}`,
+    network,
+  });
+  if (load.status !== 'ok') return unavailable(load.message);
+  if (!descriptor) return unavailable(summary.problem ?? 'This wallet has no descriptor.');
+  let index = load.scan.nextReceiveIndex;
+  const setting = electrumSetting();
+  if (load.source === 'electrum' && setting.configured) {
+    // The scan may be from the cache: check the chain now, so an address paid in the
+    // last few minutes isn't offered again.
+    try {
+      const client = await ElectrumClient.connect(setting.server, {
+        certSha256: setting.certSha256,
+      });
+      try {
+        index = await firstUnusedReceiveIndex(descriptor, client, index);
+      } finally {
+        client.close();
+      }
+    } catch (error) {
+      return unavailable(chainErrorMessage(error));
+    }
+  }
+  const { address } = scriptDeriver(descriptor)('receive', index);
+  return { ok: true, address, index, network: descriptor.network, demo: summary.demo };
 }
 
 /** Forget cached scans (tests). */

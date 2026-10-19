@@ -116,6 +116,54 @@ test.describe('Bitcoin wallets', () => {
     await expect(page.getByTestId('bitcoin-wallet-list')).not.toContainText(name);
   });
 
+  test('shows a receive QR code with a fresh address, and adds an amount', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto(`${ORG}/accounting/bank`);
+    await page
+      .getByRole('article', { name: 'Contoso Treasury' })
+      .getByRole('link', { name: 'Wallet transactions' })
+      .click();
+    await page.getByTestId('wallet-receive').click();
+
+    const dialog = page.getByRole('dialog', { name: 'Receive bitcoin' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId('receive-network')).toHaveText('Bitcoin mainnet');
+    await expect(dialog.getByTestId('receive-demo-note')).toContainText('Never send real bitcoin');
+
+    const address = dialog.getByTestId('receive-address');
+    await expect(address).toHaveText(/^bc1q[02-9ac-hj-np-z]{38}$/);
+    const text = (await address.textContent())!;
+    await expect(
+      dialog.getByRole('img', { name: `QR code for the address ${text}` })
+    ).toBeVisible();
+    const qr = dialog.getByTestId('receive-qr');
+    await expect(qr.locator('svg')).toBeVisible();
+    await expect(qr).toHaveAttribute('data-uri', `bitcoin:${text}`);
+    await expect(dialog).toContainText('Each payment should use a fresh address');
+
+    await dialog.getByRole('button', { name: 'Copy address' }).click();
+    await expect(dialog.getByTestId('receive-copy')).toHaveText('Copied');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text);
+
+    await dialog.getByLabel('Amount (BTC, optional)').fill('0.0015000');
+    await expect(qr).toHaveAttribute('data-uri', `bitcoin:${text}?amount=0.0015`);
+    await expect(qr).toHaveAccessibleName(`QR code: pay 0.0015 BTC to ${text}`);
+    await expect(dialog.getByTestId('receive-qr-caption')).toHaveText('Asks for 0.0015 BTC');
+
+    await dialog.getByLabel('Amount (BTC, optional)').fill('0.000000001');
+    await expect(dialog).toContainText('BTC has at most 8 decimal places.');
+    // Never a code for a different amount than the one typed.
+    await expect(qr).toBeHidden();
+    await expect(dialog.getByTestId('receive-qr-hidden')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(page.getByTestId('wallet-receive')).toBeFocused();
+  });
+
   test('refuses a private key', async ({ page }) => {
     await page.goto('/portal/settings');
     const section = page.getByTestId('bitcoin-wallets');

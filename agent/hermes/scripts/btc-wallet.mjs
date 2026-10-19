@@ -9452,6 +9452,7 @@ async function scanWallet(descriptor, electrum, options = {}) {
   const history = new Map;
   const used = { receive: 0, change: 0 };
   const derived = { receive: 0, change: 0 };
+  let nextReceiveIndex = 0;
   for (const chain of chains) {
     let index = 0;
     let gap = 0;
@@ -9473,6 +9474,8 @@ async function scanWallet(descriptor, electrum, options = {}) {
         }
         gap = 0;
         used[chain]++;
+        if (chain === "receive")
+          nextReceiveIndex = Math.max(nextReceiveIndex, script.index + 1);
         usedHashes.push(electrumScriptHash(script.script));
         for (const entry of entries)
           history.set(entry.tx_hash, entry.height);
@@ -9550,6 +9553,7 @@ async function scanWallet(descriptor, electrum, options = {}) {
     },
     used,
     derived,
+    nextReceiveIndex,
     scannedAt: (options.now?.() ?? new Date).toISOString()
   };
 }

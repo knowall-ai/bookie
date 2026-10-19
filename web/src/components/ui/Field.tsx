@@ -26,7 +26,9 @@ export function Field({
       </label>
       {children}
       {error ? (
-        <p className="text-danger text-xs">{error}</p>
+        <p className="text-danger text-xs" id={htmlFor ? `${htmlFor}-error` : undefined}>
+          {error}
+        </p>
       ) : hint ? (
         <p className="text-faint text-xs">{hint}</p>
       ) : null}

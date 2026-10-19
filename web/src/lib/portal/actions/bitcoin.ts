@@ -3,9 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth/context';
-import { addWallet, removeWallet } from '@/lib/bitcoin/wallets';
+import {
+  addWallet,
+  receiveAddress,
+  removeWallet,
+  type ReceiveAddress,
+} from '@/lib/bitcoin/wallets';
+import { orgContext } from '@/lib/portal/context';
 import { describeError, type ActionResult } from './util';
-import { addWalletSchema } from './bitcoin-schema';
+import { addWalletSchema, receiveAddressSchema } from './bitcoin-schema';
 
 /**
  * Settings › Bitcoin wallets (members only; enforced again in lib/bitcoin/wallets).
@@ -31,6 +37,24 @@ export async function removeBitcoinWalletAction(id: string): Promise<ActionResul
     await removeWallet(auth, z.string().uuid().parse(id));
     revalidatePath('/portal', 'layout');
     return { ok: true, data: undefined };
+  } catch (error) {
+    return { ok: false, error: describeError(error) };
+  }
+}
+
+/**
+ * A wallet's Receive dialog: a fresh receive address derived on the server from the
+ * descriptor and the live scan. Read-only; the organisation is re-resolved with
+ * orgContext() and the wallet from its source, as on the wallet page.
+ */
+export async function bitcoinReceiveAddressAction(
+  input: z.input<typeof receiveAddressSchema>
+): Promise<ActionResult<ReceiveAddress>> {
+  try {
+    const parsed = receiveAddressSchema.parse(input);
+    const auth = await requireAuth(`/portal/${encodeURIComponent(parsed.orgKey)}`);
+    const { org, connector } = await orgContext(encodeURIComponent(parsed.orgKey));
+    return { ok: true, data: await receiveAddress(auth, { org, connector }, parsed.walletId) };
   } catch (error) {
     return { ok: false, error: describeError(error) };
   }
