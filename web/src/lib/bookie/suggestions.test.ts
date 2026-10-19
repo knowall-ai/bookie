@@ -105,4 +105,16 @@ describe("Bookie's suggestions", () => {
     expect(bookieInstructions(DEMO_ORGS[0], user, 'insights')).toContain('call suggest_action');
     expect(bookieInstructions(DEMO_ORGS[0], user, 'voice')).not.toContain('suggest_action');
   });
+
+  it('gives Bookie the UK date and time, and says he cannot see Teams from the portal', () => {
+    const prompt = bookieInstructions(
+      DEMO_ORGS[0],
+      { name: 'Alex Morgan', userType: 'Member' },
+      'chat'
+    );
+    expect(prompt).toMatch(
+      /It is now \w+day, \d{1,2} \w+ \d{4} at \d{2}:\d{2} UK time \(\d{4}-\d{2}-\d{2}\)/
+    );
+    expect(prompt).toContain("You can't see Teams chats, calls, email");
+  });
 });
