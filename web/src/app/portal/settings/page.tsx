@@ -15,6 +15,7 @@ import { BcCompanies } from '@/components/settings/BcCompanies';
 import { XeroStatusToast } from '@/components/settings/XeroStatusToast';
 import { BcLiveUpdates } from '@/components/settings/BcLiveUpdates';
 import { PeopleAccess } from '@/components/settings/PeopleAccess';
+import { EmailSettings } from '@/components/settings/EmailSettings';
 import { bcWebhooksConfigured } from '@/lib/webhooks/config';
 import { BitcoinWallets } from '@/components/settings/BitcoinWallets';
 import { electrumStatus, listWallets, type WalletSummary } from '@/lib/bitcoin/wallets';
@@ -180,6 +181,13 @@ export default async function SettingsPage({
             signIn={signIn}
             membersSeeAll={settings.access.membersSeeAll}
             orgs={accessOrgs}
+          />
+        )}
+
+        {!storeError && (
+          <EmailSettings
+            agentAddress={settings.email?.agentAddress}
+            accountsMailbox={settings.email?.accountsMailbox}
           />
         )}
 

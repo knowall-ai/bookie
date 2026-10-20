@@ -104,6 +104,13 @@ The full text is `agent/hermes/SOUL.md`. In short:
 Data extracted from documents is used live for that bill only; nothing is stored for AI training and
 nothing financial enters Reverie.
 
+The portal's *Bookie's emails* page (`/portal/emails`) shows the accounts mailbox's Inbox and bill
+capture's *Needs review* and *Processed* folders (as *Captured*), read live as the signed-in person,
+next to Bookie's external emails awaiting a moderator's approval. The approval code in
+`web/src/lib/email/` is a copy of the Agents Portal's (knowall-ai/agents-portal#143), kept in step by
+hand; each copied file says so in its header. See `docs/DEPLOYMENT.adoc`, "Bookie's
+emails".
+
 == Decisions
 
 [cols="1,3", options="header"]
