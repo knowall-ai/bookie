@@ -146,7 +146,10 @@ mailbox bill capture uses, as the signed-in person. Exchange decides who can (Fu
 Without it, only the address in Settings is matched.
 |===
 
-Without the optional ones, People and access works and simply shows no sign-in hint.
+Without the optional ones, People and access works and simply shows no sign-in hint. Bookie never
+needs `AppRoleAssignment.ReadWrite.All`: it never assigns anyone to the app. The repository's `infra/`
+scripts don't manage the app registration or its consents, so grant these in Entra (or with
+`az ad app permission add` and `az ad app permission admin-consent`).
 
 === Bookie's emails
 
@@ -156,7 +159,4 @@ emails awaiting a moderator's approval and the accounts mailbox. Set *Bookie's e
 tab says which permission or setting it is missing; a person Exchange won't let into the mailbox
 sees "You don't have access", never an error. Nothing is stored: every view is read live, and the
 decision itself lives in Exchange, so approving here, in Outlook or in the Agents Portal's
-*Approvals* tab shows as decided everywhere. Bookie never
-needs `AppRoleAssignment.ReadWrite.All`: it never assigns anyone to the app. The repository's `infra/`
-scripts don't manage the app registration or its consents, so grant these in Entra (or with
-`az ad app permission add` and `az ad app permission admin-consent`).
+*Approvals* tab shows as decided everywhere.

@@ -64,3 +64,24 @@ export function daysBetween(fromIso: string, toIso: string): number {
 export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/**
+ * `2026-10-20T11:17:00Z` → `20 Oct, 12:17` (or `20 Oct 2026, 12:17` with the year) in UK
+ * time. A fixed time zone, so the server (UTC) and a browser in BST render the same text.
+ */
+export function formatDateTimeUk(iso: string, withYear = false): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const date = d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    ...(withYear ? { year: 'numeric' } : {}),
+    timeZone: 'Europe/London',
+  });
+  const time = d.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/London',
+  });
+  return `${date}, ${time}`;
+}

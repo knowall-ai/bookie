@@ -2,7 +2,10 @@ import 'server-only';
 import type { AuthContext } from '@/lib/auth/context';
 import { configStoreFor } from '@/lib/config';
 import type { EmailSettings } from '@/lib/config/types';
-import { demoApprovalDetail, demoDecide, demoEmailsOverview } from './demo';
+import { cookies } from 'next/headers';
+import { unstable_rethrow } from 'next/navigation';
+import { ReauthRequiredError } from '@/lib/auth/tokens';
+import { demoApprovalDetail, demoDecide, demoEmailsOverview, type DemoDecisions } from './demo';
 import {
   ApprovalGraphError,
   decideApproval,
@@ -80,10 +83,37 @@ async function mailboxView(
   }
 }
 
+/** Demo only: decisions made in this browser, kept in a cookie so the server holds nothing. */
+const DEMO_COOKIE = 'bookie-demo-email-decisions';
+
+async function demoDecisions(): Promise<DemoDecisions> {
+  try {
+    const raw = JSON.parse((await cookies()).get(DEMO_COOKIE)?.value ?? '{}') as unknown;
+    if (!raw || typeof raw !== 'object') return {};
+    return Object.fromEntries(
+      Object.entries(raw).filter(([, v]) => v === 'approved' || v === 'rejected')
+    ) as DemoDecisions;
+  } catch {
+    return {};
+  }
+}
+
 export async function getEmailsOverview(auth: AuthContext): Promise<EmailsOverview> {
-  if (auth.mode === 'demo') return demoEmailsOverview();
-  const settings = await emailSettings(auth);
-  const token = await auth.getToken('graph');
+  if (auth.mode === 'demo') return demoEmailsOverview(await demoDecisions());
+  let settings: EmailSettings;
+  let token: string;
+  try {
+    [settings, token] = await Promise.all([emailSettings(auth), auth.getToken('graph')]);
+  } catch (error) {
+    // An expired sign-in still goes back to sign-in; anything else shows on the page, not as a crash.
+    unstable_rethrow(error);
+    if (error instanceof ReauthRequiredError) throw error;
+    console.warn("Bookie's emails:", error instanceof Error ? error.name : 'failed');
+    return {
+      approvals: { status: 'error', error: FAILED },
+      mailbox: { status: 'error', mailbox: 'the accounts mailbox', error: FAILED },
+    };
+  }
   const scopes = tokenScopes(token);
   const [approvals, mailbox] = await Promise.all([
     approvalsView(token, scopes, settings.agentAddress),
@@ -97,7 +127,7 @@ export async function getEmailApprovalDetail(
   auth: AuthContext,
   id: string
 ): Promise<EmailApprovalDetail | null> {
-  if (auth.mode === 'demo') return demoApprovalDetail(id);
+  if (auth.mode === 'demo') return demoApprovalDetail(id, await demoDecisions());
   const { agentAddress } = await emailSettings(auth);
   if (!agentAddress) return null;
   const token = await auth.getToken('graph');
@@ -112,9 +142,17 @@ export async function decideEmailApproval(
   reason?: string
 ): Promise<DecideResult> {
   if (auth.mode === 'demo') {
-    const status = demoDecide(id, decision);
-    if (status === 'approved' || status === 'rejected') return { ok: true, status };
-    return { ok: false, reason: demoApprovalDetail(id) ? 'not-pending' : 'not-found' };
+    const decisions = await demoDecisions();
+    const status = demoDecide(id, decision, decisions);
+    if (!status) {
+      return { ok: false, reason: demoApprovalDetail(id, decisions) ? 'not-pending' : 'not-found' };
+    }
+    (await cookies()).set(DEMO_COOKIE, JSON.stringify({ ...decisions, [id]: status }), {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/portal',
+    });
+    return { ok: true, status };
   }
   const { agentAddress } = await emailSettings(auth);
   if (!agentAddress) return { ok: false, reason: 'not-found' };

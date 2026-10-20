@@ -16,7 +16,7 @@ const messageIdSchema = z
   .regex(/^[\w=+/-]+$/, 'That is not an email Bookie knows.');
 
 const decisionSchema = z
-  .object({
+  .strictObject({
     id: messageIdSchema,
     decision: z.enum(['approve', 'reject']),
     reason: z.string().trim().max(MAX_REASON_LENGTH).optional(),

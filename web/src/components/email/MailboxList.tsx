@@ -1,7 +1,7 @@
-import { format } from 'date-fns';
 import { ExternalLink, FolderX, Inbox, Paperclip, UserLock } from 'lucide-react';
 import { EmptyState } from '@/components/ui/States';
 import type { MailboxFolderView } from '@/lib/email/types';
+import { formatDateTimeUk } from '@/lib/ui/format';
 
 const EMPTY: Record<MailboxFolderView['key'], string> = {
   inbox: 'Nothing waiting. Bookie picks up new invoices and receipts from here.',
@@ -54,9 +54,9 @@ export function MailboxList({ folder, mailbox }: { folder: MailboxFolderView; ma
                 <time
                   dateTime={m.receivedAt}
                   className="text-muted shrink-0 text-xs"
-                  title={format(new Date(m.receivedAt), 'd MMM yyyy, HH:mm')}
+                  title={formatDateTimeUk(m.receivedAt, true)}
                 >
-                  {format(new Date(m.receivedAt), 'd MMM, HH:mm')}
+                  {formatDateTimeUk(m.receivedAt)}
                 </time>
               </div>
               <p className="text-ink mt-0.5 flex items-center gap-1.5 truncate text-sm">

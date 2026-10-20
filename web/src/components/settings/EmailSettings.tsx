@@ -52,6 +52,9 @@ export function EmailSettings({
                   accountsMailbox: accounts,
                 });
                 if (!result.ok) return void toast.error(result.error);
+                // Show what was stored: the server trims and lower-cases addresses.
+                setAgent(agent.trim().toLowerCase());
+                setAccounts(accounts.trim().toLowerCase());
                 toast.success('Email settings saved');
                 router.refresh();
               });

@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { Check, ChevronDown, ChevronUp, MailCheck, Paperclip, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge, type Tone } from '@/components/ui/Badge';
@@ -18,6 +18,7 @@ import type {
   EmailApprovalDetail,
 } from '@/lib/email/types';
 import { decideEmailApprovalAction, emailApprovalDetailAction } from '@/lib/portal/actions/email';
+import { formatDateTimeUk } from '@/lib/ui/format';
 
 // Modelled on knowall-ai/agents-portal's ApprovalsPanel (PR #143), so Bookie's held
 // email looks and behaves the same in both portals.
@@ -106,7 +107,9 @@ function EmailView({ detail }: { detail: EmailApprovalDetail }) {
 
 function When({ iso, prefix = '' }: { iso: string; prefix?: string }) {
   return (
-    <time dateTime={iso} title={format(new Date(iso), 'd MMM yyyy, HH:mm')}>
+    // UK time for the tooltip, the same on server and browser; "x minutes ago" can tick over
+    // between the two renders, so React is told not to warn about it.
+    <time dateTime={iso} title={formatDateTimeUk(iso, true)} suppressHydrationWarning>
       {prefix}
       {formatDistanceToNow(new Date(iso), { addSuffix: true })}
     </time>

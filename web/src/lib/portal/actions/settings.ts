@@ -179,7 +179,7 @@ const mailboxSchema = z
     'Enter a valid email address.'
   );
 
-const emailSettingsSchema = z.object({
+const emailSettingsSchema = z.strictObject({
   agentAddress: mailboxSchema,
   accountsMailbox: mailboxSchema,
 });

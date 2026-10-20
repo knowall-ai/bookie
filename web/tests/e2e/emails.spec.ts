@@ -2,15 +2,12 @@ import { expect, test } from '@playwright/test';
 
 /**
  * Bookie's emails on the demo organisation: sample held emails and accounts-inbox
- * mail (lib/email/demo.ts). Decisions are kept in the dev server's memory, so each
- * test acts on a different held email.
+ * mail (lib/email/demo.ts). Demo decisions live in a browser cookie, so every test
+ * starts with both sample emails pending, however often the suite runs.
  */
 const PAGE = '/portal/emails';
 
 test.describe('Bookie’s emails', () => {
-  // The demo's decisions live in the dev server's memory: run in order so the list test sees them all pending.
-  test.describe.configure({ mode: 'serial' });
-
   test('opens from the account menu and lists held emails, pending first', async ({ page }) => {
     await page.goto('/portal/demo.contoso');
     await page.getByRole('button', { name: 'Account menu' }).click();

@@ -57,7 +57,7 @@ describe('mailbox helpers', () => {
     expect(toMailboxMessage({ id: 'm2' })).toBeUndefined();
   });
 
-  it('reads delegated scopes from a token, and empty for garbage', () => {
+  it('reads delegated scopes from a token, and null for one it cannot read', () => {
     const scopes = tokenScopes(jwt({ scp: 'Mail.ReadWrite Mail.Send Mail.Read.Shared User.Read' }));
     expect(canModerate(scopes)).toBe(true);
     expect(canReadShared(scopes)).toBe(true);

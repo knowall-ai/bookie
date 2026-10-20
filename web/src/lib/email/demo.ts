@@ -1,8 +1,9 @@
 /**
  * Sample emails for the demo organisation (BOOKIE_DEV_AUTH=demo): fictional
  * held chasers and accounts-inbox mail, relative to now so the pending ones stay
- * pending. Decisions are kept in memory for the life of the dev server so the
- * Approve / Reject flow can be tried. Never reachable in production.
+ * pending. Decisions made in the demo are passed in (lib/email keeps them in a
+ * browser cookie), so each browser starts fresh and the server keeps nothing.
+ * Never reachable in production.
  */
 import { REQUEST_LIFETIME_MS, sortApprovals } from './approvals';
 import { MAILBOX_FOLDERS } from './mailbox';
@@ -97,13 +98,14 @@ Contoso Coffee Roasters Ltd`,
   },
 ];
 
-const decisions = new Map<string, ApprovalStatus>();
+/** Decisions made in this browser's demo session, by sample id. */
+export type DemoDecisions = Record<string, 'approved' | 'rejected'>;
 
-function materialise(sample: Sample, now: Date): EmailApprovalDetail {
+function materialise(sample: Sample, decisions: DemoDecisions, now: Date): EmailApprovalDetail {
   const requested = now.getTime() - sample.hoursAgo * HOUR;
   const expires = requested + REQUEST_LIFETIME_MS;
   const status =
-    decisions.get(sample.id) ?? sample.status ?? (now.getTime() >= expires ? 'expired' : 'pending');
+    decisions[sample.id] ?? sample.status ?? (now.getTime() >= expires ? 'expired' : 'pending');
   const { hoursAgo: _hoursAgo, status: _status, ...rest } = sample;
   return {
     ...rest,
@@ -113,7 +115,10 @@ function materialise(sample: Sample, now: Date): EmailApprovalDetail {
   };
 }
 
-export function demoApprovals(now: Date = new Date()): EmailApproval[] {
+export function demoApprovals(
+  decisions: DemoDecisions = {},
+  now: Date = new Date()
+): EmailApproval[] {
   return sortApprovals(
     SAMPLES.map((s) => {
       const {
@@ -124,27 +129,31 @@ export function demoApprovals(now: Date = new Date()): EmailApproval[] {
         body: _b,
         hasAttachments: _a,
         ...summary
-      } = materialise(s, now);
+      } = materialise(s, decisions, now);
       return summary;
     })
   );
 }
 
-export function demoApprovalDetail(id: string, now: Date = new Date()): EmailApprovalDetail | null {
+export function demoApprovalDetail(
+  id: string,
+  decisions: DemoDecisions = {},
+  now: Date = new Date()
+): EmailApprovalDetail | null {
   const sample = SAMPLES.find((s) => s.id === id);
-  return sample ? materialise(sample, now) : null;
+  return sample ? materialise(sample, decisions, now) : null;
 }
 
+/** The status a decision gives, or null when the sample isn't pending (or doesn't exist). */
 export function demoDecide(
   id: string,
   decision: ApprovalDecision,
+  decisions: DemoDecisions = {},
   now: Date = new Date()
-): ApprovalStatus | null {
-  const detail = demoApprovalDetail(id, now);
+): 'approved' | 'rejected' | null {
+  const detail = demoApprovalDetail(id, decisions, now);
   if (!detail || detail.status !== 'pending') return null;
-  const status = decision === 'approve' ? 'approved' : 'rejected';
-  decisions.set(id, status);
-  return status;
+  return decision === 'approve' ? 'approved' : 'rejected';
 }
 
 const MAIL: Record<
@@ -206,11 +215,14 @@ const MAIL: Record<
   ],
 };
 
-export function demoEmailsOverview(now: Date = new Date()): EmailsOverview {
+export function demoEmailsOverview(
+  decisions: DemoDecisions = {},
+  now: Date = new Date()
+): EmailsOverview {
   return {
     agentAddress: DEMO_AGENT_ADDRESS,
     demo: true,
-    approvals: { status: 'ok', items: demoApprovals(now) },
+    approvals: { status: 'ok', items: demoApprovals(decisions, now) },
     mailbox: {
       status: 'ok',
       mailbox: DEMO_ACCOUNTS_MAILBOX,
