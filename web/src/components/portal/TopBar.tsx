@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   LogOut,
+  Mail,
   Menu,
   Plus,
   Search,
@@ -340,12 +341,12 @@ function Avatar({ name, photo, className }: { name: string; photo: boolean; clas
 const menuItem =
   'text-body hover:bg-surface-3 hover:text-ink focus-visible:bg-surface-3 focus-visible:text-ink flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none';
 
-/** The account menu, like Thyme's: photo and chevron, then name, email, Settings and Sign out. */
+/** The account menu, like Thyme's: photo and chevron, then name, email, Settings, Bookie's emails (members) and Sign out. */
 export function UserMenu({
   user,
   devMode,
 }: {
-  user: { name: string; email: string };
+  user: { name: string; email: string; userType?: string };
   devMode?: string;
 }) {
   const { open, setOpen, ref } = usePopover();
@@ -439,6 +440,17 @@ export function UserMenu({
             >
               <Settings className="text-muted h-4 w-4" /> Settings
             </Link>
+            {user.userType === 'Member' && (
+              <Link
+                href="/portal/emails"
+                role="menuitem"
+                tabIndex={-1}
+                onClick={() => setOpen(false)}
+                className={menuItem}
+              >
+                <Mail className="text-muted h-4 w-4" /> Bookie’s emails
+              </Link>
+            )}
             <button
               type="button"
               role="menuitem"

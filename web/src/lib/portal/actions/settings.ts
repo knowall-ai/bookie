@@ -10,6 +10,7 @@ import {
   searchPeople,
   updateAccessSettings,
   updateConnectorSettings,
+  updateEmailSettings,
 } from '@/lib/connections';
 import { ENTRA_ID, type DirectoryPerson } from '@/lib/directory/types';
 import { describeError, type ActionResult } from './util';
@@ -157,6 +158,42 @@ export async function setMembersSeeAllAction(value: boolean): Promise<ActionResu
   try {
     const auth = await requireAuth('/portal/settings');
     await updateAccessSettings(auth, { type: 'membersSeeAll', value: z.boolean().parse(value) });
+    revalidatePath('/portal', 'layout');
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return { ok: false, error: describeError(error) };
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Bookie's emails (members only; enforced in lib/connections.ts).     */
+/* ------------------------------------------------------------------ */
+
+const mailboxSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(320)
+  .refine(
+    (v) => v === '' || z.string().email().safeParse(v).success,
+    'Enter a valid email address.'
+  );
+
+const emailSettingsSchema = z.object({
+  agentAddress: mailboxSchema,
+  accountsMailbox: mailboxSchema,
+});
+
+export async function saveEmailSettingsAction(
+  input: z.input<typeof emailSettingsSchema>
+): Promise<ActionResult> {
+  try {
+    const auth = await requireAuth('/portal/settings');
+    const { agentAddress, accountsMailbox } = emailSettingsSchema.parse(input);
+    await updateEmailSettings(auth, {
+      agentAddress: agentAddress || undefined,
+      accountsMailbox: accountsMailbox || undefined,
+    });
     revalidatePath('/portal', 'layout');
     return { ok: true, data: undefined };
   } catch (error) {

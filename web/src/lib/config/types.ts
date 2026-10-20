@@ -96,6 +96,19 @@ export interface TenantSettings {
    * user's own plans (rent, salaries, a new contract), never accounting data.
    */
   forecast?: Record<string, { planned: PlannedItem[] }>;
+  /**
+   * Bookie's emails (the Emails page): his own address, whose held external email
+   * moderators approve, and the shared mailbox bill capture reads. Addresses only;
+   * the mail itself is read live and never stored.
+   */
+  email?: EmailSettings;
+}
+
+export interface EmailSettings {
+  /** Bookie's mailbox, e.g. bookie@contoso.com (the agent's AGENT_UPN). */
+  agentAddress?: string;
+  /** The accounts mailbox bill capture reads (the agent's ACCOUNTS_MAILBOX). */
+  accountsMailbox?: string;
 }
 
 export const DEFAULT_SETTINGS: TenantSettings = {

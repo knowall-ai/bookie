@@ -137,9 +137,26 @@ customer). All are delegated.
 | `Application.Read.All` | Optional | The "Can't sign in yet" hint: reads Bookie's service principal
 and who is assigned to it.
 | `GroupMember.Read.All` | Optional | The same hint for people assigned through a group.
+| `Mail.ReadWrite`, `Mail.Send` | Optional, for Bookie's emails | *Awaiting approval*: reads the
+Exchange moderation requests for Bookie's held external email in the signed-in moderator's own
+mailbox, and sends their Approve or Reject vote.
+| `Mail.Read.Shared` | Optional, for Bookie's emails | The accounts mailbox tabs: reads the
+mailbox bill capture uses, as the signed-in person. Exchange decides who can (FullAccess).
+| `User.Read.All` | Optional | Bookie's email aliases, so held email sent from an alias is found too.
+Without it, only the address in Settings is matched.
 |===
 
-Without the optional two, People and access works and simply shows no sign-in hint. Bookie never
+Without the optional ones, People and access works and simply shows no sign-in hint.
+
+=== Bookie's emails
+
+`/portal/emails` (the account menu's *Bookie's emails*, members only) shows Bookie's external
+emails awaiting a moderator's approval and the accounts mailbox. Set *Bookie's email address* and
+*Accounts mailbox* under *Settings › Bookie's emails*, and consent the mail permissions above. Each
+tab says which permission or setting it is missing; a person Exchange won't let into the mailbox
+sees "You don't have access", never an error. Nothing is stored: every view is read live, and the
+decision itself lives in Exchange, so approving here, in Outlook or in the Agents Portal's
+*Approvals* tab shows as decided everywhere. Bookie never
 needs `AppRoleAssignment.ReadWrite.All`: it never assigns anyone to the app. The repository's `infra/`
 scripts don't manage the app registration or its consents, so grant these in Entra (or with
 `az ad app permission add` and `az ad app permission admin-consent`).

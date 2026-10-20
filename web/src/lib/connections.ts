@@ -10,7 +10,7 @@ import {
 } from '@/lib/auth/access';
 import type { AuthContext } from '@/lib/auth/context';
 import { configStoreFor } from '@/lib/config';
-import type { AccessPerson, XeroConnection, XeroOrgMeta } from '@/lib/config/types';
+import type { AccessPerson, EmailSettings, XeroConnection, XeroOrgMeta } from '@/lib/config/types';
 import { forgetBcDiscovery } from '@/lib/connectors/registry';
 import { ConnectorError } from '@/lib/connectors/types';
 import { XeroClient } from '@/lib/connectors/xero/client';
@@ -186,6 +186,18 @@ export async function updateConnectorSettings(
   if (patch.hiddenCompanies) settings.businessCentral.hiddenCompanies = patch.hiddenCompanies;
   await store.saveSettings(settings);
   forgetBcDiscovery(auth);
+}
+
+/** Settings › Bookie's emails: his address and the accounts mailbox. Members only; blank clears. */
+export async function updateEmailSettings(auth: AuthContext, email: EmailSettings): Promise<void> {
+  assertCanManageSettings(auth.user);
+  const store = configStoreFor(auth);
+  const settings = await store.getSettings();
+  settings.email = {
+    ...(email.agentAddress ? { agentAddress: email.agentAddress } : {}),
+    ...(email.accountsMailbox ? { accountsMailbox: email.accountsMailbox } : {}),
+  };
+  await store.saveSettings(settings);
 }
 
 /**

@@ -1,6 +1,7 @@
 import 'server-only';
 import type { AuthContext } from '@/lib/auth/context';
 import { DEMO_GUEST } from '@/lib/auth/dev';
+import { DEMO_ACCOUNTS_MAILBOX, DEMO_AGENT_ADDRESS } from '@/lib/email/demo';
 import { FileConfigStore, MemoryConfigStore, SharePointConfigStore } from './stores';
 import { DEFAULT_SETTINGS, type ConfigStore, type TenantSettings } from './types';
 
@@ -17,6 +18,7 @@ export const DEMO_SETTINGS: TenantSettings = {
     membersSeeAll: true,
     people: [{ email: DEMO_GUEST.email, name: DEMO_GUEST.name, orgKeys: ['demo.contoso'] }],
   },
+  email: { agentAddress: DEMO_AGENT_ADDRESS, accountsMailbox: DEMO_ACCOUNTS_MAILBOX },
 };
 
 export function configStoreFor(auth: AuthContext): ConfigStore {

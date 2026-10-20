@@ -13,7 +13,9 @@ test.describe('account menu', () => {
     expect(photoRequests).toEqual([]);
   });
 
-  test('opens with name, email, Settings and Sign out, and closes on Escape', async ({ page }) => {
+  test('opens with name, email, Settings, Bookie’s emails and Sign out, and closes on Escape', async ({
+    page,
+  }) => {
     await page.goto(ORG);
     const button = page.getByRole('button', { name: 'Account menu' });
     const chevron = page.getByTestId('user-menu-chevron');
@@ -35,6 +37,8 @@ test.describe('account menu', () => {
 
     // Keyboard: focus starts on the first item and the arrows move it.
     await expect(menu.getByRole('menuitem', { name: 'Settings' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(menu.getByRole('menuitem', { name: 'Bookie’s emails' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(menu.getByRole('menuitem', { name: 'Sign out' })).toBeFocused();
 
