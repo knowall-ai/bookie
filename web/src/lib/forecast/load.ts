@@ -1,5 +1,5 @@
 import 'server-only';
-import type { AccountingConnector } from '@/lib/connectors/types';
+import { isConnectorError, type AccountingConnector } from '@/lib/connectors/types';
 import type { BankTransaction, Invoice, InvoiceType, Opportunity, Page } from '@/lib/domain/types';
 import { computeForecast, forecastCurrencies } from './compute';
 import { addMonths, monthStart } from './dates';
@@ -79,7 +79,7 @@ export async function loadForecast(
   const docs: Invoice[] = lists.flatMap((l) => l.items).filter((d) => statuses.includes(d.status));
   const notes = [...new Set(lists.flatMap((l) => l.notes))];
 
-  const pipeline = connector.opportunities
+  let pipeline: { available: boolean; reason?: string } = connector.opportunities
     ? { available: true }
     : {
         available: false,
@@ -87,15 +87,24 @@ export async function loadForecast(
       };
   let opportunities: Opportunity[] = [];
   if (request.includePipeline && connector.opportunities) {
-    const result = await allPages((page) =>
-      connector.opportunities!.list({ open: true, page, pageSize: PAGE_SIZE })
-    );
-    if (!result.complete)
-      throw new ForecastUnavailableError(
-        `There are more than ${(PAGE_SIZE * MAX_PAGES).toLocaleString('en-GB')} open opportunities, more than Bookie reads for a forecast.`
-      );
-    opportunities = result.items;
-    notes.push(...result.notes.filter((note) => !notes.includes(note)));
+    const list = connector.opportunities.list;
+    try {
+      const result = await allPages((page) => list({ open: true, page, pageSize: PAGE_SIZE }));
+      if (!result.complete)
+        throw new ForecastUnavailableError(
+          `There are more than ${(PAGE_SIZE * MAX_PAGES).toLocaleString('en-GB')} open opportunities, more than Bookie reads for a forecast.`
+        );
+      opportunities = result.items;
+      notes.push(...result.notes.filter((note) => !notes.includes(note)));
+    } catch (error) {
+      // The pipeline is optional: if the source refuses it, show the forecast without it
+      // (and the switch, so it can be turned off) rather than an error page.
+      if (!isConnectorError(error)) throw error;
+      pipeline = {
+        available: false,
+        reason: `${sourceName} didn't return its sales opportunities, so the pipeline is off.`,
+      };
+    }
   }
 
   const base = details.baseCurrency;

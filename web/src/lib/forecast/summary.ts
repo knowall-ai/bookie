@@ -105,7 +105,8 @@ export function forecastForBookie(
     pipeline: {
       ...extra.pipeline,
       note: "Weighted by each opportunity's chance of success, on its estimated closing date. When the client pays may differ. Never fill in excluded opportunities' missing fields.",
-      excluded: f.pipelineExcluded,
+      excludedCount: f.pipelineExcluded.length,
+      excluded: f.pipelineExcluded.slice(0, 20),
     },
     projection: f.projection,
     sourceNotes: extra.notes,

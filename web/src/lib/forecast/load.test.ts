@@ -1,3 +1,4 @@
+import { ConnectorError } from '@/lib/connectors/types';
 import { describe, expect, it } from 'vitest';
 import { createDemoConnector, DEMO_ORGS } from '@/lib/connectors/demo';
 import { runTool } from '@/lib/bookie/tools';
@@ -164,6 +165,27 @@ describe('pipeline loading', () => {
       'No estimated value in Business Central'
     );
     expect(result.notes.filter((n) => n === 'Source note')).toHaveLength(1);
+  });
+
+  it('shows the forecast without the pipeline when the source refuses opportunities', async () => {
+    const c = connector();
+    c.opportunities = {
+      list: async () => {
+        throw new ConnectorError('Forbidden', 403, 'business-central');
+      },
+    };
+    const result = await loadForecast(
+      c,
+      [],
+      { horizon: '6m', includePipeline: true },
+      'Business Central',
+      today
+    );
+    expect(result.pipeline).toEqual({
+      available: false,
+      reason: "Business Central didn't return its sales opportunities, so the pipeline is off.",
+    });
+    expect(result.forecast.layers.pipeline).toBe(false);
   });
 
   it('refuses a partial pipeline at the page limit', async () => {
