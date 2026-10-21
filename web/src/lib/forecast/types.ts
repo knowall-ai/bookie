@@ -3,7 +3,8 @@
  *
  * No guessing: every figure here comes from the source system (bank balances,
  * unpaid invoices and bills), from the user (planned items), or from an
- * explicit, opt-in average of real bank transactions (the projection). Each
+ * explicit, opt-in average of real bank transactions (the projection), or
+ * open opportunities weighted by their source probability (the pipeline). Each
  * figure carries the layer it came from so nothing is ever mixed silently.
  */
 import type { IsoDate } from '@/lib/domain/types';
@@ -20,7 +21,7 @@ export type ProjectionMonths = 3 | 6 | 12;
 export const PROJECTION_MONTHS: ProjectionMonths[] = [3, 6, 12];
 
 /** Where a forecast figure comes from. */
-export type ForecastLayer = 'known' | 'draft' | 'planned' | 'projected';
+export type ForecastLayer = 'known' | 'draft' | 'planned' | 'projected' | 'pipeline';
 export type Direction = 'in' | 'out';
 
 export type PlannedRepeat = 'weekly' | 'monthly' | 'quarterly';
@@ -59,6 +60,13 @@ export interface ForecastEntry {
   };
   /** For planned items: which item, and which occurrence. */
   plannedId?: string;
+  opportunity?: {
+    id: string;
+    number: string;
+    contact?: string;
+    estimatedValue: number;
+    chanceOfSuccess: number;
+  };
 }
 
 export interface LayerTotals {
@@ -68,6 +76,7 @@ export interface LayerTotals {
   draftOut: number;
   plannedIn: number;
   plannedOut: number;
+  pipelineIn: number;
   projectedIn: number;
   projectedOut: number;
 }
@@ -122,7 +131,7 @@ export interface Forecast {
   today: IsoDate;
   /** Last day of the horizon. */
   end: IsoDate;
-  layers: { known: true; drafts: boolean; planned: true; projected: boolean };
+  layers: { known: true; drafts: boolean; planned: true; projected: boolean; pipeline: boolean };
   /** Human labels for the layers that are switched on. */
   layersUsed: string[];
   opening: {
@@ -147,6 +156,7 @@ export interface Forecast {
   afterHorizon: { in: number; out: number; count: number };
   /** Documents whose amount the source doesn't report: listed, never added. */
   unknownAmount: ForecastEntry[];
+  pipelineExcluded: { number: string; label: string; reason: string }[];
   projection?: ProjectionInfo;
   /** Why the projection can't be offered, when it can't. */
   projectionUnavailable?: string;
@@ -157,4 +167,5 @@ export const LAYER_LABELS: Record<ForecastLayer, string> = {
   draft: 'Drafts and awaiting approval',
   planned: 'Planned (you entered this)',
   projected: 'Projection',
+  pipeline: 'Pipeline: open opportunities × chance of success',
 };

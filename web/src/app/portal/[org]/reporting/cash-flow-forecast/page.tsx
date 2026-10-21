@@ -36,7 +36,13 @@ import { PlannedItems } from '@/components/forecast/PlannedItems';
 
 export const metadata = { title: 'Cash flow forecast' };
 
-type Search = { horizon?: string; currency?: string; drafts?: string; projection?: string };
+type Search = {
+  horizon?: string;
+  currency?: string;
+  drafts?: string;
+  projection?: string;
+  pipeline?: string;
+};
 
 function Tile({
   icon,
@@ -98,7 +104,8 @@ function flowTiles(f: Forecast) {
     t[`known${dir}`] +
     t[`planned${dir}`] +
     (f.layers.drafts ? t[`draft${dir}`] : 0) +
-    (f.layers.projected ? t[`projected${dir}`] : 0);
+    (f.layers.projected ? t[`projected${dir}`] : 0) +
+    (f.layers.pipeline && dir === 'In' ? t.pipelineIn : 0);
   return { in: Math.round(sum('In') * 100) / 100, out: Math.round(sum('Out') * 100) / 100 };
 }
 
@@ -121,6 +128,7 @@ export default async function CashFlowForecastPage({
     ? (search.horizon as ForecastHorizon)
     : '13w';
   const includeDrafts = search.drafts === '1';
+  const includePipeline = search.pipeline === '1';
   const projectionMonths = (
     ['3', '6', '12'].includes(search.projection ?? '') ? Number(search.projection) : undefined
   ) as ProjectionMonths | undefined;
@@ -140,7 +148,7 @@ export default async function CashFlowForecastPage({
     result = await loadForecast(
       connector,
       planned,
-      { horizon, currency: search.currency, includeDrafts, projectionMonths },
+      { horizon, currency: search.currency, includeDrafts, projectionMonths, includePipeline },
       source
     );
   } catch (error) {
@@ -202,6 +210,8 @@ export default async function CashFlowForecastPage({
           currencies={result.currencies}
           drafts={includeDrafts}
           projectionMonths={result.projection.available ? projectionMonths : undefined}
+          pipeline={result.pipeline}
+          includePipeline={f.layers.pipeline}
           projection={result.projection}
         />
       </Card>
@@ -258,6 +268,13 @@ export default async function CashFlowForecastPage({
           />
           {f.layers.drafts && (
             <Breakdown label="Drafts" amount={f.totals.draftIn} currency={currency} />
+          )}
+          {f.layers.pipeline && (
+            <Breakdown
+              label="Pipeline (weighted)"
+              amount={f.totals.pipelineIn}
+              currency={currency}
+            />
           )}
           {f.layers.projected && (
             <Breakdown label="Projection" amount={f.totals.projectedIn} currency={currency} />
@@ -398,7 +415,7 @@ export default async function CashFlowForecastPage({
       <Card>
         <CardHeader
           title="Breakdown"
-          subtitle="Select a figure to see the invoices, bills or planned items behind it. Money out is shown as negative."
+          subtitle="Select a figure to see the invoices, bills, planned items or opportunities behind it. Money out is shown as negative."
         />
         <ForecastTable forecast={f} base={base} />
       </Card>
@@ -411,6 +428,22 @@ export default async function CashFlowForecastPage({
         today={f.today}
         storedIn={storedIn}
       />
+
+      {f.layers.pipeline && f.pipelineExcluded.length > 0 && (
+        <Card data-testid="forecast-pipeline-excluded">
+          <CardHeader
+            title="Not in the pipeline"
+            subtitle={`Open opportunities Bookie can't place. Fill in what's missing in ${source} to include them.`}
+          />
+          <ul className="text-muted space-y-2 px-5 py-4 text-sm">
+            {f.pipelineExcluded.map((item) => (
+              <li key={item.number}>
+                <span className="text-body">{item.label}</span>: {item.reason}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {notIncluded > 0 && (
         <Card id="not-included" data-testid="forecast-not-included">

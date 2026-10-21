@@ -54,3 +54,34 @@ describe('forecast CSV', () => {
     expect(csv).toContain('Opening balance,Not available');
   });
 });
+
+it('exports the weighted pipeline row and its excluded opportunities only when enabled', () => {
+  const opportunity = {
+    id: 'opp-1',
+    number: 'OPP-1',
+    description: 'Contoso coffee',
+    closed: false,
+    status: 'in-progress' as const,
+    estimatedValue: 1000,
+    chanceOfSuccess: 25,
+    estimatedClosingDate: '2026-11-03',
+    currency: 'GBP',
+  };
+  const input = {
+    today: '2026-10-14',
+    horizon: '6m' as const,
+    currency: 'GBP',
+    sourceName: 'Business Central',
+    bankAccounts: [],
+    invoices: [],
+    planned: [],
+    opportunities: [opportunity, { ...opportunity, number: 'OPP-2', estimatedValue: undefined }],
+  };
+  expect(forecastToCsv(computeForecast(input))).not.toContain('Pipeline (weighted)');
+  const csv = forecastToCsv(computeForecast({ ...input, includePipeline: true }));
+  expect(csv).toContain('Pipeline (weighted),0.00,250.00,0.00,0.00,0.00,0.00,250.00');
+  expect(csv).toContain('Pipeline: open opportunities × chance of success');
+  expect(csv).toContain(
+    'Not in the pipeline: OPP-2 Contoso coffee: No estimated value in Business Central'
+  );
+});

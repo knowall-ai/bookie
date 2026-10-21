@@ -382,3 +382,89 @@ describe('projection', () => {
     expect(f.projectionUnavailable).toBe('No ledger.');
   });
 });
+
+describe('pipeline', () => {
+  const opportunity = {
+    id: 'contoso-opportunity',
+    number: 'OPP-1001',
+    description: 'Fabrikam coffee',
+    contact: 'Fabrikam',
+    status: 'in-progress' as const,
+    closed: false,
+    estimatedValue: 1234.56,
+    chanceOfSuccess: 33,
+    estimatedClosingDate: '2026-10-20',
+    currency: 'GBP',
+  };
+  const pipeline = (over: Partial<ForecastInput> = {}) =>
+    computeForecast(
+      input({
+        sourceName: 'Business Central',
+        includePipeline: true,
+        opportunities: [opportunity],
+        ...over,
+      })
+    );
+
+  it('weights and rounds income, places it by closing date and includes it in balances', () => {
+    const f = pipeline();
+    expect(f.buckets[0].totals.pipelineIn).toBe(0);
+    expect(f.buckets[1].totals.pipelineIn).toBe(407.4);
+    expect(f.buckets[1].entries[0]).toMatchObject({
+      layer: 'pipeline',
+      direction: 'in',
+      amount: 407.4,
+      date: '2026-10-20',
+      opportunity: { estimatedValue: 1234.56, chanceOfSuccess: 33 },
+    });
+    expect(f.buckets[1].net).toBe(407.4);
+    expect(f.closing).toBe(12907.9);
+    expect(f.layersUsed).toContain('Pipeline: open opportunities × chance of success');
+    expect(pipeline({ horizon: '6m' }).buckets[0].totals.pipelineIn).toBe(407.4);
+  });
+
+  it('rounds half a penny up, not down through float noise', () => {
+    const f = pipeline({
+      opportunities: [{ ...opportunity, estimatedValue: 100.5, chanceOfSuccess: 1 }],
+    });
+    expect(f.totals.pipelineIn).toBe(1.01);
+  });
+
+  it('has no effect when off, even if opportunities were supplied', () => {
+    const f = pipeline({ includePipeline: false });
+    expect(f.totals.pipelineIn).toBe(0);
+    expect(f.buckets.every((b) => b.net === 0)).toBe(true);
+    expect(f.closing).toBe(12500.5);
+    expect(f.pipelineExcluded).toEqual([]);
+  });
+
+  it.each([
+    [{ estimatedValue: undefined }, 'No estimated value in Business Central'],
+    [{ estimatedValue: NaN }, 'No estimated value in Business Central'],
+    [{ chanceOfSuccess: undefined }, 'No chance of success set'],
+    [{ chanceOfSuccess: 0 }, 'No chance of success set'],
+    [{ estimatedClosingDate: undefined }, 'No estimated closing date'],
+    [{ estimatedClosingDate: '2026-10-13' }, 'Estimated closing date has passed'],
+    [{ currency: 'EUR' }, 'In another currency (EUR)'],
+    [{ currency: undefined }, 'No currency from the source'],
+    [{ estimatedClosingDate: '2028-01-01' }, 'Estimated closing date is after this forecast'],
+  ])('lists exclusions without adding amounts: %s', (patch, reason) => {
+    const f = pipeline({ opportunities: [{ ...opportunity, ...patch }] });
+    expect(f.pipelineExcluded).toEqual([
+      { number: 'OPP-1001', label: 'OPP-1001 Fabrikam coffee', reason },
+    ]);
+    expect(f.totals.pipelineIn).toBe(0);
+  });
+
+  it('silently skips closed, won and lost opportunities', () => {
+    const f = pipeline({
+      opportunities: [
+        { ...opportunity, closed: true },
+        { ...opportunity, status: 'won' },
+        { ...opportunity, status: 'lost' },
+      ],
+    });
+    expect(f.pipelineExcluded).toEqual([]);
+    expect(f.totals.pipelineIn).toBe(0);
+  });
+});

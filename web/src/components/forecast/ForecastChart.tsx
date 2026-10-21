@@ -22,11 +22,12 @@ import { FLOW, LAYER_NAMES, LayerSwatch, BALANCE_COLOUR } from './legend';
  * Money in (blue) and out (orange) are the validated categorical pair from the
  * home chart (dataviz palette checker on #111827: CVD ΔE 26.8, 3:1 contrast).
  * The layer is the secondary encoding: Known solid, Drafts translucent,
- * Planned outlined, Projected hatched. The running balance is a neutral ink
+ * Planned outlined, Projected hatched, Pipeline translucent violet (income only).
+ * The running balance is a neutral ink
  * line so it never competes with either flow's identity.
  */
 
-const LAYERS: ForecastLayer[] = ['known', 'draft', 'planned', 'projected'];
+const LAYERS: ForecastLayer[] = ['known', 'draft', 'planned', 'projected', 'pipeline'];
 
 interface Point {
   key: string;
@@ -36,6 +37,7 @@ interface Point {
   knownIn?: number;
   draftIn?: number;
   plannedIn?: number;
+  pipelineIn?: number;
   projectedIn?: number;
   knownOut?: number;
   draftOut?: number;
@@ -46,6 +48,8 @@ interface Point {
 function fillFor(layer: ForecastLayer, direction: 'in' | 'out') {
   const colour = FLOW[direction].colour;
   switch (layer) {
+    case 'pipeline':
+      return { fill: 'var(--color-violet)', stroke: 'none', fillOpacity: 0.5 };
     case 'known':
       return { fill: colour, stroke: 'none', fillOpacity: 1 };
     case 'draft':
@@ -59,11 +63,13 @@ function fillFor(layer: ForecastLayer, direction: 'in' | 'out') {
 
 export function chartPoints(forecast: Forecast): Point[] {
   const on = (layer: ForecastLayer) =>
-    layer === 'draft'
-      ? forecast.layers.drafts
-      : layer === 'projected'
-        ? forecast.layers.projected
-        : true;
+    layer === 'pipeline'
+      ? forecast.layers.pipeline
+      : layer === 'draft'
+        ? forecast.layers.drafts
+        : layer === 'projected'
+          ? forecast.layers.projected
+          : true;
   return [
     { key: 'today', short: 'Today', balance: forecast.opening.balance },
     ...forecast.buckets.map((b) => {
@@ -72,9 +78,11 @@ export function chartPoints(forecast: Forecast): Point[] {
         if (!on(layer)) continue;
         const t = b.totals;
         const inKey = `${layer}In` as const;
-        const outKey = `${layer}Out` as const;
         p[inKey] = t[inKey] || undefined;
-        p[outKey] = t[outKey] ? -t[outKey] : undefined;
+        if (layer !== 'pipeline') {
+          const outKey = `${layer}Out` as const;
+          p[outKey] = t[outKey] ? -t[outKey] : undefined;
+        }
       }
       return p;
     }),
@@ -196,7 +204,12 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
   const lowestPoint = lowest && points.find((p) => p.key === lowest.bucketKey);
   const projectionLabel = forecast.projection?.label;
   const series: { layer: ForecastLayer; direction: 'in' | 'out' }[] = LAYERS.flatMap((layer) =>
-    (['in', 'out'] as const).map((direction) => ({ layer, direction }))
+    (layer === 'pipeline'
+      ? forecast.layers.pipeline
+        ? (['in'] as const)
+        : []
+      : (['in', 'out'] as const)
+    ).map((direction) => ({ layer, direction }))
   );
   const syncId = `forecast-${forecast.currency}-${forecast.horizon}`;
   const hasBalance = forecast.opening.balance !== undefined;
@@ -204,7 +217,16 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
     points.map((p) => p.balance).filter((v): v is number => v !== undefined)
   );
   const stack = (p: Point, dir: 'In' | 'Out') =>
-    LAYERS.reduce((sum, layer) => sum + (p[`${layer}${dir}`] ?? 0), 0);
+    LAYERS.reduce(
+      (sum, layer) =>
+        sum +
+        (layer === 'pipeline'
+          ? dir === 'In'
+            ? (p.pipelineIn ?? 0)
+            : 0
+          : (p[`${layer}${dir}`] ?? 0)),
+      0
+    );
   const flowAxis = niceTicks(
     Math.min(0, ...points.map((p) => stack(p, 'Out'))),
     Math.max(0, ...points.map((p) => stack(p, 'In'))),
@@ -349,6 +371,7 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
                 <Bar
                   key={`${layer}-${direction}`}
                   dataKey={`${layer}${direction === 'in' ? 'In' : 'Out'}`}
+                  className={layer === 'pipeline' ? 'forecast-pipeline-band' : undefined}
                   stackId="flow"
                   fill={style.fill}
                   fillOpacity={style.fillOpacity}

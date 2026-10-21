@@ -262,7 +262,7 @@ const TOOLS: Tool[] = [
   {
     definition: fn(
       'cash_flow_forecast',
-      "Cash flow forecast in one currency: opening balance from the real bank balances, then per week (13w) or month (6m, 12m) the money in and out from approved invoices and bills by due date (Known), the user's own planned items (Planned, an assumption they entered), and optionally drafts/awaiting approval and a projection from average past spending. Returns the running balance and the lowest point. Overdue documents are listed apart (timing unknown) and documents with no amount available are never added. Always tell the user which layers you used (`layersUsed`) and which you left out.",
+      "Cash flow forecast in one currency: opening balance from the real bank balances, then per week (13w) or month (6m, 12m) the money in and out from approved invoices and bills by due date (Known), the user's own planned items (Planned, an assumption they entered), and optionally drafts/awaiting approval and a projection from average past spending. The optional pipeline is weighted by each opportunity’s chance of success on its estimated closing date; excluded opportunities are listed with reasons, never filled in. Returns the running balance and the lowest point. Overdue documents are listed apart (timing unknown) and documents with no amount available are never added. Always tell the user which layers you used (`layersUsed`) and which you left out.",
       {
         horizon: {
           type: 'string',
@@ -270,6 +270,11 @@ const TOOLS: Tool[] = [
           description: '13w = 13 weeks (default), 6m or 12m = monthly',
         },
         include_drafts: { type: 'boolean', description: 'Add drafts and awaiting approval' },
+        include_pipeline: {
+          type: 'boolean',
+          description:
+            'Include open opportunities weighted by chance of success on their estimated closing dates. Excluded opportunities are listed with reasons; never fill in missing fields. Off by default.',
+        },
         include_projection: {
           type: 'boolean',
           description: 'Add average spending and income not already in invoices or bills',
@@ -293,6 +298,7 @@ const TOOLS: Tool[] = [
             horizon,
             currency: str(a.currency)?.toUpperCase(),
             includeDrafts: a.include_drafts === true,
+            includePipeline: a.include_pipeline === true,
             projectionMonths: a.include_projection === true ? months : undefined,
           },
           ctx.sourceName ?? 'the source'

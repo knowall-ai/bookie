@@ -15,6 +15,7 @@ import type {
 import type { AccountingConnector, ContactsModule, InvoicesModule } from '../types';
 import { ConnectorError } from '../types';
 import { bcWebClientLink, odataString, type BcClient, type ODataList } from './client';
+import { bcOpportunities } from './modules/opportunities';
 import { bcQuotes } from './modules/quotes';
 import { bcCreditNotes } from './modules/credit-notes';
 import { bcPurchaseOrders } from './modules/purchase-orders';
@@ -944,6 +945,7 @@ export function createBcConnector({
     invoices: bcInvoices(client, lcy, link),
     contacts: bcContacts(client, lcy),
     quotes: bcQuotes(client, lcy),
+    opportunities: bcOpportunities(client, lcy),
     creditNotes: bcCreditNotes(client, lcy),
     purchaseOrders: bcPurchaseOrders(client, lcy),
     items: bcItems(client),

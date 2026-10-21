@@ -1,6 +1,6 @@
 import 'server-only';
 import type { AccountingConnector } from '@/lib/connectors/types';
-import type { BankTransaction, Invoice, InvoiceType, Page } from '@/lib/domain/types';
+import type { BankTransaction, Invoice, InvoiceType, Opportunity, Page } from '@/lib/domain/types';
 import { computeForecast, forecastCurrencies } from './compute';
 import { addMonths, monthStart } from './dates';
 import type { Forecast, ForecastHorizon, PlannedItem, ProjectionMonths } from './types';
@@ -10,6 +10,7 @@ export interface ForecastRequest {
   /** Defaults to the base currency. */
   currency?: string;
   includeDrafts?: boolean;
+  includePipeline?: boolean;
   /** Undefined = projection off (the default). */
   projectionMonths?: ProjectionMonths;
 }
@@ -21,6 +22,7 @@ export interface ForecastResult {
   baseCurrency?: string;
   /** Can the projection be switched on? When not, why not. */
   projection: { available: boolean; reason?: string };
+  pipeline: { available: boolean; reason?: string };
   /** What the source said about partial data (e.g. BC bills without amounts). */
   notes: string[];
 }
@@ -77,6 +79,25 @@ export async function loadForecast(
   const docs: Invoice[] = lists.flatMap((l) => l.items).filter((d) => statuses.includes(d.status));
   const notes = [...new Set(lists.flatMap((l) => l.notes))];
 
+  const pipeline = connector.opportunities
+    ? { available: true }
+    : {
+        available: false,
+        reason: `${sourceName} has no sales opportunities, so there's no pipeline to add.`,
+      };
+  let opportunities: Opportunity[] = [];
+  if (request.includePipeline && connector.opportunities) {
+    const result = await allPages((page) =>
+      connector.opportunities!.list({ open: true, page, pageSize: PAGE_SIZE })
+    );
+    if (!result.complete)
+      throw new ForecastUnavailableError(
+        `There are more than ${(PAGE_SIZE * MAX_PAGES).toLocaleString('en-GB')} open opportunities, more than Bookie reads for a forecast.`
+      );
+    opportunities = result.items;
+    notes.push(...result.notes.filter((note) => !notes.includes(note)));
+  }
+
   const base = details.baseCurrency;
   const currencies = forecastCurrencies(accounts, docs, planned, base);
   const currency =
@@ -98,6 +119,8 @@ export async function loadForecast(
     horizon: request.horizon,
     currency,
     includeDrafts: request.includeDrafts,
+    includePipeline: !!request.includePipeline && pipeline.available,
+    opportunities,
     bankAccounts: accounts,
     invoices: docs,
     planned,
@@ -112,6 +135,7 @@ export async function loadForecast(
     forecast,
     currencies,
     baseCurrency: base,
+    pipeline,
     projection: { available: !projection.reason, reason: projection.reason },
     notes,
   };

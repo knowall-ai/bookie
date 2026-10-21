@@ -13,9 +13,15 @@
  *   ones are kept out of every bucket ("timing unknown"). Unknown amounts are
  *   listed and never added.
  * - Drafts and awaiting approval, planned items and the projection are separate,
- *   labelled layers. Drafts and the projection are off unless asked for.
+ *   labelled layers. Drafts, projection and weighted pipeline are opt-in.
  */
-import type { BankAccount, BankTransaction, Invoice, IsoDate } from '@/lib/domain/types';
+import type {
+  BankAccount,
+  BankTransaction,
+  Invoice,
+  IsoDate,
+  Opportunity,
+} from '@/lib/domain/types';
 import {
   addDays,
   addMonths,
@@ -47,6 +53,8 @@ export interface ForecastInput {
   horizon: ForecastHorizon;
   currency: string;
   includeDrafts?: boolean;
+  includePipeline?: boolean;
+  opportunities?: Opportunity[];
   bankAccounts: BankAccount[];
   /** Sales invoices and bills, any status; this function picks the unpaid ones. */
   invoices: Invoice[];
@@ -68,6 +76,7 @@ const zeroTotals = (): LayerTotals => ({
   draftOut: 0,
   plannedIn: 0,
   plannedOut: 0,
+  pipelineIn: 0,
   projectedIn: 0,
   projectedOut: 0,
 });
@@ -219,6 +228,29 @@ function add(
   totals[key] = r2(totals[key] + amount);
 }
 
+/** Why an open opportunity can't be placed in the pipeline, or undefined when it can. Never fills a gap. */
+function pipelineExclusion(
+  o: Opportunity,
+  currency: string,
+  today: IsoDate,
+  end: IsoDate,
+  sourceName: string
+): string | undefined {
+  const value = o.estimatedValue;
+  const chance = o.chanceOfSuccess;
+  if (value === undefined || !Number.isFinite(value)) return `No estimated value in ${sourceName}`;
+  if (chance === undefined || !Number.isFinite(chance) || chance <= 0) {
+    return 'No chance of success set';
+  }
+  if (chance > 100) return 'Chance of success is outside 0–100%';
+  if (!o.estimatedClosingDate) return 'No estimated closing date';
+  if (o.estimatedClosingDate < today) return 'Estimated closing date has passed';
+  if (!o.currency) return 'No currency from the source';
+  if (o.currency !== currency) return `In another currency (${o.currency})`;
+  if (o.estimatedClosingDate > end) return 'Estimated closing date is after this forecast';
+  return undefined;
+}
+
 export function computeForecast(input: ForecastInput): Forecast {
   const { today, currency, horizon } = input;
   const includeDrafts = !!input.includeDrafts;
@@ -231,7 +263,13 @@ export function computeForecast(input: ForecastInput): Forecast {
     horizon,
     today,
     end,
-    layers: { known: true, drafts: includeDrafts, planned: true, projected: false },
+    layers: {
+      known: true,
+      drafts: includeDrafts,
+      planned: true,
+      projected: false,
+      pipeline: !!input.includePipeline,
+    },
     layersUsed: [],
     opening: openingBalance(input.bankAccounts, currency, input.sourceName),
     buckets,
@@ -243,6 +281,7 @@ export function computeForecast(input: ForecastInput): Forecast {
     noDueDate: [],
     afterHorizon: { in: 0, out: 0, count: 0 },
     unknownAmount: [],
+    pipelineExcluded: [],
     projectionUnavailable: input.projectionUnavailable,
   };
 
@@ -295,6 +334,45 @@ export function computeForecast(input: ForecastInput): Forecast {
     }
     b.entries.push(entry);
     add(b.totals, entry.layer, direction, doc.amountDue);
+  }
+
+  if (input.includePipeline) {
+    for (const o of input.opportunities ?? []) {
+      if (o.closed || o.status === 'won' || o.status === 'lost') continue;
+      const label = `${o.number} ${o.description}`;
+      const reason = pipelineExclusion(o, currency, today, end, input.sourceName);
+      if (reason) {
+        forecast.pipelineExcluded.push({ number: o.number, label, reason });
+        continue;
+      }
+      const b = find(o.estimatedClosingDate!);
+      if (!b) {
+        forecast.pipelineExcluded.push({
+          number: o.number,
+          label,
+          reason: 'Invalid estimated closing date',
+        });
+        continue;
+      }
+      // value × chance% in pennies: toPrecision drops float noise so £100.50 at 1% is £1.01, not £1.00.
+      const amount =
+        Math.round(Number((o.estimatedValue! * o.chanceOfSuccess!).toPrecision(12))) / 100;
+      b.entries.push({
+        layer: 'pipeline',
+        direction: 'in',
+        amount,
+        date: o.estimatedClosingDate,
+        label,
+        opportunity: {
+          id: o.id,
+          number: o.number,
+          contact: o.contact,
+          estimatedValue: o.estimatedValue!,
+          chanceOfSuccess: o.chanceOfSuccess!,
+        },
+      });
+      add(b.totals, 'pipeline', 'in', amount);
+    }
   }
 
   // Planned items: the user's own assumptions, expanded over the horizon.
@@ -358,7 +436,8 @@ export function computeForecast(input: ForecastInput): Forecast {
         (includeDrafts ? t.draftIn - t.draftOut : 0) +
         t.plannedIn -
         t.plannedOut +
-        (forecast.layers.projected ? t.projectedIn - t.projectedOut : 0)
+        (forecast.layers.projected ? t.projectedIn - t.projectedOut : 0) +
+        (forecast.layers.pipeline ? t.pipelineIn : 0)
     );
     for (const key of Object.keys(t) as (keyof LayerTotals)[]) {
       forecast.totals[key] = r2(forecast.totals[key] + t[key]);
@@ -384,6 +463,7 @@ export function computeForecast(input: ForecastInput): Forecast {
     LAYER_LABELS.known,
     ...(includeDrafts ? [LAYER_LABELS.draft] : []),
     LAYER_LABELS.planned,
+    ...(forecast.layers.pipeline ? [LAYER_LABELS.pipeline] : []),
     ...(forecast.projection ? [forecast.projection.label] : []),
   ];
   return forecast;

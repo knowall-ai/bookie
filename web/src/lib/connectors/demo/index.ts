@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { addDays, demoData, DEMO_TODAY, type DemoData, type DemoInvoice } from './data';
 import { invoiceBuckets } from '../buckets';
+import { demoOpportunities } from './modules/opportunities';
 import { demoQuotes } from './modules/quotes';
 import { demoCreditNotes } from './modules/credit-notes';
 import { demoPurchaseOrders } from './modules/purchase-orders';
@@ -398,6 +399,7 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
     invoices: demoInvoices(data),
     contacts: demoContacts(data),
     quotes: demoQuotes(data),
+    opportunities: demoOpportunities(),
     creditNotes: demoCreditNotes(data),
     purchaseOrders: demoPurchaseOrders(data),
     items: demoItems(data),

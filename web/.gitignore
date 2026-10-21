@@ -42,4 +42,6 @@ next-env.d.ts
 .bookie-config/
 .next-e2e/
 .next-e2e-guest/
+# Any extra dev build folder (NEXT_DIST_DIR=.next-<name>), e.g. for screenshots
+.next-*/
 !.env.example
