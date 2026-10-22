@@ -109,8 +109,7 @@ Real pages, read live through Bookie's own connector code from **Microsoft's CRO
 | Folder | What |
 |---|---|
 | [`web/`](web) | The website and portal (Next.js 16, Bun, Tailwind 4, TypeScript) |
-| [`bc-extension/`](bc-extension) | Optional Business Central extension (AL) adding the API Bookie needs beyond BC's API v2.0 |
-| [`bc-extension-bitcoin/`](bc-extension-bitcoin) | Optional Business Central extension (AL) that keeps a Bitcoin wallet's descriptor on a bank account ([docs/BITCOIN.adoc](docs/BITCOIN.adoc)) |
+| [`bc-extension/`](bc-extension) | The one optional Business Central extension (AL), "Bookie": the API Bookie needs beyond BC's API v2.0, and Bitcoin wallets on bank accounts |
 | [`agent/`](agent) | Bookie the Hermes agent: identity, skills, voice, memory, VM deployment |
 | [`infra/`](infra) | Azure deployment for the web app (App Service, Key Vault, Azure OpenAI) |
 | [`docs/`](docs) | Solution design, deployment, testing, security, agent and hosted-agent isolation |

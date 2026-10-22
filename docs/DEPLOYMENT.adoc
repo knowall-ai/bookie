@@ -35,7 +35,11 @@ ZapDesk: a conventional-commit title (`feat:`, `fix:`, `perf:`, `refactor:`, `ch
 `feat`/`fix`/`perf`/`refactor`, and a non-empty `## Test plan`.
 
 `.github/workflows/bc-extension.yml` compiles the optional Business Central extension when
-`bc-extension/` changes.
+`bc-extension/` changes, and uploads it as the `bookie-bc-extension` artifact. There is one
+extension, *Bookie*, for every Bookie feature that needs Business Central objects (the core API pages,
+Bitcoin wallets, and whatever comes next): add new objects to it under `bc-extension/src/<feature>/`
+rather than starting another extension. `bc-extension/README.md` covers building, publishing (Sandbox
+first) and permission sets.
 
 === Coverage thresholds
 

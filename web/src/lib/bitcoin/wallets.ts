@@ -112,7 +112,7 @@ export function electrumStatus(env: Env = process.env): ElectrumStatus {
 
 /**
  * Where a wallet's descriptor lives:
- * - `business-central`: on the BC Bank Account (Bookie Bitcoin extension), read live;
+ * - `business-central`: on the BC Bank Account (Bookie BC extension), read live;
  * - `bookie`: sealed in the customer's SharePoint (organisations whose books can't hold it, e.g. Xero);
  * - `demo`: the demo organisation's fictional fixtures.
  */
@@ -320,7 +320,7 @@ async function resolveWallet(
 export const BITCOIN_DOCS = 'https://github.com/knowall-ai/bookie/blob/main/docs/BITCOIN.adoc';
 
 export const BC_WALLETS_IN_BC =
-  'For Business Central, put the wallet’s xpub or descriptor on the bank account in Business Central (Bookie Bitcoin extension, see docs/BITCOIN.adoc). Bookie reads it from there.';
+  'For Business Central, put the wallet’s xpub or descriptor on the bank account in Business Central (Bookie BC extension, see docs/BITCOIN.adoc). Bookie reads it from there.';
 
 export interface AddWalletInput {
   name: string;

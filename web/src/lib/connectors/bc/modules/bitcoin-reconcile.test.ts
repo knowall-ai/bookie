@@ -94,7 +94,7 @@ describe('bcBitcoin reconcile', () => {
     );
   });
 
-  it('needs the Bookie BC API extension for the ledger', async () => {
+  it('needs the Bookie BC extension for the ledger', async () => {
     const { client } = fakeBc({ extension: false });
     expect(await bcBitcoin(client).ledger!('BTC-01')).toMatchObject({ status: 'unavailable' });
   });

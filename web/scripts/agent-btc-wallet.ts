@@ -132,7 +132,7 @@ async function openCompany(companyName: string) {
   if (!company) throw new Refusal(`No Business Central company called "${companyName}".`);
   const url = (route: string, path: string) =>
     `${api.root}/${route}/companies(${company.id})/${path}`;
-  /** Company Information's currency, else the Bookie BC API extension's LCY code; undefined if neither says. */
+  /** Company Information's currency, else the Bookie BC extension's LCY code; undefined if neither says. */
   const baseCurrency = async (): Promise<string | undefined> => {
     const info = await api
       .get<{ value: { currencyCode?: string }[] }>(url('v2.0', 'companyInformation'))
@@ -156,7 +156,7 @@ async function bcWallets(companyName: string) {
     const status = (error as { status?: number }).status;
     if (status === 404) {
       throw new Refusal(
-        'The Bookie Bitcoin extension is not installed in this Business Central environment.'
+        'The Bookie BC extension (version 1.2 or later) is not installed in this Business Central environment.'
       );
     }
     if (status === 403) {
@@ -312,7 +312,7 @@ async function reconcileWallets(company: string, wanted: string | undefined) {
           }>(bc.url(LEDGER_API, `bankAccountLedgerEntries?$filter=${filter}`))
           .catch((error) => {
             if ((error as { status?: number }).status === 404) {
-              throw new Refusal('Reconciling needs the Bookie BC API extension as well.');
+              throw new Refusal('Reconciling needs the Bookie BC extension (bc-extension/).');
             }
             throw error;
           })

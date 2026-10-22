@@ -447,7 +447,7 @@ export interface AccountingConnector {
   capture?: CaptureModule;
   users?: UsersModule;
   history?: HistoryModule;
-  /** Bitcoin wallets kept in the source system itself (BC: the Bookie Bitcoin extension). */
+  /** Bitcoin wallets kept in the source system itself (BC: the Bookie BC extension). */
   bitcoin?: BitcoinWalletsModule;
 
   /** Deep link to a document in the source system, for "Open in Xero/BC". */

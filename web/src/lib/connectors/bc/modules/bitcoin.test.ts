@@ -71,7 +71,7 @@ describe('fromBcBitcoinWallet', () => {
 });
 
 describe('bcBitcoin', () => {
-  it('reads bitcoinWallets from the Bookie Bitcoin extension API', async () => {
+  it('reads bitcoinWallets from the Bookie BC extension API', async () => {
     const client = clientWith(async () => [
       {
         id: 'w1',

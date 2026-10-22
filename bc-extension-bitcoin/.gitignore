@@ -1,7 +1,0 @@
-.alpackages/
-.alcache/
-.snapshots/
-output/
-*.app
-rad.json
-*.g.xlf
