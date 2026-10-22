@@ -37,8 +37,24 @@ describe('public addresses', () => {
     '0:0:0:0:0:ffff:c0a8:101',
     'not-an-ip',
   ])('rejects %s', (ip) => expect(isPublicAddress(ip)).toBe(false));
-  it.each(['192.0.2.1', '198.51.100.1', '203.0.113.1', '2001:db8::1', '::ffff:192.0.2.1'])(
-    'accepts non-private %s',
+  // Fable review: ranges that can reach an internal or reserved IPv4 address.
+  it.each([
+    '192.0.2.1',
+    '198.51.100.1',
+    '203.0.113.1',
+    '2001:db8::1',
+    '::ffff:192.0.2.1',
+    '64:ff9b::7f00:1',
+    '64:ff9b::808:808',
+    '2002:7f00:1::1',
+    '2002:c0a8:101::1',
+    '::10.0.0.1',
+    '::7f00:1',
+    'fec0::1',
+    '2001:0:4136:e378::1',
+  ])('rejects reserved or tunnelled %s', (ip) => expect(isPublicAddress(ip)).toBe(false));
+  it.each(['8.8.8.8', '2606:4700:4700::1111', '2002:808:808::1', '::ffff:8.8.8.8'])(
+    'accepts public %s',
     (ip) => expect(isPublicAddress(ip)).toBe(true)
   );
 });

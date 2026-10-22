@@ -47,7 +47,7 @@ function connectionMessage(error: Error & { code?: string }): string {
     return 'The Electrum server’s name could not be found.';
   if (code === 'ETIMEDOUT') return 'Timed out connecting to the Electrum server.';
   if (code === 'BOOKIE_CERT_PIN') {
-    return 'The Electrum server’s TLS certificate does not match BOOKIE_ELECTRUM_CERT_SHA256.';
+    return 'The Electrum server’s TLS certificate does not match the saved certificate fingerprint.';
   }
   if (/^(CERT_|ERR_TLS_|UNABLE_TO_|DEPTH_ZERO_|SELF_SIGNED_)/.test(code)) {
     return 'The Electrum server’s TLS certificate could not be verified.';

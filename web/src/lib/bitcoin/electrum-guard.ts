@@ -44,8 +44,10 @@ export function isPublicAddress(ip: string): boolean {
       (a === 100 && b >= 64 && b <= 127) ||
       (a === 169 && b === 254) ||
       (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 0 && c === 0) ||
+      (a === 192 && b === 0 && (c === 0 || c === 2)) ||
       (a === 192 && b === 168) ||
+      (a === 198 && b === 51 && c === 100) ||
+      (a === 203 && b === 0 && c === 113) ||
       (a === 198 && (b === 18 || b === 19)) ||
       a >= 224
     );
@@ -78,7 +80,18 @@ export function isPublicAddress(ip: string): boolean {
     );
   }
   if (words.slice(0, 7).every((w) => w === 0) && words[7] <= 1) return false;
+  const embedded = (hi: number, lo: number) =>
+    isPublicAddress([hi >> 8, hi & 255, lo >> 8, lo & 255].join('.'));
+  // IPv4-compatible ::a.b.c.d (deprecated, but still routable on some stacks)
+  if (words.slice(0, 6).every((w) => w === 0)) return embedded(words[6], words[7]);
+  // 6to4 2002:AABB:CCDD::/48 carries an IPv4 address: judge that address
+  if (words[0] === 0x2002) return embedded(words[1], words[2]);
+  // NAT64 64:ff9b::/96 and 64:ff9b:1::/48 reach IPv4 through a translator: never dial them
+  if (words[0] === 0x0064 && words[1] === 0xff9b) return false;
+  // Teredo 2001:0::/32 and documentation 2001:db8::/32
+  if (words[0] === 0x2001 && (words[1] === 0 || words[1] === 0x0db8)) return false;
   return !(
+    (words[0] & 0xffc0) === 0xfec0 ||
     (words[0] & 0xfe00) === 0xfc00 ||
     (words[0] & 0xffc0) === 0xfe80 ||
     (words[0] & 0xff00) === 0xff00

@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { randomUUID } from 'node:crypto';
 import { assertCanManageSettings } from '@/lib/auth/access';
 import type { AuthContext } from '@/lib/auth/context';
@@ -86,7 +87,12 @@ export function electrumSetting(env: Env = process.env): ElectrumSetting {
   }
 }
 
-export async function electrumSettingFor(
+/**
+ * The Electrum server in effect for this tenant. Memoised per request (React `cache`, keyed by
+ * the request's memoised AuthContext), so a page with several wallet cards reads the sealed
+ * settings once rather than per card.
+ */
+export const electrumSettingFor = cache(async function electrumSettingFor(
   auth: AuthContext
 ): Promise<ElectrumSetting & { source?: 'organisation' | 'installation' }> {
   const own = (await configStoreFor(auth).getSettings()).bitcoin?.electrum;
@@ -104,7 +110,7 @@ export async function electrumSettingFor(
   } catch (error) {
     return { configured: false, error: (error as Error).message, source: 'organisation' };
   }
-}
+});
 
 export async function electrumStatusFor(auth: AuthContext): Promise<ElectrumStatus> {
   const setting = await electrumSettingFor(auth);
