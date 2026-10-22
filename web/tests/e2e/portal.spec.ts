@@ -17,7 +17,8 @@ test.describe('portal shell', () => {
     await page.goto(`${ORG}/sales/invoices`);
     const nav = page.getByRole('navigation', { name: 'Main' });
     const labels = await nav.locator(':scope > a, :scope > div > button').allInnerTexts();
-    expect(labels.map((l) => l.trim())).toEqual([
+    // The Email tab carries a badge with the count waiting for approval: compare labels only.
+    expect(labels.map((l) => l.replace(/\s*\d+$/, '').trim())).toEqual([
       'Home',
       'Sales',
       'Purchases',
@@ -26,6 +27,7 @@ test.describe('portal shell', () => {
       'Payroll',
       'Projects',
       'Contacts',
+      'Email',
     ]);
     await page.getByTestId('tab-sales').click();
     await expect(page.getByRole('menuitem', { name: 'Quotes' })).toBeVisible();

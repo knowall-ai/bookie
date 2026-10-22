@@ -5,7 +5,13 @@ import type { EmailSettings } from '@/lib/config/types';
 import { cookies } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import { ReauthRequiredError } from '@/lib/auth/tokens';
-import { demoApprovalDetail, demoDecide, demoEmailsOverview, type DemoDecisions } from './demo';
+import {
+  DEMO_AGENTS,
+  demoApprovalDetail,
+  demoDecide,
+  demoEmailsOverview,
+  type DemoDecisions,
+} from './demo';
 import {
   ApprovalGraphError,
   decideApproval,
@@ -236,4 +242,19 @@ export async function pendingApprovalCount(auth: AuthContext): Promise<number> {
     pendingCounts.set(key, { count, expires: Date.now() + 60_000 });
   }
   return count;
+}
+
+/**
+ * The agent behind the portal's Bookie panel: the first agent in Settings › Email, with the
+ * Teams user to call (its Teams user, else its mailbox). Undefined when none is set up, so
+ * the panel offers no Teams call rather than a guessed address.
+ */
+export async function portalAgent(
+  auth: AuthContext
+): Promise<{ displayName: string; teamsUser: string } | undefined> {
+  if (auth.user.userType !== 'Member') return undefined;
+  const agent: MailAgent | undefined =
+    auth.mode === 'demo' ? DEMO_AGENTS[0] : mailSetup(await emailSettings(auth)).agents[0];
+  if (!agent) return undefined;
+  return { displayName: agent.displayName, teamsUser: agent.teamsUser ?? agent.mailbox };
 }

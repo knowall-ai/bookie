@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthContext } from '@/lib/auth/context';
-import { decideEmailApproval, getEmailsOverview, pendingApprovalCount } from './index';
+import { decideEmailApproval, getEmailsOverview, pendingApprovalCount, portalAgent } from './index';
 import { decideApproval, isApprover, listApprovals, readMailbox } from './graph';
 
 const settings = vi.hoisted(() => vi.fn());
@@ -188,4 +188,33 @@ it('merges and de-duplicates all agents’ senders for approvals, counts and dec
     'approve',
     undefined
   );
+});
+
+describe('portalAgent', () => {
+  it('is the first configured agent, calling its Teams user or else its mailbox', async () => {
+    settings.mockResolvedValue({
+      email: {
+        agents: [
+          { id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' },
+          {
+            id: 'max',
+            displayName: 'Max',
+            mailbox: 'max@example.com',
+            teamsUser: 'max.teams@example.com',
+          },
+        ],
+        sharedMailboxes: [],
+      },
+    });
+    expect(await portalAgent(auth())).toEqual({ displayName: 'Ava', teamsUser: 'ava@example.com' });
+  });
+  it('is undefined with no agent, so the panel offers no Teams call', async () => {
+    settings.mockResolvedValue({ email: { agents: [], sharedMailboxes: [] } });
+    expect(await portalAgent(auth())).toBeUndefined();
+  });
+  it('is undefined for guests', async () => {
+    const person = auth();
+    person.user.userType = 'Guest';
+    expect(await portalAgent(person)).toBeUndefined();
+  });
 });

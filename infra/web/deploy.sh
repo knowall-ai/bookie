@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build Bookie's web app from a clean checkout of a git ref and deploy it to Azure App Service.
 #   infra/web/deploy.sh [ref]          (default: origin/main)
-# Env: APP (bookie-knowall), RG (ka-bookie-prod), PUBLIC_URL (https://bookie.knowall.ai), AGENT_UPN.
+# Env: APP (bookie-knowall), RG (ka-bookie-prod), PUBLIC_URL (https://bookie.knowall.ai).
 # A clean worktree means no local .env files can leak into the bundle.
 # Needs git, bun, zip, curl and a signed-in az. Runs locally and in GitHub Actions
 # (.github/workflows/deploy-production.yml: full-history checkout, az via OIDC), where it
@@ -9,7 +9,7 @@
 set -euo pipefail
 REF="${1:-origin/main}"
 APP="${APP:-bookie-knowall}"; RG="${RG:-ka-bookie-prod}"
-PUBLIC_URL="${PUBLIC_URL:-https://bookie.knowall.ai}"; AGENT_UPN="${AGENT_UPN:-bookie@knowall.ai}"
+PUBLIC_URL="${PUBLIC_URL:-https://bookie.knowall.ai}"
 REPO="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 BUILD="$(mktemp -d)/bookie-build"; ZIP="$(mktemp -d)/bookie-web.zip"
 trap 'git -C "$REPO" worktree remove --force "$BUILD" >/dev/null 2>&1 || true' EXIT
@@ -20,7 +20,7 @@ SHA="$(git -C "$BUILD" rev-parse --short HEAD)"
 echo "==> Building $SHA"
 cd "$BUILD/web"
 bun install --frozen-lockfile >/dev/null
-NEXT_PUBLIC_BOOKIE_AGENT_UPN="$AGENT_UPN" NEXTAUTH_URL="$PUBLIC_URL" bun run build >/dev/null
+NEXTAUTH_URL="$PUBLIC_URL" bun run build >/dev/null
 S=.next/standalone
 cp -r public "$S/" && mkdir -p "$S/.next" && cp -r .next/static "$S/.next/"
 # Zip timestamps in UTC: App Service reads them as UTC, and local time put files in the future.

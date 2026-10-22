@@ -21,8 +21,6 @@ const SUGGESTIONS = [
   'Summarise profit and loss for this financial year.',
 ];
 
-const AGENT_UPN = process.env.NEXT_PUBLIC_BOOKIE_AGENT_UPN ?? 'bookie@knowall.ai';
-
 function storageKey(orgKey?: string) {
   return `bookie:chat:${orgKey ?? 'none'}`;
 }
@@ -85,6 +83,20 @@ export function BookiePanel({
     }
   });
   const [input, setInput] = useState('');
+  // "Call on Teams" calls the agent set up in Settings › Email; no agent, no button.
+  const [teamsUser, setTeamsUser] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/bookie/agent')
+      .then((r) => (r.ok ? r.json() : { agent: null }))
+      .then((body: { agent?: { teamsUser?: string } | null }) => {
+        if (!cancelled) setTeamsUser(body.agent?.teamsUser ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -220,14 +232,16 @@ export function BookiePanel({
               >
                 <Mic className="h-4 w-4" /> Talk to Bookie
               </button>
-              <a
-                href={`https://teams.microsoft.com/l/call/0/0?users=${encodeURIComponent(AGENT_UPN)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="bg-surface-2 text-body border-line-strong hover:text-ink flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm"
-              >
-                <Users className="h-4 w-4" /> Call on Teams
-              </a>
+              {teamsUser && (
+                <a
+                  href={`https://teams.microsoft.com/l/call/0/0?users=${encodeURIComponent(teamsUser)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-surface-2 text-body border-line-strong hover:text-ink flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm"
+                >
+                  <Users className="h-4 w-4" /> Call on Teams
+                </a>
+              )}
             </>
           )}
         </div>
