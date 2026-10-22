@@ -53,8 +53,11 @@ function usePopover() {
   return { open, setOpen, ref };
 }
 
-const panel =
-  'bg-surface-2 border-line-strong absolute z-50 mt-2 overflow-hidden rounded-xl border p-1.5 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.8)]';
+/** Popover panel; `panel` adds the gap below its trigger. cn() only joins classes, so a
+ * menu that must sit flush (the tab menus, opened on hover) uses `panelBase`. */
+const panelBase =
+  'bg-surface-2 border-line-strong absolute z-50 overflow-hidden rounded-xl border p-1.5 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.8)]';
+const panel = `${panelBase} mt-2`;
 
 /* ------------------------------------------------------------------ */
 /* Org switcher                                                        */
@@ -195,6 +198,13 @@ function TabMenu({
   active: boolean;
 }) {
   const { open, setOpen, ref } = usePopover();
+  // Hover opens the menu and a click keeps it open: toggling on click closed a menu the
+  // pointer had just opened. Leaving waits a moment, so cutting a corner on the way into
+  // the menu doesn't close it.
+  const openedByHover = useRef(false);
+  const closeTimer = useRef<number | undefined>(undefined);
+  const cancelClose = () => window.clearTimeout(closeTimer.current);
+  useEffect(() => cancelClose, []);
   const tabClass = cn(
     'relative flex h-14 items-center gap-1 px-2.5 text-sm font-medium transition-colors',
     active ? 'text-ink' : 'text-muted hover:text-ink'
@@ -216,14 +226,28 @@ function TabMenu({
     );
   }
   return (
-    <div ref={ref} className="relative" onMouseLeave={() => setOpen(false)}>
+    <div
+      ref={ref}
+      className="relative"
+      onMouseEnter={cancelClose}
+      onMouseLeave={() => {
+        cancelClose();
+        closeTimer.current = window.setTimeout(() => setOpen(false), 150);
+      }}
+    >
       <button
         type="button"
         className={tabClass}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        onMouseEnter={() => setOpen(true)}
+        onClick={() => {
+          if (open && openedByHover.current) openedByHover.current = false;
+          else setOpen(!open);
+        }}
+        onMouseEnter={() => {
+          if (!open) openedByHover.current = true;
+          setOpen(true);
+        }}
         data-testid={`tab-${tab.key}`}
       >
         {tab.label}
@@ -231,7 +255,7 @@ function TabMenu({
         {underline}
       </button>
       {open && (
-        <div role="menu" className={cn(panel, 'top-full left-0 mt-0 w-60')}>
+        <div role="menu" className={cn(panelBase, 'top-full left-0 w-60')}>
           {tab.items.map((item) => {
             const available = !item.module || modules[item.module];
             return available ? (
