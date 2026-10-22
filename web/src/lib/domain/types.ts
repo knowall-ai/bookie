@@ -1028,3 +1028,19 @@ export interface Inbox {
   /** Shown when the list may be incomplete. */
   note?: string;
 }
+
+/** Sales opportunities; amounts are in the source company's local currency. */
+export interface Opportunity {
+  id: string;
+  number: string;
+  description: string;
+  contact?: string;
+  salesperson?: string;
+  status: 'not-started' | 'in-progress' | 'won' | 'lost' | 'unknown';
+  closed: boolean;
+  estimatedValue?: number;
+  /** Source probability, from 0 to 100. */
+  chanceOfSuccess?: number;
+  estimatedClosingDate?: IsoDate;
+  currency?: string;
+}

@@ -132,3 +132,30 @@ test.describe('Cash flow forecast', () => {
     await expect(page.getByText(/No running balance/)).toBeVisible();
   });
 });
+
+test('pipeline is opt-in and shows weighted opportunities and exclusions', async ({ page }) => {
+  await page.goto(`${ORG}${PAGE}`);
+  const toggle = page.getByTestId('forecast-pipeline');
+  const table = page.getByTestId('forecast-table');
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  await expect(table.getByRole('rowheader', { name: 'Pipeline (weighted)' })).toHaveCount(0);
+  await toggle.click();
+  await expect(page).toHaveURL(/pipeline=1/);
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByLabel('Legend')).toContainText('Pipeline (weighted)');
+  await expect(table.getByRole('rowheader', { name: 'Pipeline (weighted)' })).toBeVisible();
+  await expect(
+    page.getByTestId('forecast-chart').locator('.forecast-pipeline-band .recharts-bar-rectangle')
+  ).not.toHaveCount(0);
+  const excluded = page.getByTestId('forecast-pipeline-excluded');
+  await expect(excluded).toContainText('Not in the pipeline');
+  await expect(excluded).toContainText('No estimated closing date');
+  await expect(excluded).toContainText('No estimated value');
+  await table.getByRole('button', { name: /^Pipeline \(weighted\), the whole period/ }).click();
+  await expect(page.getByTestId('forecast-drilldown')).toContainText(
+    '£2,000.00 at 90% = £1,800.00'
+  );
+  await toggle.click();
+  await expect(table.getByRole('rowheader', { name: 'Pipeline (weighted)' })).toHaveCount(0);
+  await expect(excluded).toHaveCount(0);
+});

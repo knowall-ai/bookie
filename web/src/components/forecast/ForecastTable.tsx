@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { LayerSwatch } from './legend';
 
 const LAYER_OF: Record<keyof LayerTotals, { layer: ForecastLayer; direction: 'in' | 'out' }> = {
+  pipelineIn: { layer: 'pipeline', direction: 'in' },
   knownIn: { layer: 'known', direction: 'in' },
   knownOut: { layer: 'known', direction: 'out' },
   draftIn: { layer: 'draft', direction: 'in' },
@@ -89,6 +90,12 @@ export function EntryList({
               <NotAvailableValue reason="The source doesn't report what's left to pay." />
             ) : (
               <span className="num text-ink shrink-0">
+                {e.opportunity && (
+                  <>
+                    {formatMoney(e.opportunity.estimatedValue, currency)} at{' '}
+                    {e.opportunity.chanceOfSuccess}% ={' '}
+                  </>
+                )}
                 {formatMoney((e.direction === 'out' ? -1 : 1) * e.amount, currency)}
               </span>
             )}

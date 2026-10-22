@@ -1,0 +1,45 @@
+= Cash flow forecast
+KnowAll AI
+:toc: left
+
+*Reporting › Cash flow forecast* shows the bank balance week by week (13 weeks) or month by month
+(6 or 12 months), in one currency. Every figure belongs to one labelled layer, and the layers are
+never mixed:
+
+[cols="1,3", options="header"]
+|===
+| Layer | From
+
+| Known | Bank balances, and approved unpaid invoices and bills on their due dates
+| Drafts (off by default) | Draft and awaiting-approval invoices and bills
+| Planned | Items a person typed in, stored in the organisation's SharePoint
+| Projection (off by default) | The monthly average of real bank transactions over 3, 6 or 12 months
+| Pipeline (off by default) | Open sales opportunities × their chance of success
+|===
+
+The chart, table, CSV export and Bookie's `cash_flow_forecast` tool all use the same computed
+figures.
+
+== Pipeline (weighted)
+
+Business Central only. Its standard API (v2.0 `opportunities`) gives each opportunity an estimated
+value, a chance of success and an estimated closing date. The values are in the company's local
+currency, so the pipeline is in the organisation's base currency. Xero has no opportunities, so the
+switch is disabled there with the reason. The portal checks for the connector's `opportunities`
+module rather than the source.
+
+Switch on *Pipeline (weighted)* (`?pipeline=1`; `include_pipeline` in Bookie's tool). Each open
+opportunity adds income of *estimated value × chance of success ÷ 100*, rounded to the penny, on
+its estimated closing date. That date is when the deal is expected to close; when the client pays
+may differ, and the page says so.
+
+No guessing. An open opportunity is listed under *Not in the pipeline*, with the reason, when it
+has:
+
+* no estimated value, or no chance of success (or 0%);
+* no estimated closing date (Business Central's `0001-01-01`), or one that has passed;
+* a closing date after the forecast's horizon;
+* another currency.
+
+Won, lost and closed opportunities are left out: won work is already in the invoices. Bookie reads
+up to 5,000 open opportunities and refuses to forecast rather than show part of a larger pipeline.

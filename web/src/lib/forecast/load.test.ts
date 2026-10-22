@@ -1,3 +1,4 @@
+import { ConnectorError } from '@/lib/connectors/types';
 import { describe, expect, it } from 'vitest';
 import { createDemoConnector, DEMO_ORGS } from '@/lib/connectors/demo';
 import { runTool } from '@/lib/bookie/tools';
@@ -91,5 +92,129 @@ describe('Bookie cash_flow_forecast tool', () => {
     expect(json.periods).toHaveLength(6);
     expect(json.layersNotUsed.join(' ')).toMatch(/Drafts/);
     expect(json.openingBalance.balance).toEqual(expect.any(Number));
+  });
+});
+
+describe('pipeline loading', () => {
+  it('does not fetch opportunities unless requested and exposes availability', async () => {
+    const c = connector();
+    let calls = 0;
+    c.opportunities = {
+      list: async () => {
+        calls++;
+        return { items: [], page: 1, pageSize: 200, hasMore: false };
+      },
+    };
+    const off = await loadForecast(c, [], { horizon: '6m' }, 'Demo', today);
+    expect(off.pipeline.available).toBe(true);
+    expect(calls).toBe(0);
+    c.opportunities = undefined;
+    const unavailable = await loadForecast(
+      c,
+      [],
+      { horizon: '6m', includePipeline: true },
+      'Xero',
+      today
+    );
+    expect(unavailable.pipeline).toEqual({
+      available: false,
+      reason: "Xero has no sales opportunities, so there's no pipeline to add.",
+    });
+    expect(unavailable.forecast.layers.pipeline).toBe(false);
+  });
+
+  it('reads every page of open opportunities and preserves exclusions and notes', async () => {
+    const c = connector();
+    const pages: number[] = [];
+    c.opportunities = {
+      list: async (options) => {
+        expect(options).toMatchObject({ open: true, pageSize: 200 });
+        const page = options!.page!;
+        pages.push(page);
+        return {
+          items: [
+            {
+              id: `opp-${page}`,
+              number: `OPP-${page}`,
+              description: 'Fabrikam',
+              status: 'in-progress',
+              closed: false,
+              currency: 'GBP',
+              estimatedValue: page === 1 ? 100 : undefined,
+              chanceOfSuccess: 50,
+              estimatedClosingDate: today,
+            },
+          ],
+          page,
+          pageSize: 200,
+          hasMore: page === 1,
+          note: 'Source note',
+        };
+      },
+    };
+    const result = await loadForecast(
+      c,
+      [],
+      { horizon: '6m', includePipeline: true },
+      'Business Central',
+      today
+    );
+    expect(pages).toEqual([1, 2]);
+    expect(result.forecast.totals.pipelineIn).toBe(50);
+    expect(result.forecast.pipelineExcluded[0].reason).toBe(
+      'No estimated value in Business Central'
+    );
+    expect(result.notes.filter((n) => n === 'Source note')).toHaveLength(1);
+  });
+
+  it('shows the forecast without the pipeline when the source refuses opportunities', async () => {
+    const c = connector();
+    c.opportunities = {
+      list: async () => {
+        throw new ConnectorError('Forbidden', 403, 'business-central');
+      },
+    };
+    const result = await loadForecast(
+      c,
+      [],
+      { horizon: '6m', includePipeline: true },
+      'Business Central',
+      today
+    );
+    expect(result.pipeline).toEqual({
+      available: false,
+      reason: "Business Central didn't return its sales opportunities, so the pipeline is off.",
+    });
+    expect(result.forecast.layers.pipeline).toBe(false);
+  });
+
+  it('refuses a partial pipeline at the page limit', async () => {
+    const c = connector();
+    let calls = 0;
+    c.opportunities = {
+      list: async () => {
+        calls++;
+        return { items: [], page: calls, pageSize: 200, hasMore: true };
+      },
+    };
+    await expect(
+      loadForecast(c, [], { horizon: '6m', includePipeline: true }, 'Business Central', today)
+    ).rejects.toThrow('more than 5,000 open opportunities');
+    expect(calls).toBe(25);
+  });
+
+  it('exposes weighted pipeline and excluded reasons through Bookie', async () => {
+    const json = JSON.parse(
+      await runTool(connector(), 'cash_flow_forecast', '{"horizon":"6m","include_pipeline":true}', {
+        sourceName: 'Demo',
+      })
+    );
+    expect(json.totals.pipelineIn).toBeGreaterThan(0);
+    expect(json.pipeline.excluded).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reason: 'No estimated closing date' }),
+        expect.objectContaining({ reason: 'No estimated value in Demo' }),
+      ])
+    );
   });
 });

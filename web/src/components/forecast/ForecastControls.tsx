@@ -66,6 +66,8 @@ export function ForecastControls({
   currency,
   currencies,
   drafts,
+  pipeline,
+  includePipeline,
   projectionMonths,
   projection,
 }: {
@@ -73,6 +75,8 @@ export function ForecastControls({
   currency: string;
   currencies: string[];
   drafts: boolean;
+  includePipeline: boolean;
+  pipeline: { available: boolean; reason?: string };
   projectionMonths?: ProjectionMonths;
   projection: { available: boolean; reason?: string };
 }) {
@@ -144,6 +148,23 @@ export function ForecastControls({
             Projection unavailable: {projection.reason}
           </p>
         )}
+      </div>
+      <div className="text-body text-sm" title={pipeline.reason}>
+        <label className="flex items-center gap-2.5">
+          <Toggle
+            checked={includePipeline}
+            disabled={!pipeline.available}
+            label="Pipeline (weighted)"
+            testId="forecast-pipeline"
+            onChange={(on) => set({ pipeline: on ? '1' : undefined })}
+          />
+          <span aria-hidden>Pipeline (weighted)</span>
+        </label>
+        <p className="text-faint mt-1 text-xs">
+          {pipeline.available
+            ? 'Weighted by each opportunity’s chance of success, on its estimated closing date. When the client pays may differ.'
+            : pipeline.reason}
+        </p>
       </div>
       {pending && (
         <Loader2 className="text-muted h-4 w-4 animate-spin" aria-label="Updating the forecast" />

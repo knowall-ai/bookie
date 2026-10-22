@@ -33,6 +33,7 @@ export function forecastRows(forecast: Forecast, projectionLabel = 'Projected'):
           flow('projectedOut', `${projectionLabel} out`, -1),
         ]
       : []),
+    ...(forecast.layers.pipeline ? [flow('pipelineIn', 'Pipeline (weighted)', 1)] : []),
     { key: 'net', label: 'Net movement', kind: 'net', sign: 1 },
     { key: 'closing', label: 'Closing balance', kind: 'closing', sign: 1 },
   ];
@@ -91,6 +92,9 @@ export function forecastToCsv(forecast: Forecast, projectionLabel?: string): str
     lines.push(
       cell(`Amount not available (never added): ${forecast.unknownAmount.length} documents`)
     );
+  }
+  for (const item of forecast.pipelineExcluded) {
+    lines.push(cell(`Not in the pipeline: ${item.label}: ${item.reason}`));
   }
   return lines.join('\r\n') + '\r\n';
 }

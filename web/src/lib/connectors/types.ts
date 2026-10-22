@@ -59,6 +59,7 @@ import type {
   OrgDetails,
   OrgRef,
   OrgUser,
+  Opportunity,
   Page,
   PayRun,
   Payment,
@@ -98,6 +99,11 @@ export interface InvoicesModule {
   markAsSent?(id: string): Promise<Invoice>;
   /** Invoice templates the source offers (Xero branding themes). */
   brandingThemes?(): Promise<BrandingTheme[]>;
+}
+
+/** Read-only sales pipeline, when the source exposes opportunities. */
+export interface OpportunitiesModule {
+  list(options?: { open?: boolean; page?: number; pageSize?: number }): Promise<Page<Opportunity>>;
 }
 
 export interface QuotesModule {
@@ -429,6 +435,7 @@ export interface AccountingConnector {
 
   invoices?: InvoicesModule;
   quotes?: QuotesModule;
+  opportunities?: OpportunitiesModule;
   creditNotes?: CreditNotesModule;
   purchaseOrders?: PurchaseOrdersModule;
   contacts?: ContactsModule;

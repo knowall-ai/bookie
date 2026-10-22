@@ -8,13 +8,15 @@ export const FLOW = {
 } as const;
 
 /** The running balance: neutral ink, so it never borrows a flow's identity. */
-export const BALANCE_COLOUR = '#e2e8f0';
+/** The running balance: Bookie's brand green, like Thyme's spend line (blue and orange are the flows). */
+export const BALANCE_COLOUR = 'var(--color-brand-bright)';
 
 export const LAYER_NAMES: Record<ForecastLayer, string> = {
   known: 'Known',
   draft: 'Drafts and awaiting approval',
   planned: 'Planned (you entered this)',
   projected: 'Projection',
+  pipeline: 'Pipeline (weighted)',
 };
 
 /** A small swatch drawn the way the chart draws the layer: solid, translucent, outlined or hatched. */
@@ -27,17 +29,19 @@ export function LayerSwatch({
   direction?: 'in' | 'out';
   className?: string;
 }) {
-  const colour = FLOW[direction].colour;
+  const colour = layer === 'pipeline' ? 'var(--color-violet)' : FLOW[direction].colour;
   const style: React.CSSProperties =
-    layer === 'known'
-      ? { background: colour }
-      : layer === 'draft'
-        ? { background: colour, opacity: 0.42 }
-        : layer === 'planned'
-          ? { background: `${colour}24`, boxShadow: `inset 0 0 0 1.5px ${colour}` }
-          : {
-              backgroundImage: `repeating-linear-gradient(45deg, ${colour} 0 2px, ${colour}1f 2px 5px)`,
-            };
+    layer === 'pipeline'
+      ? { background: colour, opacity: 0.5 }
+      : layer === 'known'
+        ? { background: colour }
+        : layer === 'draft'
+          ? { background: colour, opacity: 0.42 }
+          : layer === 'planned'
+            ? { background: `${colour}24`, boxShadow: `inset 0 0 0 1.5px ${colour}` }
+            : {
+                backgroundImage: `repeating-linear-gradient(45deg, ${colour} 0 2px, ${colour}1f 2px 5px)`,
+              };
   return (
     <span
       aria-hidden
@@ -53,6 +57,7 @@ export function ForecastLegend({ forecast }: { forecast: Forecast }) {
     'known',
     ...(forecast.layers.drafts ? (['draft'] as const) : []),
     'planned',
+    ...(forecast.layers.pipeline ? (['pipeline'] as const) : []),
     ...(forecast.layers.projected ? (['projected'] as const) : []),
   ];
   return (
@@ -75,7 +80,7 @@ export function ForecastLegend({ forecast }: { forecast: Forecast }) {
         <li key={layer} className="flex items-center gap-1.5">
           <span className="flex gap-0.5">
             <LayerSwatch layer={layer} direction="in" />
-            <LayerSwatch layer={layer} direction="out" />
+            {layer !== 'pipeline' && <LayerSwatch layer={layer} direction="out" />}
           </span>
           {layer === 'projected' && forecast.projection
             ? forecast.projection.label
@@ -88,8 +93,8 @@ export function ForecastLegend({ forecast }: { forecast: Forecast }) {
           <li className="flex items-center gap-1.5">
             <span
               aria-hidden
-              className="h-0.5 w-4 rounded-full"
-              style={{ background: BALANCE_COLOUR }}
+              className="w-4 border-t-2 border-dashed"
+              style={{ borderColor: BALANCE_COLOUR }}
             />
             Running balance
           </li>

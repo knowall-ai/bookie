@@ -17,6 +17,7 @@ export function forecastForBookie(
   forecast: Forecast,
   extra: {
     currencies: string[];
+    pipeline?: { available: boolean; reason?: string };
     projection: { available: boolean; reason?: string };
     notes: string[];
   }
@@ -31,6 +32,13 @@ export function forecastForBookie(
     period: { from: f.today, to: f.end, horizon: f.horizon },
     layersUsed: f.layersUsed,
     layersNotUsed: [
+      ...(f.layers.pipeline
+        ? []
+        : [
+            extra.pipeline?.available
+              ? 'Pipeline (include_pipeline was false)'
+              : `Pipeline: not available (${extra.pipeline?.reason ?? 'No opportunities module'})`,
+          ]),
       ...(on.drafts ? [] : ['Drafts and awaiting approval (include_drafts was false)']),
       ...(on.projected
         ? []
@@ -56,6 +64,7 @@ export function forecastForBookie(
         }
       : undefined,
     totals: {
+      ...(f.layers.pipeline ? { pipelineIn: f.totals.pipelineIn } : {}),
       knownIn: f.totals.knownIn,
       knownOut: f.totals.knownOut,
       plannedIn: f.totals.plannedIn,
@@ -69,6 +78,7 @@ export function forecastForBookie(
       period: b.label,
       from: b.start,
       to: b.end,
+      ...(f.layers.pipeline ? { pipelineIn: b.totals.pipelineIn } : {}),
       knownIn: b.totals.knownIn,
       knownOut: b.totals.knownOut,
       plannedIn: b.totals.plannedIn,
@@ -92,6 +102,12 @@ export function forecastForBookie(
       documents: f.unknownAmount.slice(0, 20).map(doc),
     },
     noDueDate: f.noDueDate.slice(0, 20).map(doc),
+    pipeline: {
+      ...extra.pipeline,
+      note: "Weighted by each opportunity's chance of success, on its estimated closing date. When the client pays may differ. Never fill in excluded opportunities' missing fields.",
+      excludedCount: f.pipelineExcluded.length,
+      excluded: f.pipelineExcluded.slice(0, 20),
+    },
     projection: f.projection,
     sourceNotes: extra.notes,
   };

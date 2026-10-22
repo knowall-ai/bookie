@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Area,
   Bar,
   CartesianGrid,
   ComposedChart,
@@ -22,11 +23,13 @@ import { FLOW, LAYER_NAMES, LayerSwatch, BALANCE_COLOUR } from './legend';
  * Money in (blue) and out (orange) are the validated categorical pair from the
  * home chart (dataviz palette checker on #111827: CVD ΔE 26.8, 3:1 contrast).
  * The layer is the secondary encoding: Known solid, Drafts translucent,
- * Planned outlined, Projected hatched. The running balance is a neutral ink
- * line so it never competes with either flow's identity.
+ * Planned outlined, Projected hatched, Pipeline translucent violet (income only).
+ * The running balance is drawn like Thyme's forecasts: a brand-green area, today's
+ * balance as a solid dot and the forecast after it dashed with hollow dots. Green
+ * keeps it apart from both flows.
  */
 
-const LAYERS: ForecastLayer[] = ['known', 'draft', 'planned', 'projected'];
+const LAYERS: ForecastLayer[] = ['known', 'draft', 'planned', 'projected', 'pipeline'];
 
 interface Point {
   key: string;
@@ -36,6 +39,7 @@ interface Point {
   knownIn?: number;
   draftIn?: number;
   plannedIn?: number;
+  pipelineIn?: number;
   projectedIn?: number;
   knownOut?: number;
   draftOut?: number;
@@ -46,6 +50,8 @@ interface Point {
 function fillFor(layer: ForecastLayer, direction: 'in' | 'out') {
   const colour = FLOW[direction].colour;
   switch (layer) {
+    case 'pipeline':
+      return { fill: 'var(--color-violet)', stroke: 'none', fillOpacity: 0.5 };
     case 'known':
       return { fill: colour, stroke: 'none', fillOpacity: 1 };
     case 'draft':
@@ -59,11 +65,13 @@ function fillFor(layer: ForecastLayer, direction: 'in' | 'out') {
 
 export function chartPoints(forecast: Forecast): Point[] {
   const on = (layer: ForecastLayer) =>
-    layer === 'draft'
-      ? forecast.layers.drafts
-      : layer === 'projected'
-        ? forecast.layers.projected
-        : true;
+    layer === 'pipeline'
+      ? forecast.layers.pipeline
+      : layer === 'draft'
+        ? forecast.layers.drafts
+        : layer === 'projected'
+          ? forecast.layers.projected
+          : true;
   return [
     { key: 'today', short: 'Today', balance: forecast.opening.balance },
     ...forecast.buckets.map((b) => {
@@ -72,9 +80,11 @@ export function chartPoints(forecast: Forecast): Point[] {
         if (!on(layer)) continue;
         const t = b.totals;
         const inKey = `${layer}In` as const;
-        const outKey = `${layer}Out` as const;
         p[inKey] = t[inKey] || undefined;
-        p[outKey] = t[outKey] ? -t[outKey] : undefined;
+        if (layer !== 'pipeline') {
+          const outKey = `${layer}Out` as const;
+          p[outKey] = t[outKey] ? -t[outKey] : undefined;
+        }
       }
       return p;
     }),
@@ -196,7 +206,12 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
   const lowestPoint = lowest && points.find((p) => p.key === lowest.bucketKey);
   const projectionLabel = forecast.projection?.label;
   const series: { layer: ForecastLayer; direction: 'in' | 'out' }[] = LAYERS.flatMap((layer) =>
-    (['in', 'out'] as const).map((direction) => ({ layer, direction }))
+    (layer === 'pipeline'
+      ? forecast.layers.pipeline
+        ? (['in'] as const)
+        : []
+      : (['in', 'out'] as const)
+    ).map((direction) => ({ layer, direction }))
   );
   const syncId = `forecast-${forecast.currency}-${forecast.horizon}`;
   const hasBalance = forecast.opening.balance !== undefined;
@@ -204,7 +219,16 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
     points.map((p) => p.balance).filter((v): v is number => v !== undefined)
   );
   const stack = (p: Point, dir: 'In' | 'Out') =>
-    LAYERS.reduce((sum, layer) => sum + (p[`${layer}${dir}`] ?? 0), 0);
+    LAYERS.reduce(
+      (sum, layer) =>
+        sum +
+        (layer === 'pipeline'
+          ? dir === 'In'
+            ? (p.pipelineIn ?? 0)
+            : 0
+          : (p[`${layer}${dir}`] ?? 0)),
+      0
+    );
   const flowAxis = niceTicks(
     Math.min(0, ...points.map((p) => stack(p, 'Out'))),
     Math.max(0, ...points.map((p) => stack(p, 'In'))),
@@ -214,6 +238,9 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
     <XAxis
       dataKey="short"
       hide={hide}
+      // Both panels place a period at the centre of its column, so each balance point sits
+      // directly above its bars.
+      scale="band"
       tickLine={false}
       axisLine={{ stroke: 'var(--color-line-strong)' }}
       tick={{ fill: 'var(--color-muted)', fontSize: 12 }}
@@ -262,24 +289,79 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
       {hasBalance ? (
         <div className="h-56 sm:h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={points} syncId={syncId} margin={{ ...MARGIN, bottom: 10 }}>
+            <ComposedChart
+              data={points}
+              syncId={syncId}
+              margin={{ ...MARGIN, top: 22, bottom: 10 }}
+            >
               <CartesianGrid vertical={false} stroke="var(--color-line)" />
               {xAxis(true)}
               {yAxis(balanceAxis)}
+              <defs>
+                <linearGradient id="forecast-balance-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={BALANCE_COLOUR} stopOpacity={0.28} />
+                  <stop offset="100%" stopColor={BALANCE_COLOUR} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
               <ReferenceLine
                 y={0}
-                stroke="var(--color-faint)"
+                stroke="var(--color-danger)"
                 strokeWidth={1.5}
+                strokeDasharray="6 4"
                 ifOverflow="hidden"
+                label={{
+                  value: formatMoneyCompact(0, currency),
+                  position: 'insideTopRight',
+                  fill: 'var(--color-danger)',
+                  fontSize: 11,
+                }}
+              />
+              <ReferenceLine
+                x="Today"
+                stroke="var(--color-info)"
+                strokeOpacity={0.6}
+                strokeDasharray="3 3"
+                label={{ value: 'Today', position: 'top', fill: 'var(--color-info)', fontSize: 11 }}
               />
               {tooltip}
+              {/* Monotone: the curve passes through every real balance and never overshoots
+                  between them, so smoothing adds no highs or lows the forecast doesn't have. */}
+              <Area
+                dataKey="balance"
+                type="monotone"
+                stroke="none"
+                fill="url(#forecast-balance-fill)"
+                isAnimationActive={false}
+                activeDot={false}
+                tooltipType="none"
+              />
               <Line
                 dataKey="balance"
-                type="linear"
+                type="monotone"
                 stroke={BALANCE_COLOUR}
-                strokeWidth={2}
-                dot={{ r: 3, fill: BALANCE_COLOUR, stroke: 'var(--color-surface)', strokeWidth: 2 }}
-                activeDot={{ r: 5, stroke: 'var(--color-surface)', strokeWidth: 2 }}
+                strokeWidth={2.5}
+                strokeDasharray="7 5"
+                dot={(props: { cx?: number; cy?: number; index?: number }) =>
+                  props.cx === undefined || props.cy === undefined ? (
+                    <g key={`dot-${props.index}`} />
+                  ) : (
+                    <circle
+                      key={`dot-${props.index}`}
+                      cx={props.cx}
+                      cy={props.cy}
+                      r={props.index === 0 ? 5 : 3.5}
+                      fill={props.index === 0 ? BALANCE_COLOUR : 'var(--color-surface)'}
+                      stroke={BALANCE_COLOUR}
+                      strokeWidth={2}
+                    />
+                  )
+                }
+                activeDot={{
+                  r: 6,
+                  fill: BALANCE_COLOUR,
+                  stroke: 'var(--color-surface)',
+                  strokeWidth: 2,
+                }}
                 isAnimationActive={false}
               />
               {lowest && lowestPoint && (
@@ -349,6 +431,7 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
                 <Bar
                   key={`${layer}-${direction}`}
                   dataKey={`${layer}${direction === 'in' ? 'In' : 'Out'}`}
+                  className={layer === 'pipeline' ? 'forecast-pipeline-band' : undefined}
                   stackId="flow"
                   fill={style.fill}
                   fillOpacity={style.fillOpacity}
