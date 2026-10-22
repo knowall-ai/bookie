@@ -23,6 +23,7 @@ import type {
   BankAccount,
   BankAccountInput,
   BankBalanceHistories,
+  BankStatementLine,
   BankTransaction,
   BankTransactionInput,
   BankTransactionQuery,
@@ -207,6 +208,10 @@ export interface BankModule {
   balanceHistory?(): Promise<BankBalanceHistories>;
   /** Why `BankAccount.feedDate` is never set for this source, shown as "Feed status not available". */
   readonly feedNote?: string;
+  /** Unreconciled bank statement lines (the bank feed), when the source's API shares them. */
+  statementLines?(bankAccountId: string): Promise<BankStatementLine[]>;
+  /** How reconciling is finished in the source, for the Reconcile tab. */
+  readonly reconcile?: ReconcileGuide;
 }
 
 /** A sentence about the source system, with an optional deep link into it. */
@@ -238,6 +243,16 @@ export interface NewBankAccountRules {
   currencySetup: SourceHint;
   /** Something the source's API can't set on a new account, said plainly on the form. */
   note?: SourceHint;
+}
+
+/** What the source lets Bookie do towards reconciling, in the source's own words. */
+export interface ReconcileGuide {
+  /** Why statement lines aren't listed, when `statementLines` is absent. */
+  statementLinesNote?: string;
+  /** What happens in the source after Bookie records a payment, and what is still to do there. */
+  afterPayment: string;
+  /** The source's reconcile screen for one bank account. */
+  url?(account: BankAccount): string | undefined;
 }
 
 export interface AccountsModule {

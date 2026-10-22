@@ -21,6 +21,7 @@ import { demoPurchaseOrders } from './modules/purchase-orders';
 import { demoItems } from './modules/items';
 import { demoPayments } from './modules/payments';
 import { demoBank } from './modules/bank';
+import { demoReconcile } from './modules/reconcile';
 import { demoAccounts } from './modules/accounts';
 import { demoJournals } from './modules/journals';
 import { demoTaxRates } from './modules/tax-rates';
@@ -402,7 +403,7 @@ export function createDemoConnector(org: OrgRef): AccountingConnector {
     purchaseOrders: demoPurchaseOrders(data),
     items: demoItems(data),
     payments: demoPayments(data, org.key),
-    bank: demoBank(data),
+    bank: { ...demoBank(data), ...demoReconcile(data) },
     accounts: demoAccounts(data),
     journals: demoJournals(data),
     taxRates: demoTaxRates(data),

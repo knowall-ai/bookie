@@ -21,6 +21,7 @@ Every portal screenshot comes from **Microsoft's CRONUS sample company** in a Bu
 | `chart-of-accounts.webp` | Accounting › Chart of accounts |
 | `settings.webp` | Settings: the Xero and Business Central connector switches (the lists of connected organisations and the storage note are removed before the shot, as they name the signed-in user's organisations and tenant) |
 | `ask-bookie.webp` | Ask Bookie panel with his real answer to "Who owes us the most, and how late are they?" |
+| `bank-reconcile.webp` | Accounting › Bank accounts › Reconcile on the **demo organisation** (`BOOKIE_DEV_AUTH=demo`, a fictional bank feed): exact match, part-payment, reference match, several candidates, no match, another currency, already recorded |
 | `landing.webp` | The public website hero at getbook.ie |
 | `bitcoin-wallet.webp` | A Bitcoin wallet as a bank account. The one exception to CRONUS: it is the **demo organisation's fictional wallet** (`BOOKIE_DEV_AUTH=demo`), because a real wallet would publish its transactions; every transaction id, amount and price in it is made up and labelled so |
 | `bitcoin-reconcile.webp` | The same demo wallet's Reconcile tab against the demo organisation's fictional BTC bank account: matched by txid or amount, on chain but not in the books (with drafting), in the books but not on chain, pending |

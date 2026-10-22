@@ -48,7 +48,7 @@ Generated from the specs on 17 October 2026. Status reflects the `main` branch p
 * *Bank feed freshness* (when the feed last brought in a statement line) isn't in the Accounting API: statement lines are only in the Bank Feeds API, which is for banks to write them, and the restricted Finance API. Bank cards say "Feed status not available" for Xero rather than showing when Bookie read the books.
 * *Account Transactions* and *General Ledger* reports have no API endpoint (404). Bookie builds Account Transactions and the Journal Report from `GET /Journals`, which covers posted transactions on the accrual basis.
 * Xero's *Short-term cash flow* projection has no API. Bookie's Reporting › Cash flow forecast builds its own from the Bank Summary balances, unpaid invoices and bills by due date (overdue ones kept apart), the user's planned items (sealed in the tenant's settings), and, only when switched on, an average of spend and receive money from `GET /BankTransactions` (invoice and bill payments excluded).
-* *Bank reconciliation* has no API. Bookie shows each transaction's reconciled flag and filters on it; reconciling happens in Xero.
+* *Bank reconciliation* has no API. Bookie shows each transaction's reconciled flag and filters on it. Its Reconcile page suggests the invoice or bill a bank line pays and records the payment (`PUT /Payments`); Xero then offers that payment as the match in its own Reconcile screen, where the line is reconciled. See link:RECONCILE.adoc[Reconcile].
 * *Employees* in the Accounting API is no longer in the spec and answers 404 for UK organisations; UK employees come from the Payroll UK API.
 
 == Accounting API

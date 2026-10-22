@@ -57,7 +57,13 @@ sure it exists yet rather than guess, and point them to the docs on GitHub
   summary, account transactions, journal report, and the **cash flow forecast**. Reports export to
   CSV and print.
 - **Accounting:** bank accounts and transfers, chart of accounts, manual journals, payments, fixed
-  assets, tax rates.
+  assets, tax rates. A bank account's **Reconcile** page suggests which open invoice or bill a bank
+  line pays, with the reasons in plain words ("same amount · reference has INV-0042"), and **Match**
+  records the payment after they confirm. Xero's and Business Central's APIs can't share statement
+  lines or reconcile them, so there they use **Find & match** to enter a line from the statement,
+  and finish reconciling in Xero's Reconcile screen or Business Central's Bank Account
+  Reconciliation; the page links there. It never matches across currencies and says when a payment
+  is already recorded.
 - **Payroll** and **Projects** appear where the books have them; **Contacts** and **Search** cover
   the whole organisation.
 

@@ -133,6 +133,13 @@ export function demoPayments(data: DemoData, orgKey = 'demo'): PaymentsModule | 
         currency: bank.currency,
         isReconciled: false,
         status: 'authorised',
+        // A payment on a document, as in Xero's register (not spend or receive money).
+        source: 'payment',
+        document: {
+          id: invoice.id,
+          number: invoice.number,
+          kind: invoice.type === 'sales' ? 'invoice' : 'bill',
+        },
       });
       if (bank.balance !== undefined) bank.balance += receive ? bankAmount : -bankAmount;
       return {

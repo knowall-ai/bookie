@@ -44,6 +44,7 @@ import { xeroCurrencies } from './modules/currencies';
 import { fromXeroOrganisation, xeroUsers, type XeroOrganisation } from './modules/organisation';
 import { xeroHistory } from './modules/history';
 import { xeroInvoiceExtras } from './modules/invoice-extras';
+import { xeroReconcile } from './modules/reconcile';
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -360,11 +361,14 @@ export function createXeroConnector({
     purchaseOrders: xeroPurchaseOrders(client),
     items: xeroItems(client),
     payments: xeroPayments(client),
-    bank: xeroBank(
-      client,
-      async () => (await getOrganisation()).baseCurrency,
-      xeroDeepLink(shortCode, '/Dashboard/')
-    ),
+    bank: {
+      ...xeroBank(
+        client,
+        async () => (await getOrganisation()).baseCurrency,
+        xeroDeepLink(shortCode, '/Dashboard/')
+      ),
+      reconcile: xeroReconcile(shortCode),
+    },
     accounts: xeroAccounts(client),
     journals: xeroJournals(client),
     taxRates: xeroTaxRates(client),

@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
-import { ArrowDownLeft, ArrowUpRight, Check, Paperclip, Receipt } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Check, Paperclip, Receipt, Scale } from 'lucide-react';
 import { orgContext, sourceName } from '@/lib/portal/context';
 import { isConnectorError } from '@/lib/connectors/types';
+import { canPay } from '@/lib/portal/reconcile';
 import type { BankTransaction, BankTransactionQuery } from '@/lib/domain/types';
 import { formatDate } from '@/lib/ui/format';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -149,6 +150,9 @@ export default async function Page({
   ];
 
   const canCreate = !!bank.createTransaction;
+  // Reconcile needs statement lines to show, or a way to record the payment.
+  const canReconcile =
+    !!bank.statementLines || canPay(connector, 'sales') || canPay(connector, 'purchase');
   // Sources that can't list transactions at all explain why in `note` and return nothing.
   const unavailable = !!result.note && result.items.length === 0 && !filtered;
   return (
@@ -172,16 +176,23 @@ export default async function Page({
           </span>
         }
         actions={
-          canCreate && (
-            <>
-              <ButtonLink href={`${newHref}?type=spend&account=${encodeURIComponent(id)}`}>
-                <ArrowUpRight className="h-4 w-4" /> Spend money
+          <>
+            {canReconcile && (
+              <ButtonLink href={`${listPath}/reconcile`} variant="primary">
+                <Scale className="h-4 w-4" /> Reconcile
               </ButtonLink>
-              <ButtonLink href={`${newHref}?type=receive&account=${encodeURIComponent(id)}`}>
-                <ArrowDownLeft className="h-4 w-4" /> Receive money
-              </ButtonLink>
-            </>
-          )
+            )}
+            {canCreate && (
+              <>
+                <ButtonLink href={`${newHref}?type=spend&account=${encodeURIComponent(id)}`}>
+                  <ArrowUpRight className="h-4 w-4" /> Spend money
+                </ButtonLink>
+                <ButtonLink href={`${newHref}?type=receive&account=${encodeURIComponent(id)}`}>
+                  <ArrowDownLeft className="h-4 w-4" /> Receive money
+                </ButtonLink>
+              </>
+            )}
+          </>
         }
       />
       <SourceNote>{result.note}</SourceNote>
