@@ -3,6 +3,7 @@ import {
   canModerate,
   canReadShared,
   childFolderFilter,
+  inboxLabel,
   folderSegments,
   isNoAccess,
   toMailboxMessage,
@@ -68,5 +69,12 @@ describe('mailbox helpers', () => {
     expect(tokenScopes('not-a-token')).toBeNull();
     expect(canModerate(null)).toBe(true);
     expect(canReadShared(null)).toBe(true);
+  });
+});
+
+describe('inboxLabel', () => {
+  it('names the inbox by its address, as Outlook does', () => {
+    expect(inboxLabel('accounts@example.com')).toBe('accounts@ inbox');
+    expect(inboxLabel(undefined)).toBe('Inbox');
   });
 });

@@ -17,7 +17,7 @@ it('hides Approvals and defaults to the accounts inbox for non-approvers', async
     mailbox: {
       status: 'ok',
       mailbox: 'accounts@example.com',
-      folders: [{ key: 'inbox', label: 'Accounts inbox', path: '', messages: [] }],
+      folders: [{ key: 'inbox', label: 'Inbox', path: '', messages: [] }],
     },
   });
   const html = renderToStaticMarkup(

@@ -2,6 +2,7 @@ import { KeyRound, MailQuestion, Settings2, UserLock } from 'lucide-react';
 import { canManageSettings } from '@/lib/auth/access';
 import { requireAuth } from '@/lib/auth/context';
 import { getEmailsOverview } from '@/lib/email';
+import { inboxLabel } from '@/lib/email/mailbox';
 import type { EmailsOverview } from '@/lib/email/types';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatusTabs } from '@/components/ui/StatusTabs';
@@ -110,7 +111,7 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
     overview.mailbox.status === 'ok'
       ? overview.mailbox.folders
       : [
-          { key: 'inbox', label: 'Accounts inbox' },
+          { key: 'inbox', label: 'Inbox' },
           { key: 'needs-review', label: 'Needs review' },
           { key: 'captured', label: 'Captured' },
         ];
@@ -156,7 +157,14 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
             ...(showApprovals ? [{ value: 'all', label: 'Approvals', count: pending }] : []),
             ...folders.map((f) => ({
               value: f.key,
-              label: f.label,
+              label:
+                f.key === 'inbox'
+                  ? inboxLabel(
+                      overview.mailbox.status === 'not-configured'
+                        ? undefined
+                        : overview.mailbox.mailbox
+                    )
+                  : f.label,
               count:
                 'messages' in f && !f.missing && !f.noAccess && !f.more
                   ? f.messages.length

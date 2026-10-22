@@ -58,7 +58,7 @@ test.describe('Bookie’s emails', () => {
 
   test('shows the accounts inbox and bill capture folders', async ({ page }) => {
     await page.goto(PAGE);
-    await page.getByRole('tab', { name: /Accounts inbox/ }).click();
+    await page.getByRole('tab', { name: /accounts@ inbox/ }).click();
     await expect(page).toHaveURL(/status=inbox/);
     await expect(page.getByTestId('mailbox-message').first()).toContainText(
       'Invoice 7781 from Northwind Packaging'

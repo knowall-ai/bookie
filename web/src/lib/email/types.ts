@@ -99,3 +99,26 @@ export interface EmailsOverview {
   /** Sample data (the demo organisation). */
   demo?: boolean;
 }
+
+/**
+ * One "<Agent> suggests" item on an opened inbox email, shared with knowall-ai/sallie so the
+ * panel looks and works the same in both portals. Filled from the agent's own record of the
+ * email (Bookie: invoice checks; Sallie: a suggested reply), keyed by the message's
+ * internetMessageId. No record yet means "<Agent> hasn't looked at this one yet".
+ */
+export interface AgentSuggestion {
+  /** The email's internetMessageId. */
+  messageId: string;
+  title: string;
+  /** Why the agent suggests it, in plain words. */
+  why: string;
+  actions: AgentSuggestionAction[];
+}
+
+export interface AgentSuggestionAction {
+  /** Stable per action, e.g. "file-bill", "send-reply", "dismiss". */
+  kind: string;
+  label: string;
+  /** Writes are confirmed in a ConfirmDialog before they run. */
+  confirm?: { title: string; body: string; cta: string };
+}

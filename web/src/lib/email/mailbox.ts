@@ -10,7 +10,7 @@ import type { EmailAddress, MailboxFolderKey, MailboxMessage } from './types';
 
 /** The Inbox, then bill capture's folders under it (agent deploy step 10, BILL_CAPTURE_*_FOLDER). */
 export const MAILBOX_FOLDERS: { key: MailboxFolderKey; label: string; path: string }[] = [
-  { key: 'inbox', label: 'Accounts inbox', path: '' },
+  { key: 'inbox', label: 'Inbox', path: '' },
   { key: 'needs-review', label: 'Needs review', path: 'Bookie/Needs review' },
   { key: 'captured', label: 'Captured', path: 'Bookie/Processed' },
 ];
@@ -20,6 +20,15 @@ export const MAILBOX_PAGE_SIZE = 25;
 
 export const MESSAGE_SELECT =
   'id,subject,from,receivedDateTime,bodyPreview,hasAttachments,isRead,webLink';
+
+/**
+ * The inbox's tab label: its address as people see it in Outlook, "accounts@ inbox"
+ * (agreed with knowall-ai/sallie, whose is "hello@ inbox"); "Inbox" without an address.
+ */
+export function inboxLabel(mailbox?: string): string {
+  const local = mailbox?.split('@')[0]?.trim();
+  return local ? `${local}@ inbox` : 'Inbox';
+}
 
 /** Folder names in a path under the Inbox: "Bookie/Needs review" → ["Bookie", "Needs review"]. */
 export function folderSegments(path: string): string[] {
