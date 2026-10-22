@@ -82,7 +82,10 @@ test.describe('Bookie’s emails', () => {
 
   test('Settings has Bookie’s email addresses', async ({ page }) => {
     await page.goto('/portal/settings#email');
-    await expect(page.getByLabel('Bookie’s mailbox')).toHaveValue('bookie@contoso.example');
+    await expect(page.getByLabel('Agent 1 name')).toHaveValue('Bookie');
+    await expect(page.getByLabel('Agent 1 mailbox')).toHaveValue('bookie@contoso.example');
+    await expect(page.getByLabel('Mailbox 1 agent')).toHaveValue('bookie');
+    await expect(page.getByLabel('Mailbox 2 agent')).toHaveValue('');
     await expect(page.getByLabel('Mailbox 1 address')).toHaveValue('accounts@contoso.example');
     await expect(page.getByLabel('Mailbox 2 address')).toHaveValue('hello@contoso.example');
     await expect(page.getByRole('radio', { name: 'Bill capture files here' }).nth(0)).toBeChecked();

@@ -24,6 +24,7 @@ import type {
   EmailsOverview,
   MailboxView,
   SharedMailbox,
+  MailAgent,
 } from './types';
 
 /**
@@ -45,18 +46,34 @@ async function emailSettings(auth: AuthContext): Promise<EmailSettings> {
   return (await configStoreFor(auth).getSettings()).email ?? {};
 }
 
+async function agentSenders(token: string, agents: MailAgent[]) {
+  const resolved = await Promise.all(
+    agents.map(async (agent) => ({
+      agent,
+      senders: await resolveSenders(token, agent.mailbox),
+    }))
+  );
+  const agentIds = new Map<string, string>();
+  for (const { agent, senders } of resolved)
+    for (const sender of senders) {
+      const address = sender.trim().toLowerCase();
+      if (!agentIds.has(address)) agentIds.set(address, agent.id);
+    }
+  return { senders: [...agentIds.keys()], agentIds };
+}
+
 async function approvalsView(
   token: string,
   scopes: Set<string> | null,
-  agentAddress?: string
+  agents: MailAgent[]
 ): Promise<ApprovalsView> {
-  if (!agentAddress) return { status: 'not-configured' };
+  if (!agents.length) return { status: 'not-configured' };
   if (!canModerate(scopes)) return { status: 'no-consent' };
   try {
-    const senders = await resolveSenders(token, agentAddress);
+    const { senders, agentIds } = await agentSenders(token, agents);
     const approver = await isApprover(token, senders);
     if (!approver) return { status: 'ok', isApprover: false, items: [] };
-    const { items, incomplete } = await listApprovals(token, senders);
+    const { items, incomplete } = await listApprovals(token, senders, new Date(), agentIds);
     return { status: 'ok', isApprover: true, items, ...(incomplete ? { incomplete } : {}) };
   } catch (error) {
     // The person's own mailbox refused: the mail permissions aren't consented.
@@ -123,17 +140,18 @@ export async function getEmailsOverview(auth: AuthContext): Promise<EmailsOvervi
     if (error instanceof ReauthRequiredError) throw error;
     console.warn("Bookie's emails:", error instanceof Error ? error.name : 'failed');
     return {
+      agents: [],
       approvals: { status: 'error', error: FAILED },
       mailboxes: [],
     };
   }
   const scopes = tokenScopes(token);
-  const { agentMailbox, sharedMailboxes } = mailSetup(settings);
+  const { agents, sharedMailboxes } = mailSetup(settings);
   const [approvals, mailboxes] = await Promise.all([
-    approvalsView(token, scopes, agentMailbox),
+    approvalsView(token, scopes, agents),
     Promise.all(sharedMailboxes.map((mailbox) => mailboxView(token, scopes, mailbox))),
   ]);
-  return { agentAddress: agentMailbox, approvals, mailboxes };
+  return { agents, approvals, mailboxes };
 }
 
 /** The held email; null when the id isn't one of Bookie's requests in the person's mailbox. */
@@ -142,10 +160,11 @@ export async function getEmailApprovalDetail(
   id: string
 ): Promise<EmailApprovalDetail | null> {
   if (auth.mode === 'demo') return demoApprovalDetail(id, await demoDecisions());
-  const { agentAddress } = await emailSettings(auth);
-  if (!agentAddress) return null;
+  const { agents } = mailSetup(await emailSettings(auth));
+  if (!agents.length) return null;
   const token = await auth.getToken('graph');
-  return getApprovalDetail(token, id, await resolveSenders(token, agentAddress));
+  const { senders, agentIds } = await agentSenders(token, agents);
+  return getApprovalDetail(token, id, senders, new Date(), agentIds);
 }
 
 /** Send the person's decision to Exchange. Only a still-pending request is answered. */
@@ -168,13 +187,13 @@ export async function decideEmailApproval(
     });
     return { ok: true, status };
   }
-  const { agentAddress } = await emailSettings(auth);
-  if (!agentAddress) return { ok: false, reason: 'not-found' };
+  const { agents } = mailSetup(await emailSettings(auth));
+  if (!agents.length) return { ok: false, reason: 'not-found' };
   const token = await auth.getToken('graph');
   const result = await decideApproval(
     token,
     id,
-    await resolveSenders(token, agentAddress),
+    (await agentSenders(token, agents)).senders,
     decision,
     reason
   );
@@ -198,11 +217,11 @@ export async function pendingApprovalCount(auth: AuthContext): Promise<number> {
   const generation = pendingGeneration.get(key) ?? 0;
   let count = 0;
   try {
-    const { agentAddress } = await emailSettings(auth);
-    if (agentAddress) {
+    const { agents } = mailSetup(await emailSettings(auth));
+    if (agents.length) {
       const token = await auth.getToken('graph');
       if (canModerate(tokenScopes(token))) {
-        const { items } = await listApprovals(token, await resolveSenders(token, agentAddress));
+        const { items } = await listApprovals(token, (await agentSenders(token, agents)).senders);
         count = items.filter((item) => item.status === 'pending').length;
       }
     }

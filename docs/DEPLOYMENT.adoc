@@ -151,18 +151,28 @@ needs `AppRoleAssignment.ReadWrite.All`: it never assigns anyone to the app. The
 scripts don't manage the app registration or its consents, so grant these in Entra (or with
 `az ad app permission add` and `az ad app permission admin-consent`).
 
-=== Bookie's emails
+=== Email tab
 
-Bookie's mailbox and shared mailboxes are per-tenant settings under *Settings › Bookie's emails*,
-so the same setup works for any organisation. Set Bookie's own Microsoft 365 address and up to ten
-shared mailbox addresses, with optional labels. Choose at most one as the bill capture mailbox.
-The `AgentMailSetup` shape is shared with knowall-ai/sallie, which stores it in Business Central.
+Agents and shared mailboxes are per-tenant settings under *Settings › Email*.
+Configure up to ten agents with any name (for example Ava), a Microsoft 365 mailbox and an
+optional Teams user. Each agent has a unique id generated from its name.
+Add up to ten shared mailboxes, with optional labels, and select the agent that triages each
+mailbox, or *None*. Choose at most one as the bill capture mailbox.
+
+The shared shape with knowall-ai/sallie is
+`AgentMailSetup { agents: MailAgent[]; sharedMailboxes: SharedMailbox[] }`.
+`MailAgent` contains `id`, `displayName`, `mailbox` and optional `teamsUser`;
+`SharedMailbox` contains `address`, optional `label`, optional `agentId` referencing an agent,
+and optional `capture: true` (Bookie only). Only the store differs: Bookie seals settings in
+the tenant's SharePoint; Sallie stores them in Business Central.
+Legacy agent and accounts addresses are migrated on reads; saving replaces them with the lists.
+Approvals combine all agents' primary addresses and aliases, and identify the sending agent.
 
 The organisation's members-only *Email* tab (`/portal/<org>/email`) has one Inbox tab per shared
 mailbox, in settings order. Exchange decides who can open each; one inaccessible mailbox does not
 prevent the others loading. The capture mailbox also gets *Needs review* and *Captured*, reading
 `Bookie/Needs review` and `Bookie/Processed` beneath its Inbox. Other mailboxes read only the Inbox.
-The *Approvals* tab appears for moderators whose own mailbox has received a Bookie moderation
+The *Approvals* tab appears for moderators whose own mailbox has received an agent moderation
 request. Consent the mail permissions above; each mailbox explains missing consent or access.
 `/portal/emails` redirects to the first organisation, or shows the same view without organisations.
 Mail is read live and never stored. Decisions live in Exchange, so decisions here or in Outlook

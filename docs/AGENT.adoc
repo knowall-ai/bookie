@@ -104,15 +104,22 @@ The full text is `agent/hermes/SOUL.md`. In short:
 Data extracted from documents is used live for that bill only; nothing is stored for AI training and
 nothing financial enters Reverie.
 
-The portal's members-only *Email* tab (`/portal/<org>/email`) reads Bookie's mailbox and shared
+The portal's members-only *Email* tab (`/portal/<org>/email`) reads configured agents' mailboxes and shared
 mailboxes from per-tenant Settings, so it works for any organisation. There is one Inbox tab per
 shared mailbox; Exchange decides who sees each. The selected capture mailbox also gets the bill
 capture folders, `Bookie/Needs review` and `Bookie/Processed` beneath its Inbox. Approvals appear
-for moderators. knowall-ai/sallie stores the same `AgentMailSetup` shape in Business Central.
+for moderators across all configured agents, including their sending aliases.
+Agents may have any display name, such as Ava; Settings supports up to ten agents, each with
+an id, display name, mailbox and optional Teams user. Each shared mailbox can select the
+agent that triages it, or None, independently of whether it is the capture target.
+The shared `AgentMailSetup { agents: MailAgent[]; sharedMailboxes: SharedMailbox[] }` shape
+uses `MailAgent { id, displayName, mailbox, teamsUser? }` and
+`SharedMailbox { address, label?, agentId?, capture?: true }`.
+knowall-ai/sallie uses the same types but stores them in Business Central; Bookie stores
+settings sealed in the tenant's SharePoint.
 The approval code in
 `web/src/lib/email/` is a copy of the Agents Portal's (knowall-ai/agents-portal#143), kept in step by
-hand; each copied file says so in its header. See `docs/DEPLOYMENT.adoc`, "Bookie's
-emails".
+hand; each copied file says so in its header. See `docs/DEPLOYMENT.adoc`, "Email tab".
 
 == Decisions
 

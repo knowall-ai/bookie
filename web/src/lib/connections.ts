@@ -188,13 +188,13 @@ export async function updateConnectorSettings(
   forgetBcDiscovery(auth);
 }
 
-/** Settings › Bookie's emails: his address and the accounts mailbox. Members only; blank clears. */
+/** Settings › Email: replace agent and shared mailbox lists, removing legacy fields. Members only. */
 export async function updateEmailSettings(auth: AuthContext, email: EmailSettings): Promise<void> {
   assertCanManageSettings(auth.user);
   const store = configStoreFor(auth);
   const settings = await store.getSettings();
   settings.email = {
-    ...(email.agentAddress ? { agentAddress: email.agentAddress } : {}),
+    agents: email.agents ?? [],
     sharedMailboxes: email.sharedMailboxes ?? [],
   };
   await store.saveSettings(settings);

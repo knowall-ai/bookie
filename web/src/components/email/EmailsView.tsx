@@ -11,7 +11,7 @@ import { EmptyState, ErrorPanel } from '@/components/ui/States';
 import { ApprovalsList } from '@/components/email/ApprovalsList';
 import { MailboxList } from '@/components/email/MailboxList';
 
-const CONSENT_DOC = 'See docs/DEPLOYMENT.adoc, “Bookie’s emails”.';
+const CONSENT_DOC = 'See docs/DEPLOYMENT.adoc, “Email tab”.';
 
 function SettingsLink() {
   return (
@@ -21,14 +21,20 @@ function SettingsLink() {
   );
 }
 
-function ApprovalsTab({ view }: { view: EmailsOverview['approvals'] }) {
+function ApprovalsTab({
+  view,
+  agents,
+}: {
+  view: EmailsOverview['approvals'];
+  agents: EmailsOverview['agents'];
+}) {
   switch (view.status) {
     case 'not-configured':
       return (
         <EmptyState
           icon={<Settings2 className="h-6 w-6" />}
-          title="Bookie’s email address isn’t set"
-          body="Add Bookie’s address in Settings so this page can find the emails Exchange holds for your approval."
+          title="No agents are configured"
+          body="Add an agent’s mailbox in Settings so this page can find the emails Exchange holds for your approval."
           action={<SettingsLink />}
         />
       );
@@ -36,8 +42,8 @@ function ApprovalsTab({ view }: { view: EmailsOverview['approvals'] }) {
       return (
         <EmptyState
           icon={<KeyRound className="h-6 w-6" />}
-          title="Bookie can’t read approval requests yet"
-          body={`An administrator needs to grant Bookie the Mail.ReadWrite and Mail.Send permissions (delegated, admin consent). ${CONSENT_DOC}`}
+          title="The portal can’t read approval requests yet"
+          body={`An administrator needs to grant the portal the Mail.ReadWrite and Mail.Send permissions (delegated, admin consent). ${CONSENT_DOC}`}
         />
       );
     case 'error':
@@ -47,11 +53,11 @@ function ApprovalsTab({ view }: { view: EmailsOverview['approvals'] }) {
         <div className="space-y-3">
           {view.incomplete && (
             <p className="text-warn text-sm">
-              More held emails matched than Bookie reads at once, so the oldest aren’t shown. Check
-              Outlook for any still waiting.
+              More held emails matched than the portal reads at once, so the oldest aren’t shown.
+              Check Outlook for any still waiting.
             </p>
           )}
-          <ApprovalsList items={view.items} />
+          <ApprovalsList items={view.items} agents={agents} />
         </div>
       );
   }
@@ -69,8 +75,8 @@ function MailboxTab({
       return (
         <EmptyState
           icon={<KeyRound className="h-6 w-6" />}
-          title={`Bookie can’t read ${view.mailbox} yet`}
-          body={`An administrator needs to grant Bookie the Mail.Read.Shared permission (delegated, admin consent). ${CONSENT_DOC}`}
+          title={`The portal can’t read ${view.mailbox} yet`}
+          body={`An administrator needs to grant the portal the Mail.Read.Shared permission (delegated, admin consent). ${CONSENT_DOC}`}
         />
       );
     case 'no-access':
@@ -95,7 +101,7 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
   if (!canManageSettings(auth.user))
     return (
       <EmptyState
-        title="Only people in the organisation see Bookie’s emails"
+        title="Only people in the organisation see agent emails"
         body="You’re signed in as a guest."
       />
     );
@@ -133,21 +139,21 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
   const setup =
     overview.approvals.status === 'not-configured' || overview.approvals.status === 'no-consent';
   if (
-    !overview.agentAddress &&
+    !overview.agents.length &&
     overview.mailboxes.length === 0 &&
     overview.approvals.status === 'not-configured'
   )
-    return <ApprovalsTab view={overview.approvals} />;
+    return <ApprovalsTab view={overview.approvals} agents={overview.agents} />;
   if (
     !showApprovals &&
     ((overview.mailboxes.length > 0 &&
       overview.mailboxes.every((mailbox) => mailbox.status === 'no-access')) ||
-      (overview.mailboxes.length === 0 && overview.agentAddress))
+      (overview.mailboxes.length === 0 && overview.agents.length))
   )
     return (
       <EmptyState
         title="Nothing here for you"
-        body="Bookie’s held emails go to the approvers set in Exchange, and shared mailboxes are open to the people Exchange allows."
+        body={`${overview.agents.length === 1 ? overview.agents[0].displayName + '’s held emails' : 'Held emails'} go to the approvers set in Exchange, and shared mailboxes are open to the people Exchange allows.`}
       />
     );
 
@@ -157,7 +163,7 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
         <PageHeader
           title="Email"
           crumbs={[{ label: 'My organisations', href: '/portal' }]}
-          meta="Bookie's emails waiting for your approval, and the shared mailboxes he reads. Read live from Microsoft 365; Bookie keeps no copies."
+          meta={`${overview.agents.length === 1 ? overview.agents[0].displayName + '’s' : 'Agents’'} emails waiting for your approval, and shared mailboxes. Read live from Microsoft 365; the portal keeps no copies.`}
         />
         <StatusTabs
           basePath={basePath}
@@ -186,10 +192,10 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
           </p>
         )}
         {(setup || overview.approvals.status === 'error') && (
-          <ApprovalsTab view={overview.approvals} />
+          <ApprovalsTab view={overview.approvals} agents={overview.agents} />
         )}
         {tab === 'approvals' ? (
-          <ApprovalsTab view={overview.approvals} />
+          <ApprovalsTab view={overview.approvals} agents={overview.agents} />
         ) : active ? (
           <MailboxTab view={active.mailbox} folder={active.folder} />
         ) : null}

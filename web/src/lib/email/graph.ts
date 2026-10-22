@@ -126,12 +126,13 @@ export interface ApprovalList {
 export async function listApprovals(
   token: string,
   senders: string[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  agentIds: ReadonlyMap<string, string> = new Map()
 ): Promise<ApprovalList> {
   const since = new Date(now.getTime() - HISTORY_DAYS * 24 * 60 * 60 * 1000);
   const query = new URLSearchParams({
     $filter: requestFilter(senders, since),
-    $select: 'id,subject,receivedDateTime,parentFolderId,body',
+    $select: 'id,subject,from,receivedDateTime,parentFolderId,body',
     $expand: REQUEST_PROPS_EXPAND,
     $top: String(PAGE_SIZE),
   });
@@ -150,7 +151,12 @@ export async function listApprovals(
   }
   const folder = await deleted;
   return {
-    items: sortApprovals(requests.map((r) => toApproval(r, folder, now))),
+    items: sortApprovals(
+      requests.map((r) => ({
+        ...toApproval(r, folder, now),
+        agentId: agentIds.get(r.from?.emailAddress?.address?.trim().toLowerCase() ?? ''),
+      }))
+    ),
     incomplete: Boolean(next),
   };
 }
@@ -209,7 +215,8 @@ export async function getApprovalDetail(
   token: string,
   messageId: string,
   senders: string[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  agentIds: ReadonlyMap<string, string> = new Map()
 ): Promise<EmailApprovalDetail | null> {
   const request = await getRequest(token, messageId, senders);
   if (!request) return null;
@@ -227,6 +234,9 @@ export async function getApprovalDetail(
   const summary = toApproval(request, deleted, now);
   return {
     ...summary,
+    agentId:
+      agentIds.get(request.from?.emailAddress?.address?.trim().toLowerCase() ?? '') ??
+      agentIds.get(held?.from?.emailAddress?.address?.trim().toLowerCase() ?? ''),
     subject: held?.subject ? held.subject : summary.subject,
     ...(held?.from?.emailAddress?.address ? { from: addresses([held.from])[0] } : {}),
     to: addresses(held?.toRecipients),

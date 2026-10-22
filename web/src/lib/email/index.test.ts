@@ -142,7 +142,50 @@ it('shows consent state separately for every mailbox', async () => {
   person.getToken = async () =>
     `h.${Buffer.from(JSON.stringify({ scp: 'User.Read' })).toString('base64url')}.s`;
   expect((await getEmailsOverview(person)).mailboxes).toEqual([
-    { status: 'no-consent', mailbox: 'accounts@example.com', capture: true },
+    { status: 'no-consent', mailbox: 'accounts@example.com', agentId: 'bookie', capture: true },
   ]);
   expect(readMailbox).not.toHaveBeenCalled();
+});
+
+it('merges and de-duplicates all agents’ senders for approvals, counts and decisions', async () => {
+  const { resolveSenders } = await import('./graph');
+  vi.mocked(resolveSenders).mockImplementation(async (_token, mailbox) => [
+    mailbox,
+    'shared-alias@example.com',
+  ]);
+  settings.mockResolvedValue({
+    email: {
+      agents: [
+        { id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' },
+        { id: 'sam', displayName: 'Sam', mailbox: 'sam@example.com' },
+      ],
+      sharedMailboxes: [{ address: 'hello@example.com', agentId: 'sam' }],
+    },
+  });
+  const person = auth();
+  const view = await getEmailsOverview(person);
+  const senders = ['ava@example.com', 'shared-alias@example.com', 'sam@example.com'];
+  expect(isApprover).toHaveBeenCalledWith('opaque-token', senders);
+  expect(listApprovals).toHaveBeenCalledWith(
+    'opaque-token',
+    senders,
+    expect.any(Date),
+    new Map([
+      ['ava@example.com', 'ava'],
+      ['shared-alias@example.com', 'ava'],
+      ['sam@example.com', 'sam'],
+    ])
+  );
+  expect(view.agents.map((agent) => agent.displayName)).toEqual(['Ava', 'Sam']);
+  expect(view.mailboxes[0].agentId).toBe('sam');
+  await pendingApprovalCount(person);
+  expect(listApprovals).toHaveBeenLastCalledWith('opaque-token', senders);
+  await decideEmailApproval(person, 'request-1', 'approve');
+  expect(decideApproval).toHaveBeenCalledWith(
+    'opaque-token',
+    'request-1',
+    senders,
+    'approve',
+    undefined
+  );
 });

@@ -21,10 +21,11 @@ import type {
 const HOUR = 60 * 60 * 1000;
 
 export const DEMO_AGENT_ADDRESS = 'bookie@contoso.example';
+export const DEMO_AGENTS = [{ id: 'bookie', displayName: 'Bookie', mailbox: DEMO_AGENT_ADDRESS }];
 export const DEMO_ACCOUNTS_MAILBOX = 'accounts@contoso.example';
 
 export const DEMO_SHARED_MAILBOXES: SharedMailbox[] = [
-  { address: DEMO_ACCOUNTS_MAILBOX, capture: true },
+  { address: DEMO_ACCOUNTS_MAILBOX, agentId: 'bookie', capture: true },
   { address: 'hello@contoso.example', label: 'Enquiries' },
 ];
 
@@ -115,6 +116,7 @@ function materialise(sample: Sample, decisions: DemoDecisions, now: Date): Email
   const { hoursAgo: _hoursAgo, status: _status, ...rest } = sample;
   return {
     ...rest,
+    agentId: 'bookie',
     requestedAt: new Date(requested).toISOString(),
     expiresAt: new Date(expires).toISOString(),
     status,
@@ -226,13 +228,14 @@ export function demoEmailsOverview(
   now: Date = new Date()
 ): EmailsOverview {
   return {
-    agentAddress: DEMO_AGENT_ADDRESS,
+    agents: DEMO_AGENTS,
     demo: true,
     approvals: { isApprover: true, status: 'ok', items: demoApprovals(decisions, now) },
     mailboxes: [
       {
         status: 'ok',
         capture: true,
+        agentId: 'bookie',
         mailbox: DEMO_ACCOUNTS_MAILBOX,
         folders: MAILBOX_FOLDERS.map((folder) => ({
           ...folder,

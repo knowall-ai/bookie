@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/Field';
 import { EmptyState } from '@/components/ui/States';
 import { MAX_REASON_LENGTH } from '@/lib/email/approvals';
 import type {
+  MailAgent,
   ApprovalStatus,
   EmailAddress,
   EmailApproval,
@@ -36,7 +37,7 @@ const STATUS: Record<ApprovalStatus, { label: string; tone: Tone; title?: string
   expired: {
     label: 'Expired',
     tone: 'neutral',
-    title: 'Nobody decided within two days, so Exchange returned it to Bookie',
+    title: 'Nobody decided within two days, so Exchange returned it to the sending agent',
   },
 };
 
@@ -119,6 +120,8 @@ function When({ iso, prefix = '' }: { iso: string; prefix?: string }) {
 
 function ApprovalRow({
   item,
+  agentName,
+  showAgent,
   expanded,
   onToggle,
   busy,
@@ -126,6 +129,8 @@ function ApprovalRow({
   onReject,
 }: {
   item: EmailApproval;
+  agentName: string;
+  showAgent: boolean;
   expanded: boolean;
   onToggle: () => void;
   busy: boolean;
@@ -172,6 +177,7 @@ function ApprovalRow({
           </span>
           <span className="min-w-0 flex-1">
             <span className="text-ink block truncate font-medium">{item.subject}</span>
+            {showAgent && <span className="text-muted block text-sm">From {agentName}</span>}
             <span className="text-body mt-0.5 block truncate text-sm">
               To {item.recipients.join(', ') || 'recipients not shown by Exchange'}
               <span className="text-muted">
@@ -238,7 +244,7 @@ function ApprovalRow({
       {expanded && rejecting && pending && (
         <div className="border-line space-y-3 border-t p-4">
           <label htmlFor={`${bodyId}-reason`} className="text-body block text-sm font-medium">
-            Why are you rejecting it? Bookie gets this with the rejection notice and passes it on.
+            Why are you rejecting it? {agentName} gets this with the rejection notice.
           </label>
           <Textarea
             id={`${bodyId}-reason`}
@@ -246,7 +252,7 @@ function ApprovalRow({
             maxLength={MAX_REASON_LENGTH}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="What should Bookie change before sending again?"
+            placeholder={`What should ${agentName} change before sending again?`}
             autoFocus
           />
           <div className="flex justify-end gap-2">
@@ -281,7 +287,10 @@ function ApprovalRow({
  * opens to the full email; Approve (confirmed) or Reject with a reason sends the same
  * vote Outlook's buttons do. Pending first; the last two weeks' decided ones below.
  */
-export function ApprovalsList({ items }: { items: EmailApproval[] }) {
+export function ApprovalsList({ items, agents }: { items: EmailApproval[]; agents: MailAgent[] }) {
+  const agentName = (item: EmailApproval) =>
+    agents.find((a) => a.id === item.agentId)?.displayName ??
+    (agents.length === 1 ? agents[0].displayName : 'The agent');
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<EmailApproval | null>(null);
@@ -306,7 +315,7 @@ export function ApprovalsList({ items }: { items: EmailApproval[] }) {
       toast.success(
         decision === 'approve'
           ? 'Approved. Exchange is sending the email.'
-          : 'Rejected. Bookie will get your reason.'
+          : `Rejected. ${agentName(item)} will get your reason.`
       );
       // The Email tab's badge: drop its cached count so it re-reads now.
       try {
@@ -325,6 +334,8 @@ export function ApprovalsList({ items }: { items: EmailApproval[] }) {
     <ApprovalRow
       key={item.id}
       item={item}
+      agentName={agentName(item)}
+      showAgent={agents.length > 1}
       expanded={expanded === item.id}
       onToggle={() => setExpanded((e) => (e === item.id ? null : item.id))}
       busy={busy && busyId === item.id}
@@ -339,7 +350,7 @@ export function ApprovalsList({ items }: { items: EmailApproval[] }) {
         <EmptyState
           icon={<MailCheck className="h-6 w-6" />}
           title="Nothing waiting for you"
-          body="When Exchange holds an email Bookie sends outside your organisation, it appears here for you to approve or reject."
+          body={`When Exchange holds an email ${agents.length === 1 ? agents[0].displayName + ' sends' : 'an agent sends'} outside your organisation, it appears here for you to approve or reject.`}
         />
       ) : (
         <ul className="space-y-3" aria-label="Awaiting approval">

@@ -13,6 +13,7 @@ beforeEach(() => vi.clearAllMocks());
 
 it('hides Approvals and defaults to the accounts inbox for non-approvers', async () => {
   vi.mocked(getEmailsOverview).mockResolvedValue({
+    agents: [{ id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' }],
     approvals: { status: 'ok', isApprover: false, items: [] },
     mailboxes: [
       {
@@ -33,6 +34,7 @@ it('hides Approvals and defaults to the accounts inbox for non-approvers', async
 
 it('shows one empty state when neither mailbox is available to the person', async () => {
   vi.mocked(getEmailsOverview).mockResolvedValue({
+    agents: [{ id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' }],
     approvals: { status: 'ok', isApprover: false, items: [] },
     mailboxes: [{ status: 'no-access', mailbox: 'accounts@example.com' }],
   });
@@ -43,8 +45,8 @@ it('shows one empty state when neither mailbox is available to the person', asyn
 
 it('keeps setup explanations visible without an Approvals tab', async () => {
   vi.mocked(getEmailsOverview).mockResolvedValue({
+    agents: [{ id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' }],
     approvals: { status: 'no-consent' },
-    agentAddress: 'bookie@example.com',
     mailboxes: [{ status: 'no-consent', mailbox: 'hello@example.com' }],
   });
   const html = renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }));
@@ -69,6 +71,7 @@ it.each(['no-access', 'no-consent', 'error'] as const)(
   'shows %s inside the selected mailbox tab',
   async (status) => {
     vi.mocked(getEmailsOverview).mockResolvedValue({
+      agents: [{ id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' }],
       approvals: { status: 'ok', isApprover: false, items: [] },
       mailboxes: [
         { status: 'ok', mailbox: 'accounts@example.com', folders: [] },
@@ -92,6 +95,7 @@ it.each(['no-access', 'no-consent', 'error'] as const)(
 
 it('links to Settings when no mailboxes are configured', async () => {
   vi.mocked(getEmailsOverview).mockResolvedValue({
+    agents: [],
     approvals: { status: 'not-configured' },
     mailboxes: [],
   });
@@ -101,11 +105,41 @@ it('links to Settings when no mailboxes are configured', async () => {
 
 it('shows nothing available to a non-approver with only an agent address', async () => {
   vi.mocked(getEmailsOverview).mockResolvedValue({
-    agentAddress: 'bookie@example.com',
+    agents: [{ id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' }],
     approvals: { status: 'ok', isApprover: false, items: [] },
     mailboxes: [],
   });
   expect(renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }))).toContain(
     'Nothing here for you'
+  );
+});
+
+it.each([1, 2])('uses configured names for %s agents', async (count) => {
+  const agents = [
+    { id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' },
+    { id: 'sam', displayName: 'Sam', mailbox: 'sam@example.com' },
+  ].slice(0, count);
+  vi.mocked(getEmailsOverview).mockResolvedValue({
+    agents,
+    approvals: { status: 'ok', isApprover: true, items: [] },
+    mailboxes: [],
+  });
+  const html = renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }));
+  expect(html).toContain(
+    count === 1
+      ? 'Ava’s emails waiting for your approval'
+      : 'Agents’ emails waiting for your approval'
+  );
+  expect(html).not.toContain('Bookie');
+  vi.mocked(getEmailsOverview).mockResolvedValue({
+    agents,
+    approvals: { status: 'ok', isApprover: false, items: [] },
+    mailboxes: [],
+  });
+  const empty = renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }));
+  expect(empty).toContain(
+    count === 1
+      ? 'Ava’s held emails go to the approvers set in Exchange'
+      : 'Held emails go to the approvers set in Exchange'
   );
 });

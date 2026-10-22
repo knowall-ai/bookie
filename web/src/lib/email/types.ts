@@ -7,17 +7,27 @@
  * can be copied between the two unchanged.
  */
 
-/** Shared with knowall-ai/sallie: a mailbox the agent reads. */
+/** Shared with knowall-ai/sallie: an agent with its own sending mailbox. */
+export interface MailAgent {
+  id: string;
+  displayName: string;
+  mailbox: string;
+  teamsUser?: string;
+}
+
+/** Shared with knowall-ai/sallie: a mailbox an agent reads. */
 export interface SharedMailbox {
   address: string;
   label?: string;
+  /** The agent that triages it. */
+  agentId?: string;
   /** Bookie only: bill capture files into this one. */
   capture?: true;
 }
 
 /** Shared with knowall-ai/sallie, which stores this shape in Business Central. */
 export interface AgentMailSetup {
-  agentMailbox: string;
+  agents: MailAgent[];
   sharedMailboxes: SharedMailbox[];
 }
 
@@ -32,6 +42,7 @@ export interface EmailAddress {
 
 /** One of Bookie's outgoing emails that Exchange held for the signed-in moderator. */
 export interface EmailApproval {
+  agentId?: string;
   /** Graph id of the moderation request in the moderator's mailbox */
   id: string;
   /** The held email's subject (the request's "Approval requested:" prefix removed) */
@@ -96,7 +107,7 @@ export interface MailboxFolderView {
 }
 
 /** A shared mailbox and its independently loaded state. */
-export type MailboxView = { mailbox: string; label?: string; capture?: true } & (
+export type MailboxView = { mailbox: string; label?: string; agentId?: string; capture?: true } & (
   | { status: 'no-consent' }
   | { status: 'no-access' }
   | { status: 'ok'; folders: MailboxFolderView[] }
@@ -104,8 +115,8 @@ export type MailboxView = { mailbox: string; label?: string; capture?: true } & 
 );
 
 export interface EmailsOverview {
-  /** Bookie's own address, as set in Settings. */
-  agentAddress?: string;
+  /** Agents configured in Settings. */
+  agents: MailAgent[];
   approvals: ApprovalsView;
   mailboxes: MailboxView[];
   /** Sample data (the demo organisation). */

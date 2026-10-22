@@ -1,5 +1,5 @@
 import type { EmailSettings } from '@/lib/config/types';
-import type { SharedMailbox } from './types';
+import type { AgentMailSetup } from './types';
 // Reading a shared mailbox (Bookie's accounts@) as the signed-in person: pure
 // helpers, shared with knowall-ai/sallie (whose portal runs them in the browser),
 // so no Node or server-only imports. Keep the two copies in step.
@@ -117,14 +117,24 @@ export function canModerate(scopes: Set<string> | null): boolean {
 }
 
 /** Resolve per-tenant settings, preserving legacy configuration on reads only. */
-export function mailSetup(email?: EmailSettings): {
-  agentMailbox?: string;
-  sharedMailboxes: SharedMailbox[];
-} {
+export function mailSetup(email?: EmailSettings): AgentMailSetup {
+  const legacyAgent = !email?.agents && !!email?.agentAddress;
   return {
-    agentMailbox: email?.agentAddress,
+    agents:
+      email?.agents ??
+      (email?.agentAddress
+        ? [{ id: 'bookie', displayName: 'Bookie', mailbox: email.agentAddress }]
+        : []),
     sharedMailboxes:
       email?.sharedMailboxes ??
-      (email?.accountsMailbox ? [{ address: email.accountsMailbox, capture: true }] : []),
+      (email?.accountsMailbox
+        ? [
+            {
+              address: email.accountsMailbox,
+              ...(legacyAgent ? { agentId: 'bookie' } : {}),
+              capture: true,
+            },
+          ]
+        : []),
   };
 }

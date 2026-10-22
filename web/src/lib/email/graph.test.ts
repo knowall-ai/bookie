@@ -494,3 +494,51 @@ it.each([429, 503])('does not retry a vote send on %s', async (status) => {
   ).rejects.toThrow(`Graph ${status} decision send`);
   expect(calls.filter((call) => path(call.url).endsWith('/send'))).toHaveLength(1);
 });
+
+it('maps multiple agents from request senders, including aliases and case differences', async () => {
+  const agentIds = new Map([
+    ['agent@example.com', 'ava'],
+    ['alias@example.com', 'sam'],
+  ]);
+  stubGraph((url) =>
+    path(url) === '/me/messages'
+      ? Response.json({
+          value: [
+            REQUEST,
+            { ...REQUEST, id: 'req-2', from: { emailAddress: { address: ' ALIAS@EXAMPLE.COM ' } } },
+          ],
+        })
+      : undefined
+  );
+  const { items } = await listApprovals('token', [...agentIds.keys()], NOW, agentIds);
+  expect(items.map((item) => [item.id, item.agentId])).toEqual([
+    ['req-1', 'ava'],
+    ['req-2', 'sam'],
+  ]);
+  expect(
+    calls.find((c) => path(c.url) === '/me/messages')?.url.searchParams.get('$select')
+  ).toContain('from');
+});
+
+it('falls back to the held From when the request sender has no agent mapping', async () => {
+  stubGraph((url) => {
+    if (path(url) === '/me/messages/req-1') return Response.json(REQUEST);
+    if (path(url) === '/me/messages/req-1/attachments')
+      return Response.json({
+        value: [
+          {
+            '@odata.type': '#microsoft.graph.itemAttachment',
+            item: { from: { emailAddress: { address: 'ALIAS@EXAMPLE.COM' } } },
+          },
+        ],
+      });
+  });
+  const detail = await getApprovalDetail(
+    'token',
+    'req-1',
+    SENDERS,
+    NOW,
+    new Map([['alias@example.com', 'ava']])
+  );
+  expect(detail?.agentId).toBe('ava');
+});

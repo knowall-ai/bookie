@@ -176,8 +176,7 @@ export async function saveEmailSettingsAction(
 ): Promise<ActionResult<EmailSettings>> {
   try {
     const auth = await requireAuth('/portal/settings');
-    const { agentAddress, sharedMailboxes } = emailSettingsSchema.parse(input);
-    const saved = { agentAddress: agentAddress || undefined, sharedMailboxes };
+    const saved = emailSettingsSchema.parse(input);
     await updateEmailSettings(auth, saved);
     revalidatePath('/portal', 'layout');
     return { ok: true, data: saved };

@@ -82,9 +82,9 @@ describe('inboxLabel', () => {
 
 describe('mailSetup', () => {
   it('handles absent settings and agent-only settings', () => {
-    expect(mailSetup()).toEqual({ agentMailbox: undefined, sharedMailboxes: [] });
+    expect(mailSetup()).toEqual({ agents: [], sharedMailboxes: [] });
     expect(mailSetup({ agentAddress: 'bookie@example.com' })).toEqual({
-      agentMailbox: 'bookie@example.com',
+      agents: [{ id: 'bookie', displayName: 'Bookie', mailbox: 'bookie@example.com' }],
       sharedMailboxes: [],
     });
   });
@@ -98,4 +98,20 @@ describe('mailSetup', () => {
     expect(mailSetup({ ...legacy, sharedMailboxes: rows }).sharedMailboxes).toEqual(rows);
     expect(legacy).toEqual({ accountsMailbox: 'accounts@example.com' });
   });
+});
+
+it('assigns legacy capture only to a migrated legacy agent and honours stored empty lists', () => {
+  const legacy = { agentAddress: 'bookie@example.com', accountsMailbox: 'accounts@example.com' };
+  expect(mailSetup(legacy).sharedMailboxes).toEqual([
+    { address: legacy.accountsMailbox, agentId: 'bookie', capture: true },
+  ]);
+  expect(mailSetup({ ...legacy, agents: [], sharedMailboxes: [] })).toEqual({
+    agents: [],
+    sharedMailboxes: [],
+  });
+  expect(mailSetup({ ...legacy, agents: [] }).sharedMailboxes).toEqual([
+    { address: legacy.accountsMailbox, capture: true },
+  ]);
+  const agents = [{ id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' }];
+  expect(mailSetup({ ...legacy, agents }).agents).toEqual(agents);
 });
