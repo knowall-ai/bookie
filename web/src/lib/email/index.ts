@@ -16,13 +16,14 @@ import {
   resolveSenders,
   type DecideResult,
 } from './graph';
-import { canModerate, canReadShared, tokenScopes } from './mailbox';
+import { canModerate, canReadShared, tokenScopes, mailSetup, MAILBOX_FOLDERS } from './mailbox';
 import type {
   ApprovalDecision,
   ApprovalsView,
   EmailApprovalDetail,
   EmailsOverview,
   MailboxView,
+  SharedMailbox,
 } from './types';
 
 /**
@@ -69,18 +70,23 @@ async function approvalsView(
 async function mailboxView(
   token: string,
   scopes: Set<string> | null,
-  mailbox?: string
+  shared: SharedMailbox
 ): Promise<MailboxView> {
-  if (!mailbox) return { status: 'not-configured' };
-  if (!canReadShared(scopes)) return { status: 'no-consent', mailbox };
+  const { address: mailbox, ...metadata } = shared;
+  const identity = { mailbox, ...metadata };
+  if (!canReadShared(scopes)) return { status: 'no-consent', ...identity };
   try {
-    const read = await readMailbox(token, mailbox);
+    const read = await readMailbox(
+      token,
+      mailbox,
+      shared.capture ? MAILBOX_FOLDERS : MAILBOX_FOLDERS.filter((f) => f.key === 'inbox')
+    );
     return read.ok
-      ? { status: 'ok', mailbox, folders: read.folders }
-      : { status: 'no-access', mailbox };
+      ? { status: 'ok', ...identity, folders: read.folders }
+      : { status: 'no-access', ...identity };
   } catch (error) {
-    console.warn('Accounts mailbox:', error instanceof Error ? error.name : 'failed');
-    return { status: 'error', mailbox, error: FAILED };
+    console.warn('Shared mailbox:', error instanceof Error ? error.name : 'failed');
+    return { status: 'error', ...identity, error: FAILED };
   }
 }
 
@@ -118,15 +124,16 @@ export async function getEmailsOverview(auth: AuthContext): Promise<EmailsOvervi
     console.warn("Bookie's emails:", error instanceof Error ? error.name : 'failed');
     return {
       approvals: { status: 'error', error: FAILED },
-      mailbox: { status: 'error', mailbox: 'the accounts mailbox', error: FAILED },
+      mailboxes: [],
     };
   }
   const scopes = tokenScopes(token);
-  const [approvals, mailbox] = await Promise.all([
-    approvalsView(token, scopes, settings.agentAddress),
-    mailboxView(token, scopes, settings.accountsMailbox),
+  const { agentMailbox, sharedMailboxes } = mailSetup(settings);
+  const [approvals, mailboxes] = await Promise.all([
+    approvalsView(token, scopes, agentMailbox),
+    Promise.all(sharedMailboxes.map((mailbox) => mailboxView(token, scopes, mailbox))),
   ]);
-  return { agentAddress: settings.agentAddress, approvals, mailbox };
+  return { agentAddress: agentMailbox, approvals, mailboxes };
 }
 
 /** The held email; null when the id isn't one of Bookie's requests in the person's mailbox. */

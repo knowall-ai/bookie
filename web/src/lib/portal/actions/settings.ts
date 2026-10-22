@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { emailSettingsSchema } from './email-settings-schema';
+import type { EmailSettings } from '@/lib/config/types';
 import { requireAuth } from '@/lib/auth/context';
 import {
   addAccessPersonFromDirectory,
@@ -169,33 +171,16 @@ export async function setMembersSeeAllAction(value: boolean): Promise<ActionResu
 /* Bookie's emails (members only; enforced in lib/connections.ts).     */
 /* ------------------------------------------------------------------ */
 
-const mailboxSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(320)
-  .refine(
-    (v) => v === '' || z.string().email().safeParse(v).success,
-    'Enter a valid email address.'
-  );
-
-const emailSettingsSchema = z.strictObject({
-  agentAddress: mailboxSchema,
-  accountsMailbox: mailboxSchema,
-});
-
 export async function saveEmailSettingsAction(
   input: z.input<typeof emailSettingsSchema>
-): Promise<ActionResult> {
+): Promise<ActionResult<EmailSettings>> {
   try {
     const auth = await requireAuth('/portal/settings');
-    const { agentAddress, accountsMailbox } = emailSettingsSchema.parse(input);
-    await updateEmailSettings(auth, {
-      agentAddress: agentAddress || undefined,
-      accountsMailbox: accountsMailbox || undefined,
-    });
+    const { agentAddress, sharedMailboxes } = emailSettingsSchema.parse(input);
+    const saved = { agentAddress: agentAddress || undefined, sharedMailboxes };
+    await updateEmailSettings(auth, saved);
     revalidatePath('/portal', 'layout');
-    return { ok: true, data: undefined };
+    return { ok: true, data: saved };
   } catch (error) {
     return { ok: false, error: describeError(error) };
   }

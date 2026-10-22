@@ -195,7 +195,7 @@ export async function updateEmailSettings(auth: AuthContext, email: EmailSetting
   const settings = await store.getSettings();
   settings.email = {
     ...(email.agentAddress ? { agentAddress: email.agentAddress } : {}),
-    ...(email.accountsMailbox ? { accountsMailbox: email.accountsMailbox } : {}),
+    sharedMailboxes: email.sharedMailboxes ?? [],
   };
   await store.saveSettings(settings);
 }

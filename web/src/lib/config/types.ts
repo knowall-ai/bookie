@@ -1,3 +1,4 @@
+import type { SharedMailbox } from '@/lib/email/types';
 /**
  * What Bookie remembers about a tenant: its connections and settings. Never
  * accounting data. Stored, sealed, in the tenant's own Microsoft 365.
@@ -98,7 +99,7 @@ export interface TenantSettings {
   forecast?: Record<string, { planned: PlannedItem[] }>;
   /**
    * Bookie's emails (the Emails page): his own address, whose held external email
-   * moderators approve, and the shared mailbox bill capture reads. Addresses only;
+   * moderators approve, and the shared mailboxes he reads. Settings only;
    * the mail itself is read live and never stored.
    */
   email?: EmailSettings;
@@ -107,7 +108,8 @@ export interface TenantSettings {
 export interface EmailSettings {
   /** Bookie's mailbox, e.g. bookie@contoso.com (the agent's AGENT_UPN). */
   agentAddress?: string;
-  /** The accounts mailbox bill capture reads (the agent's ACCOUNTS_MAILBOX). */
+  sharedMailboxes?: SharedMailbox[];
+  /** Legacy, read only. */
   accountsMailbox?: string;
 }
 

@@ -14,11 +14,13 @@ beforeEach(() => vi.clearAllMocks());
 it('hides Approvals and defaults to the accounts inbox for non-approvers', async () => {
   vi.mocked(getEmailsOverview).mockResolvedValue({
     approvals: { status: 'ok', isApprover: false, items: [] },
-    mailbox: {
-      status: 'ok',
-      mailbox: 'accounts@example.com',
-      folders: [{ key: 'inbox', label: 'Inbox', path: '', messages: [] }],
-    },
+    mailboxes: [
+      {
+        status: 'ok',
+        mailbox: 'accounts@example.com',
+        folders: [{ key: 'inbox', label: 'Inbox', path: '', messages: [] }],
+      },
+    ],
   });
   const html = renderToStaticMarkup(
     await EmailsView({ basePath: '/portal/demo.contoso/email', status: 'approvals' })
@@ -26,13 +28,13 @@ it('hides Approvals and defaults to the accounts inbox for non-approvers', async
   expect(html).not.toContain('Held requests');
   expect(html).not.toContain('>Approvals');
   expect(html).toContain('Inbox messages');
-  expect(html).toContain('/portal/demo.contoso/email?status=inbox');
+  expect(html).toContain('/portal/demo.contoso/email?status=mb-0');
 });
 
 it('shows one empty state when neither mailbox is available to the person', async () => {
   vi.mocked(getEmailsOverview).mockResolvedValue({
     approvals: { status: 'ok', isApprover: false, items: [] },
-    mailbox: { status: 'no-access', mailbox: 'accounts@example.com' },
+    mailboxes: [{ status: 'no-access', mailbox: 'accounts@example.com' }],
   });
   const html = renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }));
   expect(html).toContain('Nothing here for you');
@@ -42,9 +44,68 @@ it('shows one empty state when neither mailbox is available to the person', asyn
 it('keeps setup explanations visible without an Approvals tab', async () => {
   vi.mocked(getEmailsOverview).mockResolvedValue({
     approvals: { status: 'no-consent' },
-    mailbox: { status: 'not-configured' },
+    agentAddress: 'bookie@example.com',
+    mailboxes: [{ status: 'no-consent', mailbox: 'hello@example.com' }],
   });
   const html = renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }));
   expect(html).toContain('Mail.ReadWrite');
   expect(html).not.toContain('>Approvals');
+});
+
+it('orders both inboxes before capture folders and selects a labelled mailbox', async () => {
+  const { demoEmailsOverview } = await import('@/lib/email/demo');
+  vi.mocked(getEmailsOverview).mockResolvedValue(demoEmailsOverview());
+  const html = renderToStaticMarkup(
+    await EmailsView({ basePath: '/portal/emails', status: 'mb-1' })
+  );
+  expect(html.indexOf('accounts@ inbox')).toBeLessThan(html.indexOf('Enquiries (hello@ inbox)'));
+  expect(html.indexOf('Enquiries (hello@ inbox)')).toBeLessThan(html.indexOf('Needs review'));
+  expect(html.indexOf('Needs review')).toBeLessThan(html.indexOf('Captured'));
+  expect(html).toContain('Inbox messages');
+  expect(html).not.toContain('Held requests');
+});
+
+it.each(['no-access', 'no-consent', 'error'] as const)(
+  'shows %s inside the selected mailbox tab',
+  async (status) => {
+    vi.mocked(getEmailsOverview).mockResolvedValue({
+      approvals: { status: 'ok', isApprover: false, items: [] },
+      mailboxes: [
+        { status: 'ok', mailbox: 'accounts@example.com', folders: [] },
+        { status, mailbox: 'hello@example.com', label: 'Enquiries', error: 'Try again' },
+      ],
+    });
+    const html = renderToStaticMarkup(
+      await EmailsView({ basePath: '/portal/emails', status: 'mb-1' })
+    );
+    expect(html).toContain('Enquiries (hello@ inbox)');
+    expect(html).toContain(
+      status === 'no-access'
+        ? 'You don’t have access'
+        : status === 'no-consent'
+          ? 'Mail.Read.Shared'
+          : 'Try again'
+    );
+    expect(html).not.toContain('Nothing here for you');
+  }
+);
+
+it('links to Settings when no mailboxes are configured', async () => {
+  vi.mocked(getEmailsOverview).mockResolvedValue({
+    approvals: { status: 'not-configured' },
+    mailboxes: [],
+  });
+  const html = renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }));
+  expect(html).toContain('/portal/settings#email');
+});
+
+it('shows nothing available to a non-approver with only an agent address', async () => {
+  vi.mocked(getEmailsOverview).mockResolvedValue({
+    agentAddress: 'bookie@example.com',
+    approvals: { status: 'ok', isApprover: false, items: [] },
+    mailboxes: [],
+  });
+  expect(renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }))).toContain(
+    'Nothing here for you'
+  );
 });

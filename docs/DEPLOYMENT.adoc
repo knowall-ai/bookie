@@ -153,13 +153,17 @@ scripts don't manage the app registration or its consents, so grant these in Ent
 
 === Bookie's emails
 
-The organisation's *Email* tab (`/portal/<org>/email`, members only) shows Bookie's external
-emails awaiting a moderator's approval and the accounts mailbox. The *Approvals* sub-tab is
-shown only when the person's own mailbox has received a Bookie moderation request; other members
-start on *accounts@ inbox*. Exchange controls access to both. `/portal/emails` redirects to the
-first organisation's Email tab, or shows the same view when there are no organisations. Set *Bookie's email address* and
-*Accounts mailbox* under *Settings › Bookie's emails*, and consent the mail permissions above. Each
-tab says which permission or setting it is missing; a person Exchange won't let into the mailbox
-sees "You don't have access", never an error. Nothing is stored: every view is read live, and the
-decision itself lives in Exchange, so approving here, in Outlook or in the Agents Portal's
-*Approvals* tab shows as decided everywhere.
+Bookie's mailbox and shared mailboxes are per-tenant settings under *Settings › Bookie's emails*,
+so the same setup works for any organisation. Set Bookie's own Microsoft 365 address and up to ten
+shared mailbox addresses, with optional labels. Choose at most one as the bill capture mailbox.
+The `AgentMailSetup` shape is shared with knowall-ai/sallie, which stores it in Business Central.
+
+The organisation's members-only *Email* tab (`/portal/<org>/email`) has one Inbox tab per shared
+mailbox, in settings order. Exchange decides who can open each; one inaccessible mailbox does not
+prevent the others loading. The capture mailbox also gets *Needs review* and *Captured*, reading
+`Bookie/Needs review` and `Bookie/Processed` beneath its Inbox. Other mailboxes read only the Inbox.
+The *Approvals* tab appears for moderators whose own mailbox has received a Bookie moderation
+request. Consent the mail permissions above; each mailbox explains missing consent or access.
+`/portal/emails` redirects to the first organisation, or shows the same view without organisations.
+Mail is read live and never stored. Decisions live in Exchange, so decisions here or in Outlook
+are reflected everywhere.

@@ -104,11 +104,12 @@ The full text is `agent/hermes/SOUL.md`. In short:
 Data extracted from documents is used live for that bill only; nothing is stored for AI training and
 nothing financial enters Reverie.
 
-The portal's members-only *Email* tab (`/portal/<org>/email`) shows the accounts mailbox's Inbox and bill
-capture's *Needs review* and *Processed* folders (as *Captured*), read live as the signed-in person,
-next to Bookie's external emails awaiting a moderator's approval. The *Approvals* sub-tab appears
-only for people whose own mailbox has received a Bookie moderation request; others start on
-*accounts@ inbox*. Exchange decides who can read the shared mailbox. The approval code in
+The portal's members-only *Email* tab (`/portal/<org>/email`) reads Bookie's mailbox and shared
+mailboxes from per-tenant Settings, so it works for any organisation. There is one Inbox tab per
+shared mailbox; Exchange decides who sees each. The selected capture mailbox also gets the bill
+capture folders, `Bookie/Needs review` and `Bookie/Processed` beneath its Inbox. Approvals appear
+for moderators. knowall-ai/sallie stores the same `AgentMailSetup` shape in Business Central.
+The approval code in
 `web/src/lib/email/` is a copy of the Agents Portal's (knowall-ai/agents-portal#143), kept in step by
 hand; each copied file says so in its header. See `docs/DEPLOYMENT.adoc`, "Bookie's
 emails".

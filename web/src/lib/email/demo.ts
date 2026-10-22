@@ -15,12 +15,18 @@ import type {
   EmailsOverview,
   MailboxFolderKey,
   MailboxMessage,
+  SharedMailbox,
 } from './types';
 
 const HOUR = 60 * 60 * 1000;
 
 export const DEMO_AGENT_ADDRESS = 'bookie@contoso.example';
 export const DEMO_ACCOUNTS_MAILBOX = 'accounts@contoso.example';
+
+export const DEMO_SHARED_MAILBOXES: SharedMailbox[] = [
+  { address: DEMO_ACCOUNTS_MAILBOX, capture: true },
+  { address: 'hello@contoso.example', label: 'Enquiries' },
+];
 
 const BOOKIE = { name: 'Bookie', address: DEMO_AGENT_ADDRESS };
 
@@ -223,16 +229,51 @@ export function demoEmailsOverview(
     agentAddress: DEMO_AGENT_ADDRESS,
     demo: true,
     approvals: { isApprover: true, status: 'ok', items: demoApprovals(decisions, now) },
-    mailbox: {
-      status: 'ok',
-      mailbox: DEMO_ACCOUNTS_MAILBOX,
-      folders: MAILBOX_FOLDERS.map((folder) => ({
-        ...folder,
-        messages: MAIL[folder.key].map(({ hoursAgo, ...m }) => ({
-          ...m,
-          receivedAt: new Date(now.getTime() - hoursAgo * HOUR).toISOString(),
+    mailboxes: [
+      {
+        status: 'ok',
+        capture: true,
+        mailbox: DEMO_ACCOUNTS_MAILBOX,
+        folders: MAILBOX_FOLDERS.map((folder) => ({
+          ...folder,
+          messages: MAIL[folder.key].map(({ hoursAgo, ...m }) => ({
+            ...m,
+            receivedAt: new Date(now.getTime() - hoursAgo * HOUR).toISOString(),
+          })),
         })),
-      })),
-    },
+      },
+      {
+        status: 'ok',
+        mailbox: 'hello@contoso.example',
+        label: 'Enquiries',
+        folders: [
+          {
+            key: 'inbox',
+            label: 'Inbox',
+            path: '',
+            messages: [
+              {
+                id: 'demo-enquiry-1',
+                subject: 'Fabrikam wholesale enquiry',
+                from: { name: 'Fabrikam', address: 'hello@fabrikam.example' },
+                preview: 'Could you send your wholesale coffee catalogue?',
+                hasAttachments: false,
+                isRead: false,
+                receivedAt: new Date(now.getTime() - HOUR).toISOString(),
+              },
+              {
+                id: 'demo-enquiry-2',
+                subject: 'Northwind delivery enquiry',
+                from: { name: 'Northwind', address: 'hello@northwind.example' },
+                preview: 'Which days do you deliver to our area?',
+                hasAttachments: false,
+                isRead: true,
+                receivedAt: new Date(now.getTime() - 2 * HOUR).toISOString(),
+              },
+            ],
+          },
+        ],
+      },
+    ],
   };
 }

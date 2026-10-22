@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthContext } from '@/lib/auth/context';
 import { decideEmailApproval, getEmailsOverview, pendingApprovalCount } from './index';
-import { decideApproval, isApprover, listApprovals } from './graph';
+import { decideApproval, isApprover, listApprovals, readMailbox } from './graph';
 
 const settings = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/config', () => ({ configStoreFor: () => ({ getSettings: settings }) }));
@@ -104,4 +104,45 @@ it.each([true, false])('exposes approver history: %s', async (approver) => {
   const view = await getEmailsOverview(auth());
   expect(view.approvals).toMatchObject({ status: 'ok', isApprover: approver });
   expect(listApprovals).toHaveBeenCalledTimes(approver ? 1 : 0);
+});
+
+it('reads shared mailboxes independently in order with capture folders only for the target', async () => {
+  settings.mockResolvedValue({
+    email: {
+      sharedMailboxes: [
+        { address: 'accounts@example.com', capture: true },
+        { address: 'hello@example.com', label: 'Enquiries' },
+        { address: 'other@example.com' },
+      ],
+    },
+  });
+  vi.mocked(readMailbox)
+    .mockRejectedValueOnce(new Error('private'))
+    .mockResolvedValueOnce({ ok: true, folders: [] })
+    .mockResolvedValueOnce({ ok: false, reason: 'no-access' });
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const view = await getEmailsOverview(auth());
+  expect(view.mailboxes).toMatchObject([
+    { status: 'error', mailbox: 'accounts@example.com', capture: true },
+    { status: 'ok', mailbox: 'hello@example.com', label: 'Enquiries' },
+    { status: 'no-access', mailbox: 'other@example.com' },
+  ]);
+  expect(
+    vi.mocked(readMailbox).mock.calls.map((call) => call[2]?.map((folder) => folder.key))
+  ).toEqual([['inbox', 'needs-review', 'captured'], ['inbox'], ['inbox']]);
+  expect(warn).toHaveBeenCalledWith('Shared mailbox:', 'Error');
+});
+it('returns an empty list without shared mailboxes', async () => {
+  settings.mockResolvedValue({ email: { sharedMailboxes: [] } });
+  expect((await getEmailsOverview(auth())).mailboxes).toEqual([]);
+  expect(readMailbox).not.toHaveBeenCalled();
+});
+it('shows consent state separately for every mailbox', async () => {
+  const person = auth();
+  person.getToken = async () =>
+    `h.${Buffer.from(JSON.stringify({ scp: 'User.Read' })).toString('base64url')}.s`;
+  expect((await getEmailsOverview(person)).mailboxes).toEqual([
+    { status: 'no-consent', mailbox: 'accounts@example.com', capture: true },
+  ]);
+  expect(readMailbox).not.toHaveBeenCalled();
 });

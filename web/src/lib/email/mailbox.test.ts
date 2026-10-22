@@ -1,3 +1,4 @@
+import { mailSetup } from './mailbox';
 import { describe, expect, it } from 'vitest';
 import {
   canModerate,
@@ -76,5 +77,25 @@ describe('inboxLabel', () => {
   it('names the inbox by its address, as Outlook does', () => {
     expect(inboxLabel('accounts@example.com')).toBe('accounts@ inbox');
     expect(inboxLabel(undefined)).toBe('Inbox');
+  });
+});
+
+describe('mailSetup', () => {
+  it('handles absent settings and agent-only settings', () => {
+    expect(mailSetup()).toEqual({ agentMailbox: undefined, sharedMailboxes: [] });
+    expect(mailSetup({ agentAddress: 'bookie@example.com' })).toEqual({
+      agentMailbox: 'bookie@example.com',
+      sharedMailboxes: [],
+    });
+  });
+  it('migrates legacy reads and gives an explicit list precedence', () => {
+    const legacy = { accountsMailbox: 'accounts@example.com' };
+    expect(mailSetup(legacy).sharedMailboxes).toEqual([
+      { address: 'accounts@example.com', capture: true },
+    ]);
+    expect(mailSetup({ ...legacy, sharedMailboxes: [] }).sharedMailboxes).toEqual([]);
+    const rows = [{ address: 'hello@example.com', label: 'Enquiries' }];
+    expect(mailSetup({ ...legacy, sharedMailboxes: rows }).sharedMailboxes).toEqual(rows);
+    expect(legacy).toEqual({ accountsMailbox: 'accounts@example.com' });
   });
 });

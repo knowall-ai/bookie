@@ -1,3 +1,5 @@
+import type { EmailSettings } from '@/lib/config/types';
+import type { SharedMailbox } from './types';
 // Reading a shared mailbox (Bookie's accounts@) as the signed-in person: pure
 // helpers, shared with knowall-ai/sallie (whose portal runs them in the browser),
 // so no Node or server-only imports. Keep the two copies in step.
@@ -112,4 +114,17 @@ export function canReadShared(scopes: Set<string> | null): boolean {
 /** Unknown scopes pass: Graph refuses if consent is missing. */
 export function canModerate(scopes: Set<string> | null): boolean {
   return !scopes || APPROVAL_SCOPES.every((s) => scopes.has(s));
+}
+
+/** Resolve per-tenant settings, preserving legacy configuration on reads only. */
+export function mailSetup(email?: EmailSettings): {
+  agentMailbox?: string;
+  sharedMailboxes: SharedMailbox[];
+} {
+  return {
+    agentMailbox: email?.agentAddress,
+    sharedMailboxes:
+      email?.sharedMailboxes ??
+      (email?.accountsMailbox ? [{ address: email.accountsMailbox, capture: true }] : []),
+  };
 }

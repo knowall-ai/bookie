@@ -57,17 +57,14 @@ function ApprovalsTab({ view }: { view: EmailsOverview['approvals'] }) {
   }
 }
 
-function MailboxTab({ view, folder }: { view: EmailsOverview['mailbox']; folder: string }) {
+function MailboxTab({
+  view,
+  folder,
+}: {
+  view: EmailsOverview['mailboxes'][number];
+  folder: string;
+}) {
   switch (view.status) {
-    case 'not-configured':
-      return (
-        <EmptyState
-          icon={<Settings2 className="h-6 w-6" />}
-          title="No accounts mailbox set"
-          body="Add the mailbox bill capture reads (such as accounts@) in Settings to see it here."
-          action={<SettingsLink />}
-        />
-      );
     case 'no-consent':
       return (
         <EmptyState
@@ -107,32 +104,50 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
     overview.approvals.status === 'ok'
       ? overview.approvals.items.filter((i) => i.status === 'pending').length
       : undefined;
-  const folders =
-    overview.mailbox.status === 'ok'
-      ? overview.mailbox.folders
-      : [
-          { key: 'inbox', label: 'Inbox' },
-          { key: 'needs-review', label: 'Needs review' },
-          { key: 'captured', label: 'Captured' },
-        ];
   const showApprovals = overview.approvals.status === 'ok' && overview.approvals.isApprover;
-  const tab = ['inbox', 'needs-review', 'captured'].includes(status ?? '')
-    ? status!
-    : showApprovals
-      ? 'approvals'
-      : 'inbox';
+  const capture = overview.mailboxes.find((mailbox) => mailbox.capture);
+  const entries = [
+    ...overview.mailboxes.map((mailbox, index) => ({
+      value: `mb-${index}`,
+      mailbox,
+      folder: 'inbox',
+      label: mailbox.label
+        ? `${mailbox.label} (${inboxLabel(mailbox.mailbox)})`
+        : inboxLabel(mailbox.mailbox),
+    })),
+    ...(capture
+      ? [
+          {
+            value: 'needs-review',
+            mailbox: capture,
+            folder: 'needs-review',
+            label: 'Needs review',
+          },
+          { value: 'captured', mailbox: capture, folder: 'captured', label: 'Captured' },
+        ]
+      : []),
+  ];
+  const selected = entries.find((entry) => entry.value === status);
+  const tab = selected?.value ?? (showApprovals ? 'approvals' : entries[0]?.value);
+  const active = entries.find((entry) => entry.value === tab);
   const setup =
     overview.approvals.status === 'not-configured' || overview.approvals.status === 'no-consent';
   if (
+    !overview.agentAddress &&
+    overview.mailboxes.length === 0 &&
+    overview.approvals.status === 'not-configured'
+  )
+    return <ApprovalsTab view={overview.approvals} />;
+  if (
     !showApprovals &&
-    !setup &&
-    overview.approvals.status === 'ok' &&
-    overview.mailbox.status === 'no-access'
+    ((overview.mailboxes.length > 0 &&
+      overview.mailboxes.every((mailbox) => mailbox.status === 'no-access')) ||
+      (overview.mailboxes.length === 0 && overview.agentAddress))
   )
     return (
       <EmptyState
         title="Nothing here for you"
-        body="Bookie’s held emails go to the approvers set in Exchange, and the accounts mailbox is open to the people Exchange allows."
+        body="Bookie’s held emails go to the approvers set in Exchange, and shared mailboxes are open to the people Exchange allows."
       />
     );
 
@@ -142,34 +157,27 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
         <PageHeader
           title="Email"
           crumbs={[{ label: 'My organisations', href: '/portal' }]}
-          meta={
-            <>
-              Bookie’s emails waiting for your approval, and the{' '}
-              {overview.mailbox.status !== 'not-configured' ? overview.mailbox.mailbox : 'accounts'}{' '}
-              mailbox he reads invoices from. Read live from Microsoft 365; Bookie keeps no copies.
-            </>
-          }
+          meta="Bookie's emails waiting for your approval, and the shared mailboxes he reads. Read live from Microsoft 365; Bookie keeps no copies."
         />
         <StatusTabs
           basePath={basePath}
-          current={tab === 'approvals' ? 'all' : tab}
+          current={tab === 'approvals' ? 'all' : (tab ?? 'all')}
           tabs={[
             ...(showApprovals ? [{ value: 'all', label: 'Approvals', count: pending }] : []),
-            ...folders.map((f) => ({
-              value: f.key,
-              label:
-                f.key === 'inbox'
-                  ? inboxLabel(
-                      overview.mailbox.status === 'not-configured'
-                        ? undefined
-                        : overview.mailbox.mailbox
-                    )
-                  : f.label,
-              count:
-                'messages' in f && !f.missing && !f.noAccess && !f.more
-                  ? f.messages.length
-                  : undefined,
-            })),
+            ...entries.map((entry) => {
+              const folder =
+                entry.mailbox.status === 'ok'
+                  ? entry.mailbox.folders.find((f) => f.key === entry.folder)
+                  : undefined;
+              return {
+                value: entry.value,
+                label: entry.label,
+                count:
+                  folder && !folder.missing && !folder.noAccess && !folder.more
+                    ? folder.messages.length
+                    : undefined,
+              };
+            }),
           ]}
         />
         {overview.demo && (
@@ -182,9 +190,9 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
         )}
         {tab === 'approvals' ? (
           <ApprovalsTab view={overview.approvals} />
-        ) : (
-          <MailboxTab view={overview.mailbox} folder={tab} />
-        )}
+        ) : active ? (
+          <MailboxTab view={active.mailbox} folder={active.folder} />
+        ) : null}
       </div>
     </>
   );

@@ -59,9 +59,18 @@ test.describe('Bookie’s emails', () => {
   test('shows the accounts inbox and bill capture folders', async ({ page }) => {
     await page.goto(PAGE);
     await page.getByRole('tab', { name: /accounts@ inbox/ }).click();
-    await expect(page).toHaveURL(/status=inbox/);
+    await expect(page).toHaveURL(/status=mb-0/);
     await expect(page.getByTestId('mailbox-message').first()).toContainText(
       'Invoice 7781 from Northwind Packaging'
+    );
+    await page.getByRole('tab', { name: /Enquiries \(hello@ inbox\)/ }).click();
+    await expect(page).toHaveURL(/status=mb-1/);
+    await expect(page.getByTestId('mailbox-message')).toHaveCount(2);
+    await expect(page.getByTestId('mailbox-message').first()).toContainText(
+      'Fabrikam wholesale enquiry'
+    );
+    await expect(page.getByTestId('mailbox-message').last()).toContainText(
+      'Northwind delivery enquiry'
     );
     await page.getByRole('tab', { name: /Needs review/ }).click();
     await expect(page).toHaveURL(/status=needs-review/);
@@ -73,8 +82,13 @@ test.describe('Bookie’s emails', () => {
 
   test('Settings has Bookie’s email addresses', async ({ page }) => {
     await page.goto('/portal/settings#email');
-    await expect(page.getByLabel('Bookie’s email address')).toHaveValue('bookie@contoso.example');
-    await expect(page.getByLabel('Accounts mailbox')).toHaveValue('accounts@contoso.example');
+    await expect(page.getByLabel('Bookie’s mailbox')).toHaveValue('bookie@contoso.example');
+    await expect(page.getByLabel('Mailbox 1 address')).toHaveValue('accounts@contoso.example');
+    await expect(page.getByLabel('Mailbox 2 address')).toHaveValue('hello@contoso.example');
+    await expect(page.getByRole('radio', { name: 'Bill capture files here' }).nth(0)).toBeChecked();
+    await expect(
+      page.getByRole('radio', { name: 'Bill capture files here' }).nth(1)
+    ).not.toBeChecked();
   });
 });
 
