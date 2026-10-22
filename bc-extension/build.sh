@@ -77,7 +77,7 @@ elif [[ "$SYMBOLS" == sandbox ]]; then
   ENVIRONMENT="${BC_ENVIRONMENT:-Sandbox}"
   RUNTIME="${BC_RUNTIME:-27.0.0.0}"
   TOKEN="$(az account get-access-token --resource https://api.businesscentral.dynamics.com --query accessToken -o tsv)"
-  for app in "System" "System Application" "Base Application" "Application"; do
+  for app in "System" "System Application" "Business Foundation" "Base Application" "Application"; do
     file="$CACHE/Microsoft_${app// /_}.app"
     [[ -s "$file" ]] && continue
     echo "Downloading symbols: $app"
