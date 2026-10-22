@@ -484,7 +484,12 @@ export function TopBar({
     async function load() {
       try {
         const saved = JSON.parse(sessionStorage.getItem(key) ?? 'null');
-        if (saved && saved.expires > Date.now() && Number.isInteger(saved.count)) {
+        if (
+          saved &&
+          saved.expires > Date.now() &&
+          Number.isInteger(saved.count) &&
+          saved.count >= 0
+        ) {
           if (!cancelled) setPending(saved.count);
           return;
         }
@@ -621,7 +626,7 @@ export function TopBar({
 }
 
 function PendingBadge({ count }: { count?: number }) {
-  return count ? (
+  return Number.isInteger(count) && count! > 0 ? (
     // Screen-reader text rather than aria-label: a label containing "email" made
     // getByLabel('Email') match the badge as well as form fields.
     <span className="bg-brand/15 text-brand-bright ml-1 rounded-full px-1.5 py-0.5 text-xs">
