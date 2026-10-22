@@ -74,6 +74,8 @@ test.describe('Bank account cards', () => {
 
       // Hovering the chart shows a day's balance.
       // Recharts sizes itself after hydration, so hover again until the tooltip answers.
+      // On screen first: mouse coordinates are the viewport's, and the card may sit below it.
+      await card.getByTestId('balance-chart').scrollIntoViewIfNeeded();
       await expect(async () => {
         const box = (await card.getByTestId('balance-chart').boundingBox())!;
         await page.mouse.move(box.x + 2, box.y + 2);
