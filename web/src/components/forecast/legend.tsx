@@ -8,7 +8,8 @@ export const FLOW = {
 } as const;
 
 /** The running balance: neutral ink, so it never borrows a flow's identity. */
-export const BALANCE_COLOUR = '#e2e8f0';
+/** The running balance: Bookie's brand green, like Thyme's spend line (blue and orange are the flows). */
+export const BALANCE_COLOUR = 'var(--color-brand-bright)';
 
 export const LAYER_NAMES: Record<ForecastLayer, string> = {
   known: 'Known',
@@ -92,8 +93,8 @@ export function ForecastLegend({ forecast }: { forecast: Forecast }) {
           <li className="flex items-center gap-1.5">
             <span
               aria-hidden
-              className="h-0.5 w-4 rounded-full"
-              style={{ background: BALANCE_COLOUR }}
+              className="w-4 border-t-2 border-dashed"
+              style={{ borderColor: BALANCE_COLOUR }}
             />
             Running balance
           </li>

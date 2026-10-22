@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Area,
   Bar,
   CartesianGrid,
   ComposedChart,
@@ -23,8 +24,9 @@ import { FLOW, LAYER_NAMES, LayerSwatch, BALANCE_COLOUR } from './legend';
  * home chart (dataviz palette checker on #111827: CVD ΔE 26.8, 3:1 contrast).
  * The layer is the secondary encoding: Known solid, Drafts translucent,
  * Planned outlined, Projected hatched, Pipeline translucent violet (income only).
- * The running balance is a neutral ink
- * line so it never competes with either flow's identity.
+ * The running balance is drawn like Thyme's forecasts: a brand-green area, today's
+ * balance as a solid dot and the forecast after it dashed with hollow dots. Green
+ * keeps it apart from both flows.
  */
 
 const LAYERS: ForecastLayer[] = ['known', 'draft', 'planned', 'projected', 'pipeline'];
@@ -236,6 +238,9 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
     <XAxis
       dataKey="short"
       hide={hide}
+      // Both panels place a period at the centre of its column, so each balance point sits
+      // directly above its bars.
+      scale="band"
       tickLine={false}
       axisLine={{ stroke: 'var(--color-line-strong)' }}
       tick={{ fill: 'var(--color-muted)', fontSize: 12 }}
@@ -284,24 +289,79 @@ export function ForecastChart({ forecast }: { forecast: Forecast }) {
       {hasBalance ? (
         <div className="h-56 sm:h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={points} syncId={syncId} margin={{ ...MARGIN, bottom: 10 }}>
+            <ComposedChart
+              data={points}
+              syncId={syncId}
+              margin={{ ...MARGIN, top: 22, bottom: 10 }}
+            >
               <CartesianGrid vertical={false} stroke="var(--color-line)" />
               {xAxis(true)}
               {yAxis(balanceAxis)}
+              <defs>
+                <linearGradient id="forecast-balance-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={BALANCE_COLOUR} stopOpacity={0.28} />
+                  <stop offset="100%" stopColor={BALANCE_COLOUR} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
               <ReferenceLine
                 y={0}
-                stroke="var(--color-faint)"
+                stroke="var(--color-danger)"
                 strokeWidth={1.5}
+                strokeDasharray="6 4"
                 ifOverflow="hidden"
+                label={{
+                  value: formatMoneyCompact(0, currency),
+                  position: 'insideTopRight',
+                  fill: 'var(--color-danger)',
+                  fontSize: 11,
+                }}
+              />
+              <ReferenceLine
+                x="Today"
+                stroke="var(--color-info)"
+                strokeOpacity={0.6}
+                strokeDasharray="3 3"
+                label={{ value: 'Today', position: 'top', fill: 'var(--color-info)', fontSize: 11 }}
               />
               {tooltip}
+              {/* Monotone: the curve passes through every real balance and never overshoots
+                  between them, so smoothing adds no highs or lows the forecast doesn't have. */}
+              <Area
+                dataKey="balance"
+                type="monotone"
+                stroke="none"
+                fill="url(#forecast-balance-fill)"
+                isAnimationActive={false}
+                activeDot={false}
+                tooltipType="none"
+              />
               <Line
                 dataKey="balance"
-                type="linear"
+                type="monotone"
                 stroke={BALANCE_COLOUR}
-                strokeWidth={2}
-                dot={{ r: 3, fill: BALANCE_COLOUR, stroke: 'var(--color-surface)', strokeWidth: 2 }}
-                activeDot={{ r: 5, stroke: 'var(--color-surface)', strokeWidth: 2 }}
+                strokeWidth={2.5}
+                strokeDasharray="7 5"
+                dot={(props: { cx?: number; cy?: number; index?: number }) =>
+                  props.cx === undefined || props.cy === undefined ? (
+                    <g key={`dot-${props.index}`} />
+                  ) : (
+                    <circle
+                      key={`dot-${props.index}`}
+                      cx={props.cx}
+                      cy={props.cy}
+                      r={props.index === 0 ? 5 : 3.5}
+                      fill={props.index === 0 ? BALANCE_COLOUR : 'var(--color-surface)'}
+                      stroke={BALANCE_COLOUR}
+                      strokeWidth={2}
+                    />
+                  )
+                }
+                activeDot={{
+                  r: 6,
+                  fill: BALANCE_COLOUR,
+                  stroke: 'var(--color-surface)',
+                  strokeWidth: 2,
+                }}
                 isAnimationActive={false}
               />
               {lowest && lowestPoint && (
