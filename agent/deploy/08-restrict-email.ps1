@@ -1,13 +1,15 @@
 # =============================================================================
-# Step 8: Restrict Email - Exchange Transport Rules
+# Step 8: Check Email - Exchange Transport Rules (check only)
 # Runs: Windows PowerShell (Exchange Online Management module)
 # =============================================================================
-# This script creates transport rules that prevent AI agents from sending or
-# receiving external email. The rules apply to all members of the "AI Agents"
-# security group.
-#
-# For Bookie this is a feature, not a limit: payment-chasing emails to customers are
-# drafts a person sends from their own mailbox (cash-advice skill), never sends by Bookie.
+# CHECK ONLY. Verifies the transport rules that hold AI agents' external email for approval and
+# warns loudly if they are wrong; it never creates or changes anything:
+#   "Moderate AI Agents External Outbound"  catch-all for the "AI Agents" group, owned by
+#       knowall-ai/sallie deploy/25. It may skip (ExceptIfFrom) only agents with a rule of their own.
+#   "Moderate External Outbound - Bookie"   Bookie's own rule and on/off switch, owned by step 14.
+# EMAIL_MODERATORS lists who should be on both. Exits 1 if external email could go out unmoderated
+# by mistake or the old block rule is back; Bookie's own rule switched off or missing only warns.
+# knowall-ai/sallie deploy/08 is the same check with Sallie's names: keep the two in step.
 # Supplier invoices still reach the shared mailbox accounts@ (not a group member);
 # Bookie reads them there through the FullAccess grant of step 10.
 # Adapted for Bookie from knowall-ai/poppie-hermes. Idempotent (existing rules/policies are kept).
@@ -28,6 +30,10 @@ function Get-ConfigValue {
 }
 
 $SecurityGroup   = Get-ConfigValue -Key "SECURITY_GROUP" -File $ConfigFile
+$AgentUPN        = Get-ConfigValue -Key "AGENT_UPN" -File $ConfigFile
+$AgentName       = Get-ConfigValue -Key "AGENT_DISPLAY_NAME" -File $ConfigFile
+if (-not $AgentName) { $AgentName = "Bookie" }
+$Moderators      = @((Get-ConfigValue -Key "EMAIL_MODERATORS" -File $ConfigFile) -split '[\s,;]+' | Where-Object { $_ })
 $AdminUPN        = $env:M365_ADMIN_UPN
 if (-not $AdminUPN) { $AdminUPN = Read-Host "Exchange admin UPN" }
 $InternalDomain  = Get-ConfigValue -Key "M365_DOMAIN" -File $ConfigFile
@@ -37,7 +43,7 @@ if (-not $InternalDomain -and $AdminUPN) {
     $InternalDomain = $AdminUPN.Split('@')[1]
 }
 
-Write-Host "==> Step 8: Restricting email for '$SecurityGroup' group members" -ForegroundColor Cyan
+Write-Host "==> Step 8: Checking email rules for '$SecurityGroup' group members" -ForegroundColor Cyan
 
 # Install the module if not already installed
 if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
@@ -47,49 +53,137 @@ if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
 
 # Connect to Exchange Online
 Write-Host "==> Connecting to Exchange Online as $AdminUPN..."
-Connect-ExchangeOnline -UserPrincipalName $AdminUPN
+# Linux and macOS have no embedded browser for the sign-in: use a device code there.
+if ($IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop') {
+    Connect-ExchangeOnline -UserPrincipalName $AdminUPN
+} else {
+    Connect-ExchangeOnline -UserPrincipalName $AdminUPN -Device
+}
 
 try {
-    # Block OUTBOUND external email from AI Agents
+    # CHECK ONLY: this script never creates or changes a transport rule.
+    #   "Moderate AI Agents External Outbound"  catch-all for the AI Agents group, owned by
+    #       knowall-ai/sallie deploy/25; it skips (ExceptIfFrom) agents with a rule of their own.
+    #   "Moderate External Outbound - Bookie"   Bookie's own rule, owned by step 14 here.
+    # Re-creating the old block rules would stop every agent's external email.
     $outboundRule = "Block AI Agents External Outbound"
-    $existingOutbound = Get-TransportRule -Identity $outboundRule -ErrorAction SilentlyContinue
-    if ($existingOutbound) {
-        Write-Host "    Rule '$outboundRule' already exists. Skipping."
-    } else {
-        Write-Host "==> Creating transport rule: $outboundRule"
-        New-TransportRule -Name $outboundRule `
-            -FromMemberOf $SecurityGroup `
-            -SentToScope NotInOrganization `
-            -RejectMessageReasonText "AI agents are not permitted to send external email." `
-            -Priority 0
+    $inboundRule  = "Block AI Agents External Inbound"
+    $catchAllRule = "Moderate AI Agents External Outbound"
+    $agentRule    = "Moderate External Outbound - $AgentName"
+    $problems = @()
+
+    # Rules store recipients as a name, alias or address: compare primary SMTP addresses.
+    function Resolve-Smtp([string]$Identity) {
+        $r = Get-Recipient -Identity $Identity -ErrorAction SilentlyContinue
+        if ($r) { return "$($r.PrimarySmtpAddress)".ToLower() }
+        return "$Identity (unresolved)".ToLower()
+    }
+    # Any value that is set counts, including a numeric 0 (e.g. ExceptIfSCLOver); a false switch or empty list doesn't.
+    function Test-Set($Value) {
+        return $null -ne $Value -and -not ($Value -is [string] -and $Value -eq '') -and
+            -not ($Value -is [bool] -and -not $Value) -and
+            -not ($Value -is [System.Collections.ICollection] -and $Value.Count -eq 0)
+    }
+    # A rule may hold mail only under exactly the conditions we expect: an extra condition (e.g.
+    # "subject contains") or exception would let other mail skip moderation.
+    function Get-ShapeProblems($Rule, [string[]]$Conditions, [string[]]$Exceptions) {
+        $issues = @()
+        if ($null -eq $Rule.PSObject.Properties['Conditions']) { return @("'$($Rule.Name)' doesn't report its conditions, so it can't be verified.") }
+        foreach ($c in @($Rule.Conditions | ForEach-Object { "$_".Split('.')[-1] })) {
+            if ($Conditions -notcontains $c) { $issues += "'$($Rule.Name)' has an extra condition: $c." }
+        }
+        foreach ($e in @($Rule.Exceptions | Where-Object { $_ } | ForEach-Object { "$_".Split('.')[-1] })) {
+            if ($Exceptions -notcontains $e) { $issues += "'$($Rule.Name)' has an unexpected exception: $e." }
+        }
+        return $issues
+    }
+    function Test-Moderators($Rule) {
+        $actual = @($Rule.ModerateMessageByUser | ForEach-Object { Resolve-Smtp "$_" })
+        if ($actual.Count -eq 0) { $script:problems += "'$($Rule.Name)' has no moderators." }
+        foreach ($m in $Moderators) {
+            if ($actual -notcontains (Resolve-Smtp $m)) {
+                $script:problems += "Expected moderator $m is not on '$($Rule.Name)' (has: $($actual -join ', '))."
+            }
+        }
     }
 
-    # Block INBOUND external email TO AI Agents
-    # Exception: Allow internal users to forward external emails to AI agents
-    # (When a colleague forwards an external email, the original external sender triggers the rule,
-    # but the -ExceptIfSenderDomainIs exception allows it because the forwarder is internal)
-    $inboundRule = "Block AI Agents External Inbound"
-    $existingInbound = Get-TransportRule -Identity $inboundRule -ErrorAction SilentlyContinue
-    if ($existingInbound) {
-        Write-Host "    Rule '$inboundRule' already exists. Updating exception for internal forwarding..."
-        Set-TransportRule -Identity $inboundRule `
-            -ExceptIfSenderDomainIs $InternalDomain
+    # 1. The catch-all must hold the group's external email
+    $catchAll = Get-TransportRule -Identity $catchAllRule -ErrorAction SilentlyContinue
+    if (-not $catchAll) {
+        $problems += "'$catchAllRule' is missing: run knowall-ai/sallie deploy/25-enable-email-moderation.ps1."
     } else {
-        Write-Host "==> Creating transport rule: $inboundRule"
-        Write-Host "    (with exception for forwarded emails from $InternalDomain)"
-        New-TransportRule -Name $inboundRule `
-            -SentToMemberOf $SecurityGroup `
-            -FromScope NotInOrganization `
-            -ExceptIfSenderDomainIs $InternalDomain `
-            -RejectMessageReasonText "External email to AI agents is not permitted." `
-            -Priority 1
+        if ($catchAll.State -ne 'Enabled') { $problems += "'$catchAllRule' is $($catchAll.State), not Enabled." }
+        if ("$($catchAll.Mode)" -ne 'Enforce') { $problems += "'$catchAllRule' is in $($catchAll.Mode) mode, not Enforce." }
+        if ("$($catchAll.SentToScope)" -ne 'NotInOrganization') { $problems += "'$catchAllRule' is not scoped to recipients outside the organisation." }
+        # The group by identity, never display text: "AI Agents Test" must not pass for "AI Agents".
+        $group = Get-Recipient -Identity $SecurityGroup -ErrorAction SilentlyContinue
+        $ruleGroups = @($catchAll.FromMemberOf | ForEach-Object { Get-Recipient -Identity "$_" -ErrorAction SilentlyContinue })
+        if (-not $group) {
+            $problems += "Group '$SecurityGroup' was not found in Exchange."
+        } elseif (-not ($ruleGroups | Where-Object { "$($_.Guid)" -eq "$($group.Guid)" })) {
+            $problems += "'$catchAllRule' does not apply to '$SecurityGroup' (applies to: $($catchAll.FromMemberOf -join ', '))."
+        }
+        Test-Moderators $catchAll
+        $problems += @(Get-ShapeProblems $catchAll @('FromMemberOfPredicate', 'SentToScopePredicate') @('FromPredicate'))
+        # Its only allowed exception is an agent with a rule of its own.
+        foreach ($e in @($catchAll.PSObject.Properties | Where-Object { $_.Name -like 'ExceptIf*' -and $_.Name -ne 'ExceptIfFrom' -and (Test-Set $_.Value) })) {
+            $problems += "'$catchAllRule' has an unexpected exception: $($e.Name)."
+        }
+        # A skipped agent must have its own rule that really holds its mail. That rule switched off
+        # is the agent's on/off switch (a warning); in Audit mode, or with extra conditions, it isn't.
+        $agentRules = @(Get-TransportRule | Where-Object { $_.Name -like 'Moderate External Outbound - *' })
+        foreach ($skipped in @($catchAll.ExceptIfFrom | Where-Object { $_ })) {
+            $smtp = Resolve-Smtp "$skipped"
+            $rules = @($agentRules | Where-Object { @($_.From | ForEach-Object { Resolve-Smtp "$_" }) -contains $smtp })
+            $good = @($rules | Where-Object {
+                "$($_.Mode)" -eq 'Enforce' -and "$($_.SentToScope)" -eq 'NotInOrganization' -and $_.ModerateMessageByUser -and
+                -not @(Get-ShapeProblems $_ @('FromPredicate', 'SentToScopePredicate') @()).Count
+            })
+            if (-not $rules) {
+                $problems += "$smtp is skipped by '$catchAllRule' but has no 'Moderate External Outbound - <Agent>' rule: its external email goes out unmoderated."
+            } elseif (-not $good) {
+                $problems += "$smtp is skipped by '$catchAllRule' but its own rule doesn't hold its external email (Audit mode, no moderators or extra conditions): $(($rules | ForEach-Object Name) -join ', ')."
+            } elseif (-not ($good | Where-Object State -eq 'Enabled')) {
+                Write-Warning "Moderation is switched OFF for ${smtp}: its external email is delivered without approval."
+            }
+        }
     }
 
-    # Verify rules
+    # 2. Bookie's own rule: missing or switched off is reported, not a failure
+    $own = Get-TransportRule -Identity $agentRule -ErrorAction SilentlyContinue
+    if (-not $own) {
+        Write-Warning "'$agentRule' is missing: $AgentName is held by the catch-all until step 14 creates it."
+    } else {
+        if ("$($own.Mode)" -ne 'Enforce') { $problems += "'$agentRule' is in $($own.Mode) mode, not Enforce." }
+        if ("$($own.SentToScope)" -ne 'NotInOrganization') { $problems += "'$agentRule' is not scoped to recipients outside the organisation." }
+        if (@($own.From | ForEach-Object { Resolve-Smtp "$_" }) -notcontains (Resolve-Smtp $AgentUPN)) {
+            $problems += "'$agentRule' does not match $AgentUPN (From: $($own.From -join ', '))."
+        }
+        Test-Moderators $own
+        $problems += @(Get-ShapeProblems $own @('FromPredicate', 'SentToScopePredicate') @())
+        if ($own.State -ne 'Enabled') {
+            Write-Warning "Moderation is switched OFF for ${AgentName}: his external email is delivered without approval (step 14 -Moderation On)."
+        }
+    }
+
+    # 3. The old blocks must stay gone
+    if (Get-TransportRule -Identity $outboundRule -ErrorAction SilentlyContinue) {
+        $problems += "'$outboundRule' is back: every agent's external email is rejected."
+    }
+    if (Get-TransportRule -Identity $inboundRule -ErrorAction SilentlyContinue) {
+        Write-Warning "'$inboundRule' exists: replies from outside the organisation won't reach the agents."
+    }
+
     Write-Host ""
-    Write-Host "==> Transport rules for AI Agents:" -ForegroundColor Green
-    Get-TransportRule | Where-Object { $_.Name -like "*AI Agents*" } | Format-List Name, State, Priority
-
+    Write-Host "==> Moderation rules:" -ForegroundColor Green
+    Get-TransportRule | Where-Object { $_.Name -like "Moderate*External Outbound*" -or $_.Name -like "*AI Agents*" } |
+        Format-List Name, State, Mode, Priority, From, FromMemberOf, ExceptIfFrom, SentToScope, ModerateMessageByUser
+    if ($problems.Count) {
+        $problems | ForEach-Object { Write-Host "    FAIL: $_" -ForegroundColor Red }
+        $script:failed = $true
+    } else {
+        Write-Host "==> Email moderation OK" -ForegroundColor Green
+    }
 } finally {
     # Disconnect
     Write-Host "==> Disconnecting from Exchange Online..."
@@ -98,3 +192,4 @@ try {
 
 Write-Host ""
 Write-Host "==> Next: Run 09-restrict-teams.ps1 from this same machine."
+if ($script:failed) { exit 1 }

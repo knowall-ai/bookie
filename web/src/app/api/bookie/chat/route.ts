@@ -4,6 +4,13 @@ import { bookieInstructions } from '@/lib/bookie/prompt';
 import { bookieContext, rateLimit } from '@/lib/bookie/session';
 import { bookieToolContext } from '@/lib/bookie/tool-context';
 import { runTool, toolsFor, toolStatus } from '@/lib/bookie/tools';
+import {
+  buildSuggestion,
+  MAX_HOME_SUGGESTIONS,
+  MAX_SUGGESTIONS,
+  suggestToolDefinition,
+} from '@/lib/bookie/suggestions';
+import type { BookieSuggestion } from '@/lib/bookie/suggestion-types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -22,7 +29,8 @@ const MAX_TOOL_ROUNDS = 6;
 /**
  * Chat with Bookie. Streams server-sent events:
  *   {type:"status", text}   while tools run
- *   {type:"message", text}  the final answer
+ *   {type:"message", text, suggestions}  the final answer, with any next steps
+ *                           Bookie suggested (cards the user can action)
  *   {type:"error", text}
  * Conversations are not stored on the server; the browser keeps the history.
  */
@@ -49,14 +57,32 @@ export async function POST(request: Request) {
     mode === 'insights'
       ? [{ role: 'user', content: 'What should I know about these books today?' }]
       : messages.slice(-20).map((m) => ({ role: m.role, content: m.content }));
-  const tools = toolsFor(connector);
+  const tools = connector ? [...toolsFor(connector), suggestToolDefinition] : [];
+  const base = org ? `/portal/${encodeURIComponent(org.key)}` : '';
+  const suggestions: BookieSuggestion[] = [];
   const toolContext = bookieToolContext(auth, org, connector);
+
+  /** A card for the user, checked against the live record; the result goes back to Bookie. */
+  const suggest = async (rawArgs: string) => {
+    if (!connector) return { shown: false, error: 'No organisation is open.' };
+    const limit = mode === 'insights' ? MAX_HOME_SUGGESTIONS : MAX_SUGGESTIONS;
+    if (suggestions.length >= limit)
+      return { shown: false, error: `At most ${limit} suggestions per answer.` };
+    const result = await buildSuggestion(connector, base, rawArgs);
+    if (!result.ok) return { shown: false, error: result.error };
+    if (!suggestions.some((s) => s.id === result.suggestion.id))
+      suggestions.push(result.suggestion);
+    return { shown: true };
+  };
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       const send = (event: Record<string, unknown>) =>
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      // Bookie often writes his answer in the same turn as his suggest_action calls, then
+      // ends with an empty turn: send the last thing he actually said.
+      let answer = '';
       try {
         for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
           const reply = await respond(
@@ -65,11 +91,20 @@ export async function POST(request: Request) {
             round < MAX_TOOL_ROUNDS ? tools : undefined
           );
           conversation.push(...reply.output);
+          if (reply.text.trim()) answer = reply.text;
           if (reply.calls.length === 0) {
-            send({ type: 'message', text: reply.text });
+            send({ type: 'message', text: answer, suggestions });
             break;
           }
           for (const call of reply.calls) {
+            if (call.name === suggestToolDefinition.name) {
+              conversation.push({
+                type: 'function_call_output',
+                call_id: call.call_id,
+                output: JSON.stringify(await suggest(call.arguments)),
+              });
+              continue;
+            }
             send({ type: 'status', text: toolStatus(call.name, call.arguments) });
             conversation.push({
               type: 'function_call_output',

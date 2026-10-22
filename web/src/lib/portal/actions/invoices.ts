@@ -11,6 +11,7 @@ import {
   type ActionResult,
 } from './util';
 import type { InvoiceInput } from '@/lib/domain/types';
+import { invoiceActionBlocked } from './invoice-rules';
 
 const invoiceSchema = z.object({
   type: z.enum(['sales', 'purchase']),
@@ -56,6 +57,9 @@ export async function invoiceAction(
     const { connector, base } = await orgContext(orgKey);
     const run = connector.invoices?.[action];
     if (!run) return { ok: false, error: 'This action is not available for this organisation.' };
+    // Re-check the live record: the button may have been shown before it changed.
+    const blocked = invoiceActionBlocked(await connector.invoices!.get(id), action);
+    if (blocked) return { ok: false, error: blocked };
     await run(id);
     revalidatePath(base, 'layout');
     return { ok: true, data: undefined };
