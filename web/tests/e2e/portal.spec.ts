@@ -33,6 +33,21 @@ test.describe('portal shell', () => {
     await expect(page.getByRole('menuitem', { name: 'Quotes' })).toBeVisible();
   });
 
+  test('a tab menu opened by hovering stays open when clicked, and on the way into it', async ({
+    page,
+  }) => {
+    await page.goto('/portal/demo.contoso');
+    const tab = page.getByTestId('tab-purchases');
+    await tab.hover();
+    await expect(tab).toHaveAttribute('aria-expanded', 'true');
+    // The click that used to toggle it shut.
+    await tab.click();
+    await expect(tab).toHaveAttribute('aria-expanded', 'true');
+    // Down into the menu: no gap closes it on the way.
+    await page.getByRole('menuitem', { name: 'Bills', exact: true }).click();
+    await expect(page).toHaveURL(/\/purchases\/bills/);
+  });
+
   test('org switcher keeps the current tab', async ({ page }) => {
     await page.goto(`${ORG}/sales/invoices`);
     await page.getByTestId('org-switcher').click();
