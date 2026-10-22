@@ -43,6 +43,12 @@ export default async function Home({ params }: { params: Promise<{ org: string }
     connector.dashboard(),
   ]);
   const orgDetails = details.status === 'fulfilled' ? details.value : undefined;
+  // Bank balance histories: read once for every card, after the dashboard's own calls
+  // (Xero allows five at once), and streamed in. Not read when there are no bank cards.
+  const histories =
+    dashboard.status === 'fulfilled' && dashboard.value.bankAccounts.length
+      ? connector.bank?.balanceHistory?.().catch(() => undefined)
+      : undefined;
   // The Live panel only shows when the source can push webhooks here (feature flag).
   const live = auth ? liveFeedEnabled(org, (await listOrgs(auth)).settings) : false;
 
@@ -115,6 +121,9 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                             ? `${base}/accounting/bank/${encodeURIComponent(account.id)}`
                             : undefined
                         }
+                        histories={histories}
+                        source={org.kind === 'demo' ? 'the demo books' : sourceName(org)}
+                        feedNote={connector.bank?.feedNote}
                       />
                     ))}
                   </div>

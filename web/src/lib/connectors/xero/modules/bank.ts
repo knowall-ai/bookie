@@ -19,6 +19,7 @@ import { fromXeroReport, type XeroReport } from '../reports';
 import { ConnectorError, type BankModule, type NewBankAccountRules } from '../../types';
 import type { XeroAccount } from './accounts';
 import { xeroTransfers } from './transfers';
+import { XERO_FEED_NOTE, xeroBalanceHistory } from './bank-history';
 
 /* Raw shapes */
 
@@ -131,17 +132,39 @@ export function xeroNewBankAccount(xeroLink?: string): NewBankAccountRules {
   };
 }
 
-/** Closing balance ("Balance in Xero") per account id from the Bank Summary report. */
-export function closingBalances(report: XeroReport): Map<string, number> {
+/**
+ * Opening and closing balance per account id from the Bank Summary report
+ * (cells: account, opening, cash received, cash spent, closing), in base currency.
+ */
+export function bankSummaryBalances(
+  report: XeroReport
+): Map<string, { opening?: number; closing: number }> {
   const summary = fromXeroReport('bank-summary', report);
-  const balances = new Map<string, number>();
+  const balances = new Map<string, { opening?: number; closing: number }>();
+  // Read by header so a new column can't swap opening and closing. A header with
+  // only the first label (as some responses have) keeps Xero's documented order.
+  const column = (label: RegExp, position: number) => {
+    const found = summary.columns.findIndex((c) => label.test(c));
+    return found >= 0 ? found : summary.columns.length <= 1 ? position : -1;
+  };
+  const openingAt = column(/^opening balance$/i, 1);
+  const closingAt = column(/^closing balance$/i, 4);
   for (const row of summary.sections.flatMap((s) => s.rows)) {
-    const closing = row.cells[4];
+    const opening = openingAt >= 0 ? row.cells[openingAt] : undefined;
+    const closing = closingAt >= 0 ? row.cells[closingAt] : undefined;
     if (row.kind === 'row' && row.accountId && typeof closing === 'number') {
-      balances.set(row.accountId, closing);
+      balances.set(row.accountId, {
+        opening: typeof opening === 'number' ? opening : undefined,
+        closing,
+      });
     }
   }
   return balances;
+}
+
+/** Closing balance ("Balance in Xero") per account id from the Bank Summary report. */
+export function closingBalances(report: XeroReport): Map<string, number> {
+  return new Map([...bankSummaryBalances(report)].map(([id, b]) => [id, b.closing]));
 }
 
 function transactionType(type: string): BankTransaction['type'] {
@@ -197,7 +220,7 @@ const DOCUMENT_KIND: Record<string, NonNullable<BankTransaction['document']>['ki
 };
 
 /** Payments that money comes in on: customer payments and supplier refunds. */
-const RECEIVING_PAYMENTS = new Set([
+export const RECEIVING_PAYMENTS = new Set([
   'ACCRECPAYMENT',
   'APCREDITPAYMENT',
   'APOVERPAYMENTPAYMENT',
@@ -300,7 +323,7 @@ function byDateDesc(a: BankTransaction, b: BankTransaction) {
 }
 
 /** Xero's largest page; also the deepest we merge two sources to. */
-const MAX_MERGE = 1000;
+export const MAX_MERGE = 1000;
 
 export function xeroBank(
   client: XeroClient,
@@ -441,6 +464,9 @@ export function xeroBank(
       );
       return fromXeroBankTransaction(result.BankTransactions[0]);
     },
+
+    balanceHistory: () => xeroBalanceHistory(client, baseCurrency),
+    feedNote: XERO_FEED_NOTE,
 
     newAccount: xeroNewBankAccount(xeroLink),
     async createAccount(input) {

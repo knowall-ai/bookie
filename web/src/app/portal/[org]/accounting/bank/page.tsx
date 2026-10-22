@@ -101,6 +101,11 @@ export default async function Page({ params }: { params: Promise<{ org: string }
     );
   }
   const accounts = await connector.bank.accounts();
+  // One read of every account's history, after the balances (Xero allows five calls at
+  // once), shared by the cards and streamed in.
+  const histories = accounts.length
+    ? connector.bank.balanceHistory?.().catch(() => undefined)
+    : undefined;
   const canCreate = !!connector.bank.createTransaction;
   const canTransfer = !!connector.bank.createTransfer && accounts.length >= 2;
   const hasTransfers = !!connector.bank.transfers;
@@ -159,6 +164,9 @@ export default async function Page({ params }: { params: Promise<{ org: string }
               href={`${base}/accounting/bank/${encodeURIComponent(account.id)}`}
               newHref={canCreate ? newHref : undefined}
               sourceLabel={source}
+              source={org.kind === 'demo' ? 'the demo books' : sourceName(org)}
+              histories={histories}
+              feedNote={connector.bank?.feedNote}
             />
           ))}
         </div>

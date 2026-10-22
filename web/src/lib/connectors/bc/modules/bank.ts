@@ -3,7 +3,12 @@ import { ConnectorError } from '../../types';
 import type { BcClient, ODataList } from '../client';
 import type { BankModule, NewBankAccountRules } from '../../types';
 import { journalBatchCode, postAndRemoveBatch } from './journals';
-import { extensionBankBalances, extensionBankTransactions, withBankBalance } from '../extension';
+import {
+  extensionBalanceHistory,
+  extensionBankBalances,
+  extensionBankTransactions,
+  withBankBalance,
+} from '../extension';
 
 export interface BcBankAccount {
   id: string;
@@ -82,6 +87,10 @@ export function bcNewBankAccount(links: BcBankLinks = {}): NewBankAccountRules {
   };
 }
 
+/** BC records bank statements through bank reconciliations; its API doesn't say when a feed last ran. */
+export const BC_FEED_NOTE =
+  "Business Central's API doesn't say when the bank feed last imported a statement. The statement shown is the last one posted in a bank reconciliation.";
+
 export const BC_BANK_LEDGER_NOTE =
   "Business Central's API doesn't publish bank account ledger entries, so Bookie can't list this account's transactions. Install the Bookie BC extension to see them here, or open the bank account in Business Central.";
 
@@ -136,7 +145,9 @@ export function toBcBankJournalLines(
 export function bcBank(
   client: BcClient,
   lcy: () => Promise<string>,
-  links?: BcBankLinks
+  links?: BcBankLinks,
+  /** True when the Bookie BC extension is installed: it publishes the bank ledger. */
+  extension = false
 ): BankModule {
   const contactName = async (contactId: string) => {
     const [prefix, id] = [contactId.slice(0, 2), contactId.slice(2)];
@@ -221,6 +232,11 @@ export function bcBank(
         status: 'authorised',
       };
     },
+
+    // API v2.0 has no bank ledger and no link from a bank account to its G/L account,
+    // so balance history needs the Bookie BC extension's bank account ledger entries.
+    ...(extension ? { balanceHistory: () => extensionBalanceHistory(client, lcy) } : {}),
+    feedNote: BC_FEED_NOTE,
 
     newAccount: bcNewBankAccount(links),
     async createAccount(input) {

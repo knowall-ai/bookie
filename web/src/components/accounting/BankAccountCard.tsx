@@ -5,6 +5,11 @@ import { formatDate } from '@/lib/ui/format';
 import { Money } from '@/components/ui/Money';
 import { Badge } from '@/components/ui/Badge';
 import { buttonClass } from '@/components/ui/Button';
+import {
+  BankCardHistory,
+  BankFreshness,
+  type HistoriesPromise,
+} from '@/components/bank/BankCardHistory';
 
 const ICON = { bank: Landmark, 'credit-card': CreditCard, paypal: Wallet, other: Landmark };
 
@@ -14,12 +19,21 @@ export function BankAccountCard({
   href,
   newHref,
   sourceLabel,
+  source,
+  histories,
+  feedNote,
 }: {
   account: BankAccount;
   href: string;
   /** Spend/receive money link, when the source supports it. */
   newHref?: string;
+  /** Short source name for "Balance in Xero" / "Balance in BC". */
   sourceLabel: string;
+  /** Full source name, e.g. "Business Central". */
+  source: string;
+  /** The source's balance histories (shared by every card), or undefined when it has none. */
+  histories?: HistoriesPromise;
+  feedNote?: string;
 }) {
   const Icon = ICON[account.type ?? 'bank'] ?? Landmark;
   return (
@@ -30,7 +44,8 @@ export function BankAccountCard({
         </div>
         <div className="min-w-0 flex-1">
           <h2 id={`bank-${account.id}`} className="text-ink truncate font-semibold">
-            <Link href={href} className="hover:text-brand-bright transition-colors">
+            {/* The card body below is the keyboard way in; this is for the mouse. */}
+            <Link href={href} className="hover:text-brand-bright transition-colors" tabIndex={-1}>
               {account.name}
             </Link>
           </h2>
@@ -42,54 +57,69 @@ export function BankAccountCard({
         <Badge>{account.currency}</Badge>
       </div>
 
-      <dl className="grid flex-1 grid-cols-2 gap-4 px-5 py-4">
-        <div>
-          <dt className="text-faint text-xs font-semibold tracking-wide uppercase">
-            Balance in {sourceLabel}
-          </dt>
-          <dd className="text-ink mt-1 text-lg font-semibold">
-            {account.balance === undefined ? (
-              <span className="text-muted text-sm font-normal">Not available</span>
+      {/* The balances and chart open the account too, so the whole card is a way in. */}
+      <Link
+        href={href}
+        className="hover:bg-surface-2/40 focus-visible:bg-surface-2/40 block flex-1 px-5 py-4 transition-colors"
+        aria-label={`${account.name}: balance and history`}
+        aria-describedby={`bank-history-${account.id}`}
+        data-testid="bank-account-card"
+      >
+        <dl className="grid grid-cols-2 gap-4">
+          <div>
+            <dt className="text-faint text-xs font-semibold tracking-wide uppercase">
+              Balance in {sourceLabel}
+            </dt>
+            <dd className="text-ink mt-1 text-lg font-semibold">
+              {account.balance === undefined ? (
+                <span className="text-muted text-sm font-normal">Not available</span>
+              ) : (
+                <Money
+                  amount={account.balance}
+                  currency={account.balanceCurrency ?? account.currency}
+                />
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-faint text-xs font-semibold tracking-wide uppercase">
+              Last statement
+            </dt>
+            <dd className="text-ink mt-1 text-lg font-semibold">
+              {account.statementBalance === undefined ? (
+                <span className="text-muted text-sm font-normal">Not available</span>
+              ) : (
+                <>
+                  <Money amount={account.statementBalance} currency={account.currency} />
+                  {account.statementDate && (
+                    <span className="text-faint block text-xs font-normal">
+                      at {formatDate(account.statementDate)}
+                    </span>
+                  )}
+                </>
+              )}
+            </dd>
+          </div>
+          <div className="col-span-2">
+            {account.unreconciledCount === undefined ? null : account.unreconciledCount > 0 ? (
+              <p className="text-warn text-sm" data-testid="unreconciled">
+                {account.unreconciledCount} unreconciled{' '}
+                {account.unreconciledCount === 1 ? 'transaction' : 'transactions'}
+              </p>
             ) : (
-              <Money
-                amount={account.balance}
-                currency={account.balanceCurrency ?? account.currency}
-              />
+              <p className="text-brand-bright text-sm" data-testid="unreconciled">
+                All transactions reconciled
+              </p>
             )}
-          </dd>
+          </div>
+        </dl>
+        <div className="mt-4" id={`bank-history-${account.id}`}>
+          <BankCardHistory histories={histories} accountId={account.id} source={source} />
         </div>
-        <div>
-          <dt className="text-faint text-xs font-semibold tracking-wide uppercase">
-            Statement balance
-          </dt>
-          <dd className="text-ink mt-1 text-lg font-semibold">
-            {account.statementBalance === undefined ? (
-              <span className="text-muted text-sm font-normal">Not available</span>
-            ) : (
-              <>
-                <Money amount={account.statementBalance} currency={account.currency} />
-                {account.statementDate && (
-                  <span className="text-faint block text-xs font-normal">
-                    at {formatDate(account.statementDate)}
-                  </span>
-                )}
-              </>
-            )}
-          </dd>
+        <div className="mt-3">
+          <BankFreshness account={account} source={source} feedNote={feedNote} />
         </div>
-        <div className="col-span-2">
-          {account.unreconciledCount === undefined ? null : account.unreconciledCount > 0 ? (
-            <p className="text-warn text-sm" data-testid="unreconciled">
-              {account.unreconciledCount} unreconciled{' '}
-              {account.unreconciledCount === 1 ? 'transaction' : 'transactions'}
-            </p>
-          ) : (
-            <p className="text-brand-bright text-sm" data-testid="unreconciled">
-              All transactions reconciled
-            </p>
-          )}
-        </div>
-      </dl>
+      </Link>
 
       <div className="border-line flex flex-wrap gap-2 border-t px-5 py-3">
         <Link href={href} className={buttonClass('secondary', 'sm')}>

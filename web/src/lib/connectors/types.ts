@@ -22,6 +22,7 @@ import type {
   Inbox,
   BankAccount,
   BankAccountInput,
+  BankBalanceHistories,
   BankTransaction,
   BankTransactionInput,
   BankTransactionQuery,
@@ -199,6 +200,13 @@ export interface BankModule {
   createAccount?(input: BankAccountInput): Promise<BankAccount>;
   /** What `createAccount` accepts in this source. */
   readonly newAccount?: NewBankAccountRules;
+  /**
+   * Closing balances over the last few weeks for every bank account, built only
+   * from figures the source gives. Absent when the source has no reliable history.
+   */
+  balanceHistory?(): Promise<BankBalanceHistories>;
+  /** Why `BankAccount.feedDate` is never set for this source, shown as "Feed status not available". */
+  readonly feedNote?: string;
 }
 
 /** A sentence about the source system, with an optional deep link into it. */

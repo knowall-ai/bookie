@@ -56,6 +56,12 @@ export class XeroClient {
     return this.options.xeroTenantId;
   }
 
+  /** Entra tenant, connection and Xero organisation: the prefix for any per-org cache key. */
+  get cacheScope() {
+    const { ownerTenantId, connection, xeroTenantId } = this.options;
+    return `${ownerTenantId}:${connection.id}:${xeroTenantId}`;
+  }
+
   private cacheKey() {
     const { ownerTenantId, connection } = this.options;
     return `${ownerTenantId}:${connection.id}`;

@@ -5,12 +5,33 @@ import { formatDate, formatMoney } from '@/lib/ui/format';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { NotAvailableValue } from '@/components/ui/Money';
 import { cn } from '@/lib/ui/cn';
+import {
+  BankCardHistory,
+  BankFreshness,
+  type HistoriesPromise,
+} from '@/components/bank/BankCardHistory';
 
 /* ------------------------------------------------------------------ */
 /* Bank accounts                                                       */
 /* ------------------------------------------------------------------ */
 
-export function BankAccountCard({ account, href }: { account: BankAccount; href?: string }) {
+export function BankAccountCard({
+  account,
+  href,
+  histories,
+  source,
+  feedNote,
+}: {
+  account: BankAccount;
+  href?: string;
+  /** The source's balance histories (shared by every card), or undefined when it has none. */
+  histories?: HistoriesPromise;
+  /** The source's name, e.g. "Xero" or "Business Central". */
+  source: string;
+  /** Why the source can't give the bank feed's last statement line. */
+  feedNote?: string;
+}) {
+  const summaryId = `bank-card-${account.id}`;
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
@@ -37,11 +58,14 @@ export function BankAccountCard({ account, href }: { account: BankAccount; href?
           In {account.balanceCurrency}, the base currency, as the source reports it
         </p>
       )}
-      {(account.statementBalance !== undefined || account.unreconciledCount) && (
-        <div className="border-line text-muted mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs">
+      <div className="mt-3" id={summaryId}>
+        <BankCardHistory histories={histories} accountId={account.id} source={source} />
+      </div>
+      {(account.statementBalance !== undefined || !!account.unreconciledCount) && (
+        <div className="border-line text-muted mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs">
           {account.statementBalance !== undefined && (
             <span>
-              Statement{account.statementDate ? ` ${formatDate(account.statementDate)}` : ''}:{' '}
+              Last statement{account.statementDate ? ` ${formatDate(account.statementDate)}` : ''}:{' '}
               <span className="num text-body">
                 {formatMoney(account.statementBalance, account.currency)}
               </span>
@@ -52,6 +76,9 @@ export function BankAccountCard({ account, href }: { account: BankAccount; href?
           )}
         </div>
       )}
+      <div className="mt-3">
+        <BankFreshness account={account} source={source} feedNote={feedNote} />
+      </div>
     </>
   );
   const className = 'card block px-5 py-4';
@@ -60,11 +87,15 @@ export function BankAccountCard({ account, href }: { account: BankAccount; href?
       href={href}
       className={cn(className, 'hover:border-line-strong group transition-colors')}
       aria-label={`${account.name}: ${account.balance === undefined ? 'balance not available' : formatMoney(account.balance, account.balanceCurrency ?? account.currency)}`}
+      aria-describedby={summaryId}
+      data-testid="bank-account-card"
     >
       {body}
     </Link>
   ) : (
-    <div className={className}>{body}</div>
+    <div className={className} data-testid="bank-account-card">
+      {body}
+    </div>
   );
 }
 

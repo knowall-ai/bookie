@@ -837,10 +837,15 @@ export function createBcConnector({
     };
   };
 
-  const bank = bcBank(client, lcy, {
-    bankAccounts: bcWebClientLink(client.tenantId, client.environment, companyName, 371),
-    currencies: bcWebClientLink(client.tenantId, client.environment, companyName, 5),
-  });
+  const bank = bcBank(
+    client,
+    lcy,
+    {
+      bankAccounts: bcWebClientLink(client.tenantId, client.environment, companyName, 371),
+      currencies: bcWebClientLink(client.tenantId, client.environment, companyName, 5),
+    },
+    !!extension
+  );
 
   return {
     kind: 'business-central',
