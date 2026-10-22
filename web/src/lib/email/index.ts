@@ -211,7 +211,8 @@ export async function decideEmailApproval(
 }
 
 /** A short-lived count only, isolated by the verified tenant and person. */
-export async function pendingApprovalCount(auth: AuthContext): Promise<number> {
+/** The count waiting for this person; undefined when Microsoft 365 couldn't be read. */
+export async function pendingApprovalCount(auth: AuthContext): Promise<number | undefined> {
   if (auth.user.userType !== 'Member') return 0;
   if (auth.mode === 'demo') {
     const view = demoEmailsOverview(await demoDecisions()).approvals;
@@ -232,7 +233,10 @@ export async function pendingApprovalCount(auth: AuthContext): Promise<number> {
       }
     }
   } catch (error) {
+    // A failed read isn't "nothing waiting": don't cache it, and let the caller keep the
+    // last good count (agreed with knowall-ai/sallie).
     console.warn('Pending email approvals:', error instanceof Error ? error.name : 'Error');
+    return undefined;
   }
   for (const [entry, value] of pendingCounts) {
     if (value.expires <= Date.now()) pendingCounts.delete(entry);
