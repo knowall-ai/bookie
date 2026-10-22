@@ -158,3 +158,20 @@ it.each([1, 2])('uses configured names for %s agents', async (count) => {
       : 'Held emails go to the approvers set in Exchange'
   );
 });
+
+it('a mailbox-only organisation (no agents) gets its inbox without a "No agents" panel', async () => {
+  vi.mocked(getEmailsOverview).mockResolvedValue({
+    agents: [],
+    approvals: { status: 'not-configured' },
+    mailboxes: [
+      {
+        status: 'ok',
+        mailbox: 'accounts@example.com',
+        folders: [{ key: 'inbox', label: 'Inbox', path: '', messages: [] }],
+      },
+    ],
+  });
+  const html = renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }));
+  expect(html).not.toContain('No agents are configured');
+  expect(html).toContain('accounts@ inbox');
+});

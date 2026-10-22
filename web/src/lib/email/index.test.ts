@@ -85,13 +85,17 @@ describe('pendingApprovalCount', () => {
     expect(await pendingApprovalCount(person)).toBe(0);
     expect(listApprovals).not.toHaveBeenCalled();
   });
-  it('logs only the error class on failure', async () => {
+  it('on failure: unknown, not zero, not cached, and logs only the error class', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const person = auth();
     vi.mocked(listApprovals).mockRejectedValueOnce(
       new Error('private subject at accounts@example.com')
     );
-    expect(await pendingApprovalCount(auth())).toBe(0);
+    expect(await pendingApprovalCount(person)).toBeUndefined();
     expect(warn).toHaveBeenCalledWith('Pending email approvals:', 'Error');
+    // The failure wasn't cached: the next read goes to Graph again and gets the real count.
+    expect(await pendingApprovalCount(person)).toBe(1);
+    expect(listApprovals).toHaveBeenCalledTimes(2);
   });
   it('returns the demo pending count', async () => {
     expect(await pendingApprovalCount({ ...auth(), mode: 'demo' })).toBe(2);

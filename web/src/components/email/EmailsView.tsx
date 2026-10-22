@@ -194,7 +194,11 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
             <MailQuestion className="h-3.5 w-3.5" /> Sample emails for the demo organisation.
           </p>
         )}
-        {(setup || overview.approvals.status === 'error') && (
+        {/* "No agents are configured" belongs only to a setup with nothing in it (handled
+            above): a mailbox-only organisation never needs an agent. Agreed with knowall-ai/sallie. */}
+        {((setup &&
+          !(overview.approvals.status === 'not-configured' && overview.mailboxes.length > 0)) ||
+          overview.approvals.status === 'error') && (
           <ApprovalsTab view={overview.approvals} agents={overview.agents} />
         )}
         {tab === 'approvals' ? (

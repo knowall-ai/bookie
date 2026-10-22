@@ -181,27 +181,27 @@ function ApprovalRow({
             {showAgent && <span className="text-muted block text-sm">From {agentName}</span>}
             <span className="text-body mt-0.5 block truncate text-sm">
               To {recipientSummary(item.recipients) || 'recipients not shown by Exchange'}
-              <span className="text-muted">
-                {' · '}
-                <When iso={item.requestedAt} />
-                {pending && (
-                  <>
-                    {' · '}
-                    <span
-                      className={
-                        new Date(item.expiresAt).getTime() - now < 6 * 60 * 60 * 1000
-                          ? 'text-warn'
-                          : undefined
-                      }
-                    >
-                      <When iso={item.expiresAt} prefix="expires " />
-                    </span>
-                  </>
-                )}
-              </span>
+            </span>
+            {/* Its own line, so on a phone the timing isn't cut off after the recipients. */}
+            <span className="text-muted block text-sm">
+              Held <When iso={item.requestedAt} />
+              {pending && (
+                <>
+                  {' · '}
+                  <span
+                    className={
+                      new Date(item.expiresAt).getTime() - now < 6 * 60 * 60 * 1000
+                        ? 'text-warn'
+                        : undefined
+                    }
+                  >
+                    <When iso={item.expiresAt} prefix="expires " />
+                  </span>
+                </>
+              )}
             </span>
             {!expanded && item.preview && (
-              <span className="text-muted mt-1 line-clamp-2 block text-sm [overflow-wrap:anywhere]">
+              <span className="text-muted mt-1 line-clamp-2 text-sm [overflow-wrap:anywhere]">
                 {item.preview}
               </span>
             )}
