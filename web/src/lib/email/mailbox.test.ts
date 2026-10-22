@@ -5,6 +5,7 @@ import {
   canReadShared,
   childFolderFilter,
   inboxLabel,
+  recipientSummary,
   folderSegments,
   isNoAccess,
   toMailboxMessage,
@@ -114,4 +115,13 @@ it('assigns legacy capture only to a migrated legacy agent and honours stored em
   ]);
   const agents = [{ id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' }];
   expect(mailSetup({ ...legacy, agents }).agents).toEqual(agents);
+});
+
+describe('recipientSummary', () => {
+  it('shows two recipients, then a count', () => {
+    expect(recipientSummary(['Sam Ortiz'])).toBe('Sam Ortiz');
+    expect(recipientSummary(['A', 'B'])).toBe('A, B');
+    expect(recipientSummary(['A', 'B', 'C', ' ', 'D'])).toBe('A, B + 2 more');
+    expect(recipientSummary([])).toBe('');
+  });
 });

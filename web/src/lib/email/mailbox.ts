@@ -138,3 +138,13 @@ export function mailSetup(email?: EmailSettings): AgentMailSetup {
         : []),
   };
 }
+
+/**
+ * Recipients for one line: the first `shown`, then "+ n more" (agreed with knowall-ai/sallie;
+ * real threads carry long tracking addresses that would otherwise fill the row).
+ */
+export function recipientSummary(recipients: string[], shown = 2): string {
+  const names = recipients.map((r) => r.trim()).filter(Boolean);
+  if (names.length <= shown) return names.join(', ');
+  return `${names.slice(0, shown).join(', ')} + ${names.length - shown} more`;
+}

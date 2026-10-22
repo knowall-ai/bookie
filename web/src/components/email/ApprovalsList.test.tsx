@@ -44,3 +44,18 @@ it('uses the configured agent name in the empty approval list', () => {
   expect(html).toContain('Ava sends');
   expect(html).not.toContain('Bookie');
 });
+
+it('summarises many recipients and lets long addresses wrap', () => {
+  const token = `reply+${'x'.repeat(120)}@support.example.com`;
+  const [first, ...rest] = demoApprovals();
+  const item = { ...first, recipients: ['Sam Ortiz', token, 'Priya Nair', 'Jordan Lee'] };
+  const html = renderToStaticMarkup(
+    <ApprovalsList
+      items={[item, ...rest]}
+      agents={[{ id: 'bookie', displayName: 'Bookie', mailbox: 'bookie@example.com' }]}
+    />
+  );
+  expect(html).toContain('+ 2 more');
+  expect(html).not.toContain('Priya Nair, Jordan Lee');
+  expect(html).toContain('line-clamp-2');
+});

@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Textarea } from '@/components/ui/Field';
 import { EmptyState } from '@/components/ui/States';
 import { MAX_REASON_LENGTH } from '@/lib/email/approvals';
+import { recipientSummary } from '@/lib/email/mailbox';
 import type {
   MailAgent,
   ApprovalStatus,
@@ -86,7 +87,7 @@ function EmailView({ detail }: { detail: EmailApprovalDetail }) {
         {rows.map(([label, value]) => (
           <div key={label} className="contents">
             <dt className="text-muted">{label}</dt>
-            <dd className="text-ink min-w-0 break-words">{value}</dd>
+            <dd className="text-ink min-w-0 [overflow-wrap:anywhere]">{value}</dd>
           </div>
         ))}
       </dl>
@@ -179,7 +180,7 @@ function ApprovalRow({
             <span className="text-ink block truncate font-medium">{item.subject}</span>
             {showAgent && <span className="text-muted block text-sm">From {agentName}</span>}
             <span className="text-body mt-0.5 block truncate text-sm">
-              To {item.recipients.join(', ') || 'recipients not shown by Exchange'}
+              To {recipientSummary(item.recipients) || 'recipients not shown by Exchange'}
               <span className="text-muted">
                 {' · '}
                 <When iso={item.requestedAt} />
@@ -200,7 +201,9 @@ function ApprovalRow({
               </span>
             </span>
             {!expanded && item.preview && (
-              <span className="text-muted mt-1 line-clamp-1 block text-sm">{item.preview}</span>
+              <span className="text-muted mt-1 line-clamp-2 block text-sm [overflow-wrap:anywhere]">
+                {item.preview}
+              </span>
             )}
           </span>
         </button>
@@ -371,11 +374,11 @@ export function ApprovalsList({ items, agents }: { items: EmailApproval[]; agent
         <ConfirmDialog
           title="Approve this email?"
           body={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Exchange sends “{confirming.subject}” to{' '}
-              {confirming.recipients.join(', ') || 'its recipients'} straight away. This can’t be
-              undone.
-            </>
+              {recipientSummary(confirming.recipients) || 'its recipients'} straight away. This
+              can’t be undone.
+            </span>
           }
           cta="Approve and send"
           busy={busy}
