@@ -12,6 +12,9 @@ import {
   PENDING_VALUE_REASON,
   addWallet,
   electrumSetting,
+  electrumSettingFor,
+  electrumStatusFor,
+  cacheKey,
   electrumStatus,
   listWallets,
   loadWallet,
@@ -53,6 +56,9 @@ function bcScope(result: SourceBitcoinWallets): WalletScope & { calls: () => num
 afterEach(async () => {
   const store = configStoreFor(demo());
   for (const w of await store.listWallets()) await store.deleteWallet(w.id);
+  const settings = await store.getSettings();
+  delete settings.bitcoin;
+  await store.saveSettings(settings);
   delete process.env.BOOKIE_ELECTRUM_URL;
 });
 
@@ -354,5 +360,59 @@ describe('addWalletSchema', () => {
         scriptType: 'wsh-multi',
       })
     ).toThrow();
+  });
+});
+
+describe('effective Electrum server', () => {
+  it('uses the installation by default and the sealed tenant override when set', async () => {
+    process.env.BOOKIE_ELECTRUM_URL = 'tcp://installation.example.com:50001';
+    expect(await electrumSettingFor(demo())).toMatchObject({
+      source: 'installation',
+      server: { host: 'installation.example.com' },
+    });
+    expect(await electrumStatusFor(demo())).not.toHaveProperty(
+      'url',
+      'tcp://installation.example.com:50001'
+    );
+    const store = configStoreFor(demo());
+    await store.saveSettings({
+      ...(await store.getSettings()),
+      bitcoin: { electrum: { url: 'ssl://electrum.example.com:50002', trusted: true } },
+    });
+    expect(await electrumSettingFor(demo())).toMatchObject({
+      source: 'organisation',
+      trusted: true,
+      server: { guarded: true, host: 'electrum.example.com' },
+    });
+    expect(await electrumStatusFor(demo())).toMatchObject({
+      source: 'organisation',
+      privacyWarning: false,
+      url: 'ssl://electrum.example.com:50002',
+    });
+    const other = demo({ ...DEMO_MEMBER, tenantId: 'fictional-other-tenant' });
+    expect(await electrumSettingFor(other)).toMatchObject({ source: 'installation' });
+  });
+  it('separates cached scans by server, protocol, port and tenant', () => {
+    const descriptor = parseWalletInput(ZPUB);
+    const server = { protocol: 'ssl' as const, host: 'electrum.example.com', port: 50002 };
+    const key = cacheKey(demo(), 'demo.contoso', 'wallet', descriptor, server);
+    for (const change of [
+      { host: 'other.example.com' },
+      { protocol: 'tcp' as const },
+      { port: 50003 },
+    ]) {
+      expect(
+        cacheKey(demo(), 'demo.contoso', 'wallet', descriptor, { ...server, ...change })
+      ).not.toBe(key);
+    }
+    expect(
+      cacheKey(
+        demo({ ...DEMO_MEMBER, tenantId: 'fictional-other-tenant' }),
+        'demo.contoso',
+        'wallet',
+        descriptor,
+        server
+      )
+    ).not.toBe(key);
   });
 });

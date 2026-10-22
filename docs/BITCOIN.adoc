@@ -373,3 +373,29 @@ amount rules; `bitcoin.test.ts` (BC module) and
 `bitcoin-reconcile.test.ts` (BC module) cover matching, journal lines, drafting and the posting guard;
 `tests/e2e/bitcoin.spec.ts` covers the demo wallet and adding and removing one, and
 `tests/e2e/bitcoin-reconcile.spec.ts` drafts and posts on the demo organisation. The repository holds no real xpubs, addresses or amounts.
+
+=== Choose your Electrum server in the portal
+
+Members can open *Settings › Bitcoin wallets › Electrum server* to configure
+`ssl://electrum.example.com:50002`, optionally mark *I run this server* to remove
+the privacy warning, and provide a SHA-256 certificate fingerprint for a
+self-signed certificate. The server learns the wallet addresses queried through it;
+use your own node for privacy.
+
+This organisation setting applies to *all organisations in the signed-in tenant*.
+It is sealed with the tenant's other settings in their own SharePoint, and takes
+precedence over the installation's `BOOKIE_ELECTRUM_URL`, trust flag and certificate
+pin. *Use the installation's server* removes the override and restores that fallback.
+The installation server's address is not exposed in the portal.
+
+Organisation servers must use TLS (`ssl://`) and a port from 1 to 65535.
+Local hostnames are rejected. Before every connection, Bookie resolves the hostname
+and rejects it if any answer is a private, loopback, link-local or other prohibited
+address, including IPv4-mapped IPv6 addresses. It connects directly to the checked
+IP while retaining the original hostname for TLS verification, preventing DNS rebinding.
+Connections have an eight-second timeout. *Test and save* connects and completes an
+Electrum `server.version` request before saving; a failed test leaves settings unchanged.
+Demo mode skips the network test and uses its in-memory settings store.
+
+Bookie the agent on the VM still uses its own `BOOKIE_ELECTRUM_URL` and associated
+environment settings. The portal's tenant override does not configure the agent.
