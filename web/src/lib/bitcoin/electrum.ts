@@ -3,6 +3,8 @@
 // browser bundle.
 import { createHash } from 'node:crypto';
 import net from 'node:net';
+import { promises as dns } from 'node:dns';
+import { isPublicAddress } from './electrum-guard';
 import tls from 'node:tls';
 
 /**
@@ -16,6 +18,7 @@ import tls from 'node:tls';
  */
 
 export interface ElectrumServer {
+  guarded?: boolean;
   protocol: 'ssl' | 'tcp';
   host: string;
   port: number;
@@ -122,9 +125,38 @@ export class ElectrumClient implements ElectrumApi {
   ): Promise<ElectrumClient> {
     const settings = {
       timeoutMs: options.timeoutMs ?? 20_000,
-      connectTimeoutMs: options.connectTimeoutMs ?? 10_000,
+      connectTimeoutMs: options.connectTimeoutMs ?? 8_000,
       maxInFlight: options.maxInFlight ?? 40,
     };
+    if (options.certSha256 && !/^([0-9a-fA-F]{2}:?){32}$/.test(options.certSha256)) {
+      throw new ElectrumError('Use a SHA-256 certificate fingerprint.');
+    }
+    let host = server.host;
+    if (server.guarded) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const addresses = await Promise.race([
+          dns.lookup(host, { all: true }),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new ElectrumError('Timed out connecting to the Electrum server.')),
+              settings.connectTimeoutMs
+            );
+          }),
+        ]);
+        if (!addresses.length || addresses.some(({ address }) => !isPublicAddress(address))) {
+          throw new ElectrumError(
+            "That Electrum server's address isn't a public internet address."
+          );
+        }
+        host = addresses[0].address;
+      } catch (error) {
+        if (error instanceof ElectrumError) throw error;
+        throw new ElectrumError(connectionMessage(error as Error), (error as Error).message);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
     const pin = options.certSha256?.replace(/:/g, '').toLowerCase();
     const socket = await new Promise<net.Socket>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -141,13 +173,13 @@ export class ElectrumClient implements ElectrumApi {
       const s: net.Socket =
         server.protocol === 'ssl'
           ? tls.connect({
-              host: server.host,
+              host,
               port: server.port,
               servername: net.isIP(server.host) ? undefined : server.host,
               // With a pinned certificate, the fingerprint check below replaces CA validation.
               rejectUnauthorized: !pin,
             })
-          : net.connect({ host: server.host, port: server.port });
+          : net.connect({ host, port: server.port });
       s.once(server.protocol === 'ssl' ? 'secureConnect' : 'connect', () => {
         if (pin && s instanceof tls.TLSSocket) {
           const cert = s.getPeerCertificate();

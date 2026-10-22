@@ -18,7 +18,7 @@ import { PeopleAccess } from '@/components/settings/PeopleAccess';
 import { EmailSettings } from '@/components/settings/EmailSettings';
 import { bcWebhooksConfigured } from '@/lib/webhooks/config';
 import { BitcoinWallets } from '@/components/settings/BitcoinWallets';
-import { electrumStatus, listWallets, type WalletSummary } from '@/lib/bitcoin/wallets';
+import { electrumStatusFor, listWallets, type WalletSummary } from '@/lib/bitcoin/wallets';
 import { signInStatuses } from '@/lib/directory/graph';
 
 export const metadata = { title: 'Settings' };
@@ -170,7 +170,7 @@ export default async function SettingsPage({
             orgs={orgs
               .filter((o) => o.kind !== 'business-central')
               .map((o) => ({ key: o.key, name: o.name, sourceLabel: o.sourceLabel }))}
-            electrum={electrumStatus()}
+            electrum={await electrumStatusFor(auth)}
           />
         )}
 

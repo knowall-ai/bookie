@@ -5,9 +5,15 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, Bitcoin, Plus, Trash2 } from 'lucide-react';
 import type { ElectrumStatus, WalletSummary } from '@/lib/bitcoin/wallets';
-import { addBitcoinWalletAction, removeBitcoinWalletAction } from '@/lib/portal/actions/bitcoin';
+import {
+  addBitcoinWalletAction,
+  removeBitcoinWalletAction,
+  saveElectrumServerAction,
+  clearElectrumServerAction,
+} from '@/lib/portal/actions/bitcoin';
 import { Button } from '@/components/ui/Button';
 import { Field, Input, Select, Textarea } from '@/components/ui/Field';
+import { Toggle } from '@/components/ui/Toggle';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatDate } from '@/lib/ui/format';
@@ -40,6 +46,29 @@ export function BitcoinWallets({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [serverPending, startServer] = useTransition();
+  const [url, setUrl] = useState(electrum.url ?? '');
+  const [trusted, setTrusted] = useState(
+    electrum.source === 'organisation' && !electrum.privacyWarning
+  );
+  const [certSha256, setCertSha256] = useState('');
+  const saveServer = () =>
+    startServer(async () => {
+      const result = await saveElectrumServerAction({ url, trusted, certSha256 });
+      if (!result.ok) return void toast.error(result.error);
+      toast.success('Electrum server saved');
+      router.refresh();
+    });
+  const clearServer = () =>
+    startServer(async () => {
+      const result = await clearElectrumServerAction();
+      if (!result.ok) return void toast.error(result.error);
+      setUrl('');
+      setTrusted(false);
+      setCertSha256('');
+      toast.success("Using the installation's server");
+      router.refresh();
+    });
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY, orgKey: orgs[0]?.key ?? '' });
   const [removing, setRemoving] = useState<WalletSummary | null>(null);
@@ -103,6 +132,74 @@ export function BitcoinWallets({
       </div>
 
       <div className="p-5">
+        <div className="border-line mb-5 border-b pb-5" data-testid="electrum-server">
+          <h3 className="text-ink font-semibold">Electrum server</h3>
+          <p className="text-muted mt-1 text-sm">
+            Bookie reads your wallets through an Electrum server, which learns their addresses. Use
+            your own node for privacy.
+          </p>
+          <p className="text-muted mt-1 text-sm">
+            This setting applies to all organisations in your tenant.
+          </p>
+          <p className="text-ink my-3 text-sm">
+            {electrum.source === 'organisation'
+              ? `Your server: ${electrum.url ?? 'unavailable'}`
+              : "This Bookie installation's server"}
+            {electrum.source === 'organisation' &&
+              electrum.configured &&
+              !electrum.privacyWarning && <Badge>You run it</Badge>}
+          </p>
+          <form
+            className="grid gap-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveServer();
+            }}
+          >
+            <Field label="Server URL" htmlFor="electrum-url">
+              <Input
+                id="electrum-url"
+                placeholder="ssl://electrum.example.com:50002"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                required
+                disabled={serverPending}
+              />
+            </Field>
+            <div className="text-muted flex items-center gap-3 text-sm">
+              <Toggle
+                label="I run this server (no privacy warning)"
+                checked={trusted}
+                onChange={setTrusted}
+                disabled={serverPending}
+              />
+              <span>I run this server (no privacy warning)</span>
+            </div>
+            <Field
+              label="Certificate fingerprint (SHA-256), for a self-signed certificate"
+              htmlFor="electrum-pin"
+              hint="Optional. Enter it each time you save a server that needs a pinned certificate."
+            >
+              <Input
+                id="electrum-pin"
+                value={certSha256}
+                onChange={(e) => setCertSha256(e.target.value)}
+                disabled={serverPending}
+                autoComplete="off"
+              />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" variant="primary" disabled={serverPending}>
+                {serverPending ? 'Checking…' : 'Test and save'}
+              </Button>
+              {electrum.source === 'organisation' && (
+                <Button variant="secondary" onClick={clearServer} disabled={serverPending}>
+                  Use the installation&apos;s server
+                </Button>
+              )}
+            </div>
+          </form>
+        </div>
         {!electrum.configured ? (
           <p
             className="text-warn mb-4 flex items-start gap-2 text-sm"
@@ -110,8 +207,8 @@ export function BitcoinWallets({
           >
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>
-              No Electrum server configured. Bookie reads wallets through an Electrum server set in
-              BOOKIE_ELECTRUM_URL; until one is set, wallets show no transactions.
+              No Electrum server configured. Set your server above or ask the installation operator
+              to configure one; until one is set, wallets show no transactions.
               {electrum.error ? ` (${electrum.error})` : ''}
             </span>
           </p>
@@ -122,8 +219,9 @@ export function BitcoinWallets({
           >
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>
-              This Bookie installation uses an Electrum server its operator hasn’t marked as their
-              own. That server learns every address in your wallets and can link them together.
+              The effective Electrum server hasn’t been marked as one you or the installation
+              operator runs. That server learns every address in your wallets and can link them
+              together.
               {electrum.plaintext ? ' The connection is not encrypted.' : ''}
             </span>
           </p>

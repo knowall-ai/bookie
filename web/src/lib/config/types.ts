@@ -83,6 +83,7 @@ export interface AccessSettings {
 }
 
 export interface TenantSettings {
+  bitcoin?: { electrum?: { url: string; trusted: boolean; certSha256?: string } };
   xero: { enabled: boolean };
   businessCentral: {
     enabled: boolean;

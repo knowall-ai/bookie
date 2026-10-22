@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 
+// These tests share tenant settings; the server override must not race wallet scans.
+test.describe.configure({ mode: 'default' });
+
 /**
  * Bitcoin wallets on the demo organisation (BOOKIE_DEV_AUTH=demo). The demo wallet is
  * fictional fixture data; the wallet added here is the public BIP84 test vector key.
@@ -177,4 +180,30 @@ test.describe('Bitcoin wallets', () => {
     await section.getByRole('button', { name: 'Add wallet' }).click();
     await expect(page.getByText(/That is a private key/)).toBeVisible();
   });
+});
+
+test('a member configures and clears the tenant Electrum server', async ({ page }) => {
+  await page.goto('/portal/settings');
+  const section = page.getByTestId('electrum-server');
+  await expect(section.getByRole('heading', { name: 'Electrum server' })).toBeVisible();
+  await section.getByLabel('Server URL').fill('tcp://x:1');
+  await section.getByRole('button', { name: 'Test and save' }).click();
+  await expect(
+    page.getByText(
+      "Use an ssl:// address: Bookie only connects to an organisation's own server over TLS."
+    )
+  ).toBeVisible();
+  await section.getByLabel('Server URL').fill('ssl://electrum.example.com:50002');
+  await section.getByRole('switch', { name: 'I run this server (no privacy warning)' }).click();
+  await section.getByRole('button', { name: 'Test and save' }).click();
+  try {
+    await expect(section).toContainText('Your server: ssl://electrum.example.com:50002');
+    await expect(section).toContainText('You run it');
+    await expect(page.getByTestId('electrum-privacy')).toBeHidden();
+  } finally {
+    await section.getByRole('button', { name: "Use the installation's server" }).click();
+  }
+  await expect(section).toContainText("This Bookie installation's server");
+  await expect(section.getByRole('button', { name: "Use the installation's server" })).toBeHidden();
+  await expect(page.getByTestId('electrum-missing')).toBeVisible();
 });

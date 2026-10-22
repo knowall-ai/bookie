@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateOrgElectrumUrl } from '@/lib/bitcoin/electrum-guard';
 
 export const SCRIPT_TYPES = ['pkh', 'sh-wpkh', 'wpkh', 'tr'] as const;
 
@@ -54,3 +55,28 @@ export const postJournalSchema = z.object({
 
 /** The Receive dialog names a wallet only: the address index is the server's choice. */
 export const receiveAddressSchema = z.object({ orgKey, walletId });
+
+export const electrumServerSchema = z.strictObject({
+  url: z
+    .string()
+    .trim()
+    .min(1)
+    .max(300)
+    .superRefine((url, ctx) => {
+      try {
+        validateOrgElectrumUrl(url);
+      } catch (error) {
+        ctx.addIssue({ code: 'custom', message: (error as Error).message });
+      }
+    }),
+  trusted: z.boolean(),
+  certSha256: z
+    .string()
+    .trim()
+    .transform((value) => value || undefined)
+    .optional()
+    .refine(
+      (value) => !value || /^([0-9a-fA-F]{2}:?){32}$/.test(value),
+      'Use a SHA-256 certificate fingerprint.'
+    ),
+});

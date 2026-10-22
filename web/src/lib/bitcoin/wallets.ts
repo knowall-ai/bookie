@@ -11,6 +11,7 @@ import type {
 } from '@/lib/connectors/types';
 import type { IsoDate, OrgRef } from '@/lib/domain/types';
 import { WalletError } from './errors';
+import { validateOrgElectrumUrl } from './electrum-guard';
 import {
   DEMO_LATEST_RATE,
   DEMO_WALLET_BC_BANK,
@@ -85,8 +86,48 @@ export function electrumSetting(env: Env = process.env): ElectrumSetting {
   }
 }
 
-/** What the UI may say about the server: never its address. */
+export async function electrumSettingFor(
+  auth: AuthContext
+): Promise<ElectrumSetting & { source?: 'organisation' | 'installation' }> {
+  const own = (await configStoreFor(auth).getSettings()).bitcoin?.electrum;
+  if (!own) return { ...electrumSetting(), source: 'installation' };
+  try {
+    if (own.certSha256 && !/^([0-9a-fA-F]{2}:?){32}$/.test(own.certSha256))
+      throw new Error('Use a SHA-256 certificate fingerprint.');
+    return {
+      configured: true,
+      server: validateOrgElectrumUrl(own.url),
+      trusted: own.trusted,
+      certSha256: own.certSha256,
+      source: 'organisation',
+    };
+  } catch (error) {
+    return { configured: false, error: (error as Error).message, source: 'organisation' };
+  }
+}
+
+export async function electrumStatusFor(auth: AuthContext): Promise<ElectrumStatus> {
+  const setting = await electrumSettingFor(auth);
+  return {
+    configured: setting.configured,
+    privacyWarning: setting.configured && !setting.trusted,
+    plaintext: setting.configured && setting.server.protocol === 'tcp',
+    source: setting.source,
+    ...(setting.configured
+      ? {
+          url:
+            setting.source === 'organisation'
+              ? `ssl://${setting.server.host.includes(':') ? `[${setting.server.host}]` : setting.server.host}:${setting.server.port}`
+              : undefined,
+        }
+      : { error: setting.error }),
+  };
+}
+
+/** Only an organisation's own server address may be shown in the UI. */
 export interface ElectrumStatus {
+  source?: 'organisation' | 'installation';
+  url?: string;
   configured: boolean;
   /** A server the operator hasn't marked as their own: it sees which addresses are asked about. */
   privacyWarning: boolean;
@@ -379,8 +420,14 @@ const SCAN_TTL_MS = 5 * 60_000;
 const scans = new Map<string, { at: number; value: Promise<WalletScan> }>();
 
 /** Tenant, organisation, wallet and descriptor: a descriptor changed in BC is never served stale. */
-const cacheKey = (auth: AuthContext, orgKey: string, walletId: string, d: WalletDescriptor) =>
-  `${auth.user.tenantId}:${orgKey}:${walletId}:${d.canonical.slice(-8)}`;
+export const cacheKey = (
+  auth: AuthContext,
+  orgKey: string,
+  walletId: string,
+  d: WalletDescriptor,
+  server: ElectrumServer
+) =>
+  `${auth.user.tenantId}:${orgKey}:${walletId}:${d.canonical.slice(-8)}:${server.protocol}://${server.host}:${server.port}`;
 
 async function liveScan(
   descriptor: WalletDescriptor,
@@ -423,7 +470,7 @@ async function loadResolved(
   if (summary.problem || !descriptor) {
     return { status: 'error', message: summary.problem ?? 'This wallet has no descriptor.' };
   }
-  const setting = electrumSetting();
+  const setting = await electrumSettingFor(auth);
   if (!setting.configured) {
     return { status: 'not-configured', message: setting.error ?? NO_ELECTRUM };
   }
@@ -433,7 +480,7 @@ async function loadResolved(
       message: 'This is a testnet wallet; Bookie reads mainnet wallets only.',
     };
   }
-  const key = cacheKey(auth, scope.org.key, summary.id, descriptor);
+  const key = cacheKey(auth, scope.org.key, summary.id, descriptor, setting.server);
   const now = Date.now();
   let hit = scans.get(key);
   if (!hit || now - hit.at > SCAN_TTL_MS) {
@@ -446,7 +493,12 @@ async function loadResolved(
     });
   }
   try {
-    return { status: 'ok', scan: await hit.value, source: 'electrum', electrum: electrumStatus() };
+    return {
+      status: 'ok',
+      scan: await hit.value,
+      source: 'electrum',
+      electrum: await electrumStatusFor(auth),
+    };
   } catch (error) {
     return { status: 'error', message: chainErrorMessage(error) };
   }
@@ -495,7 +547,7 @@ export async function receiveAddress(
   if (load.status !== 'ok') return unavailable(load.message);
   if (!descriptor) return unavailable(summary.problem ?? 'This wallet has no descriptor.');
   let index = load.scan.nextReceiveIndex;
-  const setting = electrumSetting();
+  const setting = await electrumSettingFor(auth);
   if (load.source === 'electrum' && setting.configured) {
     // The scan may be from the cache: check the chain now, so an address paid in the
     // last few minutes isn't offered again.

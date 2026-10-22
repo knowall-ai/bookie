@@ -91,6 +91,7 @@ abstract class SealedRecordStore implements ConfigStore {
       },
       forecast: stored.forecast,
       email: stored.email,
+      bitcoin: stored.bitcoin,
     };
   }
 
