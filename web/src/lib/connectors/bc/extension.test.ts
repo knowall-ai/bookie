@@ -197,6 +197,8 @@ describe('bc extension bank', () => {
     ).toEqual({
       ...account,
       balance: 1250.5,
+      // BC's balance sums every posted entry, so there's no "as at" date, only a note.
+      balanceNote: 'Every posted entry, including any dated later',
       statementBalance: 1100,
       statementDate: '2026-09-30',
       unreconciledCount: 3,

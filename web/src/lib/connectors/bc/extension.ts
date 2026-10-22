@@ -198,6 +198,9 @@ export function withBankBalance(account: BankAccount, raw: BcBankAccountBalance)
   return {
     ...account,
     balance: raw.balance,
+    // The bank account's balance sums every posted entry, whatever its date, so there's
+    // no single "as at" date to show.
+    balanceNote: 'Every posted entry, including any dated later',
     // No posted statement yet means there is no statement balance, not a zero one.
     statementBalance: hasStatement ? raw.lastStatementBalance : undefined,
     statementDate: hasStatement ? bcDate(raw.lastStatementDate) : undefined,
