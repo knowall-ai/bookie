@@ -339,3 +339,40 @@ describe('xeroBalanceHistory', () => {
     expect(bank.feedNote).toBe(XERO_FEED_NOTE);
   });
 });
+
+describe('xeroBank accounts: as-at date', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-22T09:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const client = (bankSummary: () => unknown) =>
+    ({
+      cacheScope: 'tenant-a:conn-1:org-1',
+      async request(path: string) {
+        if (path === 'Accounts') return { Accounts: ACCOUNTS.slice(0, 1) };
+        if (path === 'Reports/BankSummary') return bankSummary();
+        return { BankTransactions: [] };
+      },
+    }) as unknown as XeroClient;
+
+  it('dates the balance as at the Bank Summary day', async () => {
+    const [account] = await xeroBank(
+      client(() => ({ Reports: [summary([[CURRENT, 1000, 1150]])] })),
+      async () => 'GBP'
+    ).accounts();
+    expect(account).toMatchObject({ balance: 1150, balanceAsAt: '2026-10-22' });
+  });
+
+  it('gives no date when Xero gives no balance', async () => {
+    const [account] = await xeroBank(
+      client(() => {
+        throw new Error('Bank Summary unavailable');
+      }),
+      async () => 'GBP'
+    ).accounts();
+    expect(account.balance).toBeUndefined();
+    expect(account.balanceAsAt).toBeUndefined();
+  });
+});

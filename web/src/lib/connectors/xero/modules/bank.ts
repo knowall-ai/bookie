@@ -366,13 +366,14 @@ export function xeroBank(
     ...xeroTransfers(client),
 
     async accounts() {
+      const asAt = today();
       const [accounts, summary, counts, base] = await Promise.all([
         client.request<{ Accounts: XeroAccount[] }>('Accounts', {
           query: { where: 'Type=="BANK" AND Status=="ACTIVE"', order: 'Name ASC' },
         }),
         client
           .request<{ Reports: XeroReport[] }>('Reports/BankSummary', {
-            query: { fromDate: today(), toDate: today() },
+            query: { fromDate: asAt, toDate: asAt },
           })
           .then((r) => closingBalances(r.Reports[0]))
           .catch(() => undefined),
@@ -387,6 +388,8 @@ export function xeroBank(
           // Bank Summary (like the Balance Sheet) leaves out accounts with a zero balance,
           // so an active account missing from it is at zero.
           balance: summary ? (summary.get(raw.AccountID) ?? 0) : undefined,
+          // The Bank Summary's own date: the balance is as at that day.
+          balanceAsAt: summary ? asAt : undefined,
           // Bank Summary amounts are in base currency, foreign-currency accounts included.
           balanceCurrency: base && account.currency !== base ? base : undefined,
           unreconciledCount: counts ? (counts.get(raw.AccountID) ?? 0) : undefined,

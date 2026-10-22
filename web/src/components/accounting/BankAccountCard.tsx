@@ -1,3 +1,4 @@
+import { BalanceAsAt } from '@/components/bank/BalanceAsAt';
 import Link from 'next/link';
 import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark, Wallet } from 'lucide-react';
 import type { BankAccount } from '@/lib/domain/types';
@@ -79,6 +80,7 @@ export function BankAccountCard({
                   currency={account.balanceCurrency ?? account.currency}
                 />
               )}
+              <BalanceAsAt account={account} />
             </dd>
           </div>
           <div>

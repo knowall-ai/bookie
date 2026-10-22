@@ -533,6 +533,10 @@ export interface BankAccount {
   currency: string;
   /** Balance per the ledger (Xero "Balance in Xero" / BC G/L balance). */
   balance?: number;
+  /** The date `balance` is as at, when the source states one (Xero's Bank Summary date). */
+  balanceAsAt?: IsoDate;
+  /** What `balance` covers, when the source gives no single date for it. */
+  balanceNote?: string;
   /**
    * Currency `balance` is in, when it isn't the account's own currency (Xero's
    * Bank Summary gives foreign-currency accounts' balances in base currency).

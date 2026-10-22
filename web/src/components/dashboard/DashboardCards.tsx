@@ -1,3 +1,4 @@
+import { BalanceAsAt } from '@/components/bank/BalanceAsAt';
 import Link from 'next/link';
 import { ArrowUpRight, ChevronRight, Landmark } from 'lucide-react';
 import type { BankAccount, DashboardSummary, DocumentBucket } from '@/lib/domain/types';
@@ -53,6 +54,7 @@ export function BankAccountCard({
           formatMoney(account.balance, account.balanceCurrency ?? account.currency)
         )}
       </p>
+      <BalanceAsAt account={account} className="text-faint mt-0.5 block text-xs" />
       {account.balanceCurrency && account.balance !== undefined && (
         <p className="text-faint mt-0.5 text-xs">
           In {account.balanceCurrency}, the base currency, as the source reports it
