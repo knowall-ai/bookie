@@ -622,11 +622,11 @@ export function TopBar({
 
 function PendingBadge({ count }: { count?: number }) {
   return count ? (
-    <span
-      className="bg-brand/15 text-brand-bright ml-1 rounded-full px-1.5 py-0.5 text-xs"
-      aria-label={`${count} emails waiting for your approval`}
-    >
-      {count}
+    // Screen-reader text rather than aria-label: a label containing "email" made
+    // getByLabel('Email') match the badge as well as form fields.
+    <span className="bg-brand/15 text-brand-bright ml-1 rounded-full px-1.5 py-0.5 text-xs">
+      <span aria-hidden>{count}</span>
+      <span className="sr-only">, {count} waiting for your approval</span>
     </span>
   ) : null;
 }

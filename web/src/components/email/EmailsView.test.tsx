@@ -114,6 +114,21 @@ it('shows nothing available to a non-approver with only an agent address', async
   );
 });
 
+it.each(['no-consent', 'error'] as const)(
+  'shows the %s explanation, not "Nothing here", for an agent-only setup',
+  async (status) => {
+    vi.mocked(getEmailsOverview).mockResolvedValue({
+      agents: [{ id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' }],
+      approvals:
+        status === 'error' ? { status, error: 'Microsoft 365 didn’t answer.' } : { status },
+      mailboxes: [],
+    });
+    const html = renderToStaticMarkup(await EmailsView({ basePath: '/portal/emails' }));
+    expect(html).not.toContain('Nothing here for you');
+    expect(html).toContain(status === 'error' ? 'Microsoft 365 didn’t answer.' : 'Mail.ReadWrite');
+  }
+);
+
 it.each([1, 2])('uses configured names for %s agents', async (count) => {
   const agents = [
     { id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' },

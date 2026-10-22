@@ -11,7 +11,9 @@ test.describe('Bookie’s emails', () => {
   test('opens from the Email tab and lists held emails, pending first', async ({ page }) => {
     await page.goto('/portal/demo.contoso');
     const nav = page.getByRole('navigation', { name: 'Main', exact: true });
-    await expect(nav.getByLabel('2 emails waiting for your approval')).toBeVisible();
+    await expect(
+      nav.getByRole('link', { name: /^Email\W+2 waiting for your approval$/ })
+    ).toBeVisible();
     await nav.getByRole('link', { name: /Email/ }).click();
     await expect(page).toHaveURL(/\/portal\/demo\.contoso\/email$/);
     await expect(page.getByRole('heading', { name: 'Email' })).toBeVisible();

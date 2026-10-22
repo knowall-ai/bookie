@@ -144,7 +144,10 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
     overview.approvals.status === 'not-configured'
   )
     return <ApprovalsTab view={overview.approvals} agents={overview.agents} />;
+  // Only once approvals loaded and the person isn't an approver: a consent or error state
+  // must still show its own explanation.
   if (
+    overview.approvals.status === 'ok' &&
     !showApprovals &&
     ((overview.mailboxes.length > 0 &&
       overview.mailboxes.every((mailbox) => mailbox.status === 'no-access')) ||
