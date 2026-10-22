@@ -242,7 +242,12 @@ function TabMenu({
         aria-expanded={open}
         onClick={() => {
           if (open && openedByHover.current) openedByHover.current = false;
-          else setOpen(!open);
+          else {
+            // A click (or Enter/Space) owns the menu from here: a stale hover flag from an
+            // earlier visit mustn't swallow the next toggle.
+            openedByHover.current = false;
+            setOpen(!open);
+          }
         }}
         onMouseEnter={() => {
           if (!open) openedByHover.current = true;
