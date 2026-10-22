@@ -1,10 +1,11 @@
-// Copied from knowall-ai/agents-portal src/lib/providers/approvals.test.ts @ d0f5af6; keep in step.
+// Copied from knowall-ai/agents-portal src/lib/providers/approvals.test.ts @ d0f5af6; in step with knowall-ai/sallie web/src/lib/approvals*.ts (origin/main, sallie#217).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MARKER_RETRY,
   decideApproval,
   getApprovalDetail,
   listApprovals,
+  isApprover,
   resolveSenders,
 } from './graph';
 
@@ -46,7 +47,8 @@ function stubGraph(handler: Handler) {
         url,
         body: init.body ? JSON.parse(String(init.body)) : undefined,
       });
-      if (url.pathname.endsWith('/me/mailFolders/inbox')) return Response.json({ id: 'inbox-id' });
+      if (url.pathname.endsWith('/me/mailFolders/deleteditems'))
+        return Response.json({ id: 'deleted-id' });
       return handler(url, init) ?? new Response('{}', { status: 500 });
     })
   );
@@ -127,7 +129,7 @@ describe('listApprovals', () => {
     expect(calls.filter((c) => path(c.url) === '/me/messages').length).toBe(10);
   });
 
-  it('still lists when the inbox lookup fails, without the folder hint', async () => {
+  it('still lists when the deleted items lookup fails, without the folder hint', async () => {
     stubGraph((url) =>
       path(url) === '/me/messages' ? Response.json({ value: [REQUEST] }) : undefined
     );
@@ -320,17 +322,17 @@ describe('decideApproval', () => {
     );
   });
 
-  it('sends no vote when the inbox cannot be verified', async () => {
+  it('sends no vote when the Deleted Items cannot be verified', async () => {
     happy();
     const graphFetch = vi.mocked(fetch).getMockImplementation()!;
     vi.mocked(fetch).mockImplementation(async (input, init) =>
-      String(input).includes('/me/mailFolders/inbox')
+      String(input).includes('/me/mailFolders/deleteditems')
         ? new Response('{}', { status: 503 })
         : graphFetch(input as string, init)
     );
     await expect(
       decideApproval('token', 'req-1', SENDERS, 'approve', undefined, NOW)
-    ).rejects.toThrow('Graph 503 inbox lookup');
+    ).rejects.toThrow('Graph 503 deleted items lookup');
     expect(calls.some((c) => path(c.url).endsWith('/createReply'))).toBe(false);
   });
 
@@ -424,4 +426,71 @@ describe('resolveSenders', () => {
     stubGraph(() => new Response('{}', { status: 403 }));
     expect(await resolveSenders('dir-token', 'upn@example.com')).toEqual(['upn@example.com']);
   });
+});
+
+it('waits and tries once more when Graph is throttled', async () => {
+  let throttled = false;
+  stubGraph((url) => {
+    if (path(url) !== '/me/messages') return undefined;
+    if (!throttled) {
+      throttled = true;
+      return new Response('{}', { status: 429, headers: { 'Retry-After': '0' } });
+    }
+    return Response.json({ value: [REQUEST] });
+  });
+  const { items } = await listApprovals('token', SENDERS, NOW);
+  expect(items).toHaveLength(1);
+  expect(calls.filter((c) => path(c.url) === '/me/messages')).toHaveLength(2);
+});
+
+describe('isApprover', () => {
+  it.each([true, false])('checks historical requests: %s', async (found) => {
+    stubGraph((url) => {
+      expect(url.searchParams.get('$top')).toBe('1');
+      expect(url.searchParams.get('$select')).toBe('id');
+      expect(url.searchParams.get('$filter')).toContain('1970-01-01T00:00:00.000Z');
+      expect(url.searchParams.get('$filter')).toContain(SENDER);
+      return Response.json({ value: found ? [{ id: 'old-request' }] : [] });
+    });
+    expect(await isApprover('token', SENDERS)).toBe(found);
+  });
+});
+
+it.each([
+  [429, undefined, 1000],
+  [503, '20', 5000],
+])('retries %s once after a bounded delay', async (status, retryAfter, delay) => {
+  vi.useFakeTimers();
+  try {
+    let attempts = 0;
+    stubGraph((url) => {
+      if (path(url) !== '/me/messages') return undefined;
+      attempts++;
+      return attempts === 1
+        ? new Response('{}', { status, headers: retryAfter ? { 'Retry-After': retryAfter } : {} })
+        : Response.json({ value: [] });
+    });
+    const result = listApprovals('token', SENDERS, NOW);
+    await vi.advanceTimersByTimeAsync(delay - 1);
+    expect(attempts).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await result;
+    expect(attempts).toBe(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it.each([429, 503])('does not retry a vote send on %s', async (status) => {
+  stubGraph((url) => {
+    const p = path(url);
+    if (p === '/me/messages/req-1') return Response.json(REQUEST);
+    if (p.endsWith('/createReply')) return Response.json({ id: 'draft-1' });
+    if (p.endsWith('/send')) return new Response('{}', { status });
+    return new Response(null, { status: 204 });
+  });
+  await expect(
+    decideApproval('token', 'req-1', SENDERS, 'approve', undefined, NOW)
+  ).rejects.toThrow(`Graph ${status} decision send`);
+  expect(calls.filter((call) => path(call.url).endsWith('/send'))).toHaveLength(1);
 });

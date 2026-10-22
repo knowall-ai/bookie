@@ -1,5 +1,5 @@
 // Copied from knowall-ai/agents-portal src/lib/approvals.ts @ d0f5af6 (PR #143); keep in step
-// with it and with knowall-ai/sallie. Only the import paths differ.
+// and in step with knowall-ai/sallie web/src/lib/approvals*.ts (origin/main, sallie#217).
 // Exchange moderation requests for an agent's outgoing email: reading them
 // from the moderator's mailbox and building the decision Exchange accepts.
 //
@@ -86,14 +86,15 @@ function prop(request: GraphApprovalRequest, id: string): string | undefined {
 /**
  * What the moderator's mailbox says about a request. A decision recorded by
  * the portal (verb response) or by Outlook's voting buttons (last verb 1 or 2)
- * is final; a reply (how any vote reaches Exchange), or Exchange moving the
- * request out of the inbox, means it was dealt with somewhere we cannot read.
+ * is final; a reply (how any vote reaches Exchange), or the request deleted,
+ * means it was dealt with somewhere we cannot read. Filing it in another folder
+ * (an Outlook rule, or by hand) is not a decision: it still waits.
  * Other verbs, such as forwarding the request to someone, are not decisions. Otherwise it waits,
  * until Exchange's two-day lifetime runs out.
  */
 export function approvalStatus(
   request: GraphApprovalRequest,
-  inboxFolderId: string | undefined,
+  deletedFolderId: string | undefined,
   now: Date = new Date()
 ): ApprovalStatus {
   const verb = prop(request, VERB_RESPONSE_PROP);
@@ -103,9 +104,7 @@ export function approvalStatus(
   if (last === '1') return 'approved';
   if (last === '2') return 'rejected';
   if (last === '102') return 'decided';
-  if (inboxFolderId && request.parentFolderId && request.parentFolderId !== inboxFolderId) {
-    return 'decided';
-  }
+  if (deletedFolderId && request.parentFolderId === deletedFolderId) return 'decided';
   const age = now.getTime() - new Date(request.receivedDateTime).getTime();
   return age >= REQUEST_LIFETIME_MS ? 'expired' : 'pending';
 }
@@ -159,7 +158,7 @@ export function parseRequestBody(text: string | null | undefined): {
 /** List entry for a request */
 export function toApproval(
   request: GraphApprovalRequest,
-  inboxFolderId: string | undefined,
+  deletedFolderId: string | undefined,
   now: Date = new Date()
 ): EmailApproval {
   const { recipients, preview } = parseRequestBody(request.body?.content);
@@ -170,7 +169,7 @@ export function toApproval(
     expiresAt: new Date(
       new Date(request.receivedDateTime).getTime() + REQUEST_LIFETIME_MS
     ).toISOString(),
-    status: approvalStatus(request, inboxFolderId, now),
+    status: approvalStatus(request, deletedFolderId, now),
     recipients,
     preview,
   };
@@ -243,13 +242,21 @@ export function decisionMarker(decision: ApprovalDecision) {
   return { singleValueExtendedProperties: [{ id: VERB_RESPONSE_PROP, value: VERB[decision] }] };
 }
 
-/** The arbitration mailbox a decision goes to: a SystemMailbox in the request's Reply-To */
+/**
+ * The arbitration mailbox a decision goes to: the request's Reply-To. Exchange
+ * Online names it SystemMailbox{guid} in practice but doesn't promise to, so
+ * any address will do except one of the agent's own (a vote must never go to
+ * the agent). The request itself is already checked to be a moderation
+ * request from the agent.
+ */
 export function arbitrationAddress(
-  request: GraphApprovalRequest
+  request: GraphApprovalRequest,
+  senders: string[]
 ): { name?: string; address: string } | null {
   const reply = request.replyTo?.find((r) => r.emailAddress?.address);
-  const address = reply?.emailAddress?.address;
-  if (!address || !/^SystemMailbox\{[0-9a-f-]+\}@/i.test(address)) return null;
+  const address = reply?.emailAddress?.address?.trim();
+  if (!address || !/^[^\s@]+@[^\s@]+$/.test(address)) return null;
+  if (senders.some((s) => s.toLowerCase() === address.toLowerCase())) return null;
   return { name: reply?.emailAddress?.name ?? undefined, address };
 }
 

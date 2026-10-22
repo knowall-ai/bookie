@@ -11,6 +11,13 @@ const GUEST_BASE_URL = process.env.GUEST_BASE_URL ?? 'http://localhost:3121';
 test.describe('guest accountant', () => {
   test.use({ baseURL: GUEST_BASE_URL });
 
+  test('guests have no Email navigation tab', async ({ page }) => {
+    await page.goto('/portal/demo.contoso');
+    await expect(page.getByRole('link', { name: /^Email/ })).toHaveCount(0);
+    const response = await page.request.get('/api/email/pending');
+    expect(await response.json()).toEqual({ count: 0 });
+  });
+
   test('sees only the organisation they were given', async ({ page }) => {
     await page.goto('/portal');
     const list = page.getByTestId('org-list');

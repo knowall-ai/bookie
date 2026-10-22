@@ -49,6 +49,7 @@ export interface NavItem {
 }
 
 export interface NavTab {
+  members?: true;
   key: string;
   label: string;
   /** Tabs without items link straight to `href`. */
@@ -143,7 +144,11 @@ export const NAV: NavTab[] = [
       { label: 'Suppliers', href: '/contacts?role=supplier', module: 'contacts' },
     ],
   },
+  { key: 'email', label: 'Email', href: '/email', members: true },
 ];
+
+export const navForUser = (userType?: string) =>
+  NAV.filter((tab) => !tab.members || userType === 'Member');
 
 /** "+ New" menu. */
 export const CREATE_ITEMS: NavItem[] = [

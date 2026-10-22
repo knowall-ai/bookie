@@ -153,8 +153,11 @@ scripts don't manage the app registration or its consents, so grant these in Ent
 
 === Bookie's emails
 
-`/portal/emails` (the account menu's *Bookie's emails*, members only) shows Bookie's external
-emails awaiting a moderator's approval and the accounts mailbox. Set *Bookie's email address* and
+The organisation's *Email* tab (`/portal/<org>/email`, members only) shows Bookie's external
+emails awaiting a moderator's approval and the accounts mailbox. The *Approvals* sub-tab is
+shown only when the person's own mailbox has received a Bookie moderation request; other members
+start on *Accounts inbox*. Exchange controls access to both. `/portal/emails` redirects to the
+first organisation's Email tab, or shows the same view when there are no organisations. Set *Bookie's email address* and
 *Accounts mailbox* under *Settings › Bookie's emails*, and consent the mail permissions above. Each
 tab says which permission or setting it is missing; a person Exchange won't let into the mailbox
 sees "You don't have access", never an error. Nothing is stored: every view is read live, and the

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { Check, ChevronDown, ChevronUp, MailCheck, Paperclip, X } from 'lucide-react';
@@ -19,6 +19,7 @@ import type {
 } from '@/lib/email/types';
 import { decideEmailApprovalAction, emailApprovalDetailAction } from '@/lib/portal/actions/email';
 import { formatDateTimeUk } from '@/lib/ui/format';
+import { PENDING_CHANGED } from './pending';
 
 // Modelled on knowall-ai/agents-portal's ApprovalsPanel (PR #143), so Bookie's held
 // email looks and behaves the same in both portals.
@@ -131,6 +132,11 @@ function ApprovalRow({
   onApprove: () => void;
   onReject: (reason: string) => void;
 }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const [detail, setDetail] = useState<EmailApprovalDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [loading, startLoading] = useTransition();
@@ -174,7 +180,15 @@ function ApprovalRow({
                 {pending && (
                   <>
                     {' · '}
-                    <When iso={item.expiresAt} prefix="expires " />
+                    <span
+                      className={
+                        new Date(item.expiresAt).getTime() - now < 6 * 60 * 60 * 1000
+                          ? 'text-warn'
+                          : undefined
+                      }
+                    >
+                      <When iso={item.expiresAt} prefix="expires " />
+                    </span>
                   </>
                 )}
               </span>
@@ -294,6 +308,15 @@ export function ApprovalsList({ items }: { items: EmailApproval[] }) {
           ? 'Approved. Exchange is sending the email.'
           : 'Rejected. Bookie will get your reason.'
       );
+      // The Email tab's badge: drop its cached count so it re-reads now.
+      try {
+        for (const k of Object.keys(sessionStorage)) {
+          if (k.startsWith('["email-pending"')) sessionStorage.removeItem(k);
+        }
+      } catch {
+        /* Storage may be disabled. */
+      }
+      window.dispatchEvent(new Event(PENDING_CHANGED));
       router.refresh();
     });
   };

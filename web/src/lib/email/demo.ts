@@ -222,7 +222,7 @@ export function demoEmailsOverview(
   return {
     agentAddress: DEMO_AGENT_ADDRESS,
     demo: true,
-    approvals: { status: 'ok', items: demoApprovals(decisions, now) },
+    approvals: { isApprover: true, status: 'ok', items: demoApprovals(decisions, now) },
     mailbox: {
       status: 'ok',
       mailbox: DEMO_ACCOUNTS_MAILBOX,

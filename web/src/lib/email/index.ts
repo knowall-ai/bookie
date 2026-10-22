@@ -11,6 +11,7 @@ import {
   decideApproval,
   getApprovalDetail,
   listApprovals,
+  isApprover,
   readMailbox,
   resolveSenders,
   type DecideResult,
@@ -33,8 +34,8 @@ import type {
  * - The accounts mailbox: read through Exchange's own permissions (Mail.Read.Shared),
  *   so only people with access to it see it.
  *
- * Nothing is stored or cached across people. Errors never carry addresses or
- * subjects (the Graph helpers use fixed labels).
+ * Only the Email tab's pending count is briefly cached, separately for each tenant and
+ * person. Errors never carry addresses or subjects (the Graph helpers use fixed labels).
  */
 
 const FAILED = 'Microsoft 365 didn’t answer. Try again in a minute.';
@@ -51,16 +52,16 @@ async function approvalsView(
   if (!agentAddress) return { status: 'not-configured' };
   if (!canModerate(scopes)) return { status: 'no-consent' };
   try {
-    const { items, incomplete } = await listApprovals(
-      token,
-      await resolveSenders(token, agentAddress)
-    );
-    return { status: 'ok', items, ...(incomplete ? { incomplete } : {}) };
+    const senders = await resolveSenders(token, agentAddress);
+    const approver = await isApprover(token, senders);
+    if (!approver) return { status: 'ok', isApprover: false, items: [] };
+    const { items, incomplete } = await listApprovals(token, senders);
+    return { status: 'ok', isApprover: true, items, ...(incomplete ? { incomplete } : {}) };
   } catch (error) {
     // The person's own mailbox refused: the mail permissions aren't consented.
     if (error instanceof ApprovalGraphError && error.status === 403)
       return { status: 'no-consent' };
-    console.warn('Email approvals:', error instanceof Error ? error.message : 'failed');
+    console.warn('Email approvals:', error instanceof Error ? error.name : 'failed');
     return { status: 'error', error: FAILED };
   }
 }
@@ -78,10 +79,16 @@ async function mailboxView(
       ? { status: 'ok', mailbox, folders: read.folders }
       : { status: 'no-access', mailbox };
   } catch (error) {
-    console.warn('Accounts mailbox:', error instanceof Error ? error.message : 'failed');
+    console.warn('Accounts mailbox:', error instanceof Error ? error.name : 'failed');
     return { status: 'error', mailbox, error: FAILED };
   }
 }
+
+/** The Email tab's badge count, per tenant and person, for 60 seconds. */
+const pendingCounts = new Map<string, { count: number; expires: number }>();
+/** Bumped when a person decides, so a count read before the decision isn't cached after it. */
+const pendingGeneration = new Map<string, number>();
+const pendingKey = (auth: AuthContext) => JSON.stringify([auth.user.tenantId, auth.user.id]);
 
 /** Demo only: decisions made in this browser, kept in a cookie so the server holds nothing. */
 const DEMO_COOKIE = 'bookie-demo-email-decisions';
@@ -150,12 +157,57 @@ export async function decideEmailApproval(
     (await cookies()).set(DEMO_COOKIE, JSON.stringify({ ...decisions, [id]: status }), {
       httpOnly: true,
       sameSite: 'lax',
-      path: '/portal',
+      path: '/',
     });
     return { ok: true, status };
   }
   const { agentAddress } = await emailSettings(auth);
   if (!agentAddress) return { ok: false, reason: 'not-found' };
   const token = await auth.getToken('graph');
-  return decideApproval(token, id, await resolveSenders(token, agentAddress), decision, reason);
+  const result = await decideApproval(
+    token,
+    id,
+    await resolveSenders(token, agentAddress),
+    decision,
+    reason
+  );
+  // After the vote, so the badge can't re-cache the email as still waiting.
+  const key = pendingKey(auth);
+  pendingCounts.delete(key);
+  pendingGeneration.set(key, (pendingGeneration.get(key) ?? 0) + 1);
+  return result;
+}
+
+/** A short-lived count only, isolated by the verified tenant and person. */
+export async function pendingApprovalCount(auth: AuthContext): Promise<number> {
+  if (auth.user.userType !== 'Member') return 0;
+  if (auth.mode === 'demo') {
+    const view = demoEmailsOverview(await demoDecisions()).approvals;
+    return view.status === 'ok' ? view.items.filter((item) => item.status === 'pending').length : 0;
+  }
+  const key = pendingKey(auth);
+  const cached = pendingCounts.get(key);
+  if (cached && cached.expires > Date.now()) return cached.count;
+  const generation = pendingGeneration.get(key) ?? 0;
+  let count = 0;
+  try {
+    const { agentAddress } = await emailSettings(auth);
+    if (agentAddress) {
+      const token = await auth.getToken('graph');
+      if (canModerate(tokenScopes(token))) {
+        const { items } = await listApprovals(token, await resolveSenders(token, agentAddress));
+        count = items.filter((item) => item.status === 'pending').length;
+      }
+    }
+  } catch (error) {
+    console.warn('Pending email approvals:', error instanceof Error ? error.name : 'Error');
+  }
+  for (const [entry, value] of pendingCounts) {
+    if (value.expires <= Date.now()) pendingCounts.delete(entry);
+  }
+  // A decision made while this was reading may have changed the count: don't cache it.
+  if ((pendingGeneration.get(key) ?? 0) === generation) {
+    pendingCounts.set(key, { count, expires: Date.now() + 60_000 });
+  }
+  return count;
 }

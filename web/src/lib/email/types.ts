@@ -49,7 +49,7 @@ export type ApprovalsView =
   | { status: 'not-configured' }
   /** The tenant hasn't consented Mail.ReadWrite and Mail.Send for Bookie. */
   | { status: 'no-consent' }
-  | { status: 'ok'; items: EmailApproval[]; incomplete?: boolean }
+  | { status: 'ok'; isApprover: boolean; items: EmailApproval[]; incomplete?: boolean }
   | { status: 'error'; error: string };
 
 /** A message in the accounts mailbox, as the list shows it. */
