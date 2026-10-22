@@ -10,6 +10,15 @@ const BIP84_XPUB =
   'xpub6CatWdiZiodmUeTDp8LT5or8nmbKNcuyvz7WyksVFkKB4RHwCD3XyuvPEbvqAQY3rAPshWcMLoP2fMFMKHPJ4ZeZXYVUhLv1VMrjPC7PW6V';
 
 test.describe('Bitcoin wallets', () => {
+  test('Home shows the wallet with the bank accounts, linking to its page', async ({ page }) => {
+    await page.goto(ORG);
+    const bank = page.getByRole('region', { name: 'Bank accounts' });
+    const card = bank.getByRole('article', { name: 'Contoso Treasury' });
+    await expect(card).toBeVisible();
+    await card.getByRole('link').first().click();
+    await expect(page.getByRole('heading', { name: 'Contoso Treasury', level: 1 })).toBeVisible();
+  });
+
   test('shows the demo wallet as a bank account with BTC and base-currency balances', async ({
     page,
   }) => {

@@ -20,6 +20,8 @@ import { SourceNote } from '@/components/accounting/SourceNote';
 import { LiveFeed } from '@/components/dashboard/LiveFeed';
 import { listOrgs } from '@/lib/connectors/registry';
 import { liveFeedEnabled } from '@/lib/webhooks/live';
+import { walletsForOrg } from '@/lib/bitcoin/wallets';
+import { BitcoinWalletCard } from '@/components/bitcoin/BitcoinWalletCard';
 
 export const metadata = { title: 'Home' };
 
@@ -38,9 +40,11 @@ export default async function Home({ params }: { params: Promise<{ org: string }
   const auth = await getAuthContext();
   const firstName = auth?.user.name.split(/\s+/)[0];
 
-  const [details, dashboard] = await Promise.allSettled([
+  // Wallets are read alongside the dashboard, not after it: they don't depend on it.
+  const [details, dashboard, walletRead] = await Promise.allSettled([
     connector.organisation(),
     connector.dashboard(),
+    auth ? walletsForOrg(auth, { org, connector }) : Promise.resolve(undefined),
   ]);
   const orgDetails = details.status === 'fulfilled' ? details.value : undefined;
   // Bank balance histories: read once for every card, after the dashboard's own calls
@@ -49,6 +53,14 @@ export default async function Home({ params }: { params: Promise<{ org: string }
     dashboard.status === 'fulfilled' && dashboard.value.bankAccounts.length
       ? connector.bank?.balanceHistory?.().catch(() => undefined)
       : undefined;
+  // Bitcoin wallets sit with the bank accounts, as on Accounting › Bank accounts. If they
+  // can't be read (settings store or BC down), Home still shows the bank accounts.
+  if (walletRead.status === 'rejected') {
+    console.error('[bookie] bitcoin wallets unavailable on Home', walletRead.reason);
+  }
+  const wallets = walletRead.status === 'fulfilled' ? walletRead.value : undefined;
+  // Valued in the organisation's base currency, from the details already read above.
+  const walletCurrency = wallets?.wallets.length ? orgDetails?.baseCurrency : undefined;
   // The Live panel only shows when the source can push webhooks here (feature flag).
   const live = auth ? liveFeedEnabled(org, (await listOrgs(auth)).settings) : false;
 
@@ -110,8 +122,8 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                 <h2 id="bank-heading" className="text-ink mb-3 text-[15px] font-semibold">
                   Bank accounts
                 </h2>
-                {d.bankAccounts.length ? (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {d.bankAccounts.length || wallets?.wallets.length ? (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {d.bankAccounts.map((account) => (
                       <BankAccountCard
                         key={account.id}
@@ -126,6 +138,17 @@ export default async function Home({ params }: { params: Promise<{ org: string }
                         feedNote={connector.bank?.feedNote}
                       />
                     ))}
+                    {auth &&
+                      wallets?.wallets.map((wallet) => (
+                        <BitcoinWalletCard
+                          key={`btc-${wallet.id}`}
+                          auth={auth}
+                          scope={{ org, connector }}
+                          currency={walletCurrency}
+                          wallet={wallet}
+                          href={`${base}/accounting/bank/bitcoin/${encodeURIComponent(wallet.id)}`}
+                        />
+                      ))}
                   </div>
                 ) : (
                   <EmptyState
