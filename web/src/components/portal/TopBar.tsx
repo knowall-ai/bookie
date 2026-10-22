@@ -9,7 +9,6 @@ import {
   Check,
   ChevronDown,
   LogOut,
-  Mail,
   Menu,
   Plus,
   Search,
@@ -19,8 +18,9 @@ import {
 import { LogoTile } from '@/components/brand/Logo';
 import { cn } from '@/lib/ui/cn';
 import type { OrgRef } from '@/lib/domain/types';
-import { CREATE_ITEMS, NAV, type ModuleAvailability, type NavTab } from '@/lib/portal/nav';
+import { CREATE_ITEMS, navForUser, type ModuleAvailability, type NavTab } from '@/lib/portal/nav';
 import { BookieLauncher } from '@/components/bookie/BookieLauncher';
+import { PENDING_CHANGED } from '@/components/email/pending';
 import { initials, nextMenuIndex } from './user-menu';
 
 /* ------------------------------------------------------------------ */
@@ -188,11 +188,13 @@ function TabMenu({
   base,
   modules,
   active,
+  count,
 }: {
   tab: NavTab;
   base: string;
   modules: ModuleAvailability;
   active: boolean;
+  count?: number;
 }) {
   const { open, setOpen, ref } = usePopover();
   const tabClass = cn(
@@ -211,6 +213,7 @@ function TabMenu({
         aria-current={active ? 'page' : undefined}
       >
         {tab.label}
+        <PendingBadge count={count} />
         {underline}
       </Link>
     );
@@ -440,17 +443,6 @@ export function UserMenu({
             >
               <Settings className="text-muted h-4 w-4" /> Settings
             </Link>
-            {user.userType === 'Member' && (
-              <Link
-                href="/portal/emails"
-                role="menuitem"
-                tabIndex={-1}
-                onClick={() => setOpen(false)}
-                className={menuItem}
-              >
-                <Mail className="text-muted h-4 w-4" /> Bookie’s emails
-              </Link>
-            )}
             <button
               type="button"
               role="menuitem"
@@ -481,9 +473,60 @@ export function TopBar({
   org?: OrgRef;
   orgs: OrgRef[];
   modules?: ModuleAvailability;
-  user: { name: string; email: string };
+  user: { name: string; email: string; userType?: string; tenantId?: string; id?: string };
   devMode?: string;
 }) {
+  const [pending, setPending] = useState(0);
+  useEffect(() => {
+    if (user.userType !== 'Member' || !user.tenantId || !user.id) return;
+    let cancelled = false;
+    const key = JSON.stringify(['email-pending', user.tenantId, user.id]);
+    async function load() {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(key) ?? 'null');
+        if (
+          saved &&
+          saved.expires > Date.now() &&
+          Number.isInteger(saved.count) &&
+          saved.count >= 0
+        ) {
+          if (!cancelled) setPending(saved.count);
+          return;
+        }
+      } catch {
+        /* Storage may be disabled. */
+      }
+      try {
+        const response = await fetch('/api/email/pending');
+        if (!response.ok) return;
+        const { count } = await response.json();
+        if (!Number.isInteger(count) || count < 0 || cancelled) return;
+        setPending(count);
+        try {
+          sessionStorage.setItem(key, JSON.stringify({ count, expires: Date.now() + 120_000 }));
+        } catch {
+          /* Optional cache. */
+        }
+      } catch {
+        /* A badge must never block navigation. */
+      }
+    }
+    void load();
+    // Re-read when a decision is made here, when the person comes back to the tab, and every
+    // two minutes (the cache above keeps that to one request per two minutes).
+    const reload = () => void load();
+    const onVisible = () => document.visibilityState === 'visible' && reload();
+    const timer = window.setInterval(reload, 120_000);
+    window.addEventListener(PENDING_CHANGED, reload);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener(PENDING_CHANGED, reload);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user.userType, user.tenantId, user.id]);
+  const tabs = navForUser(user.userType);
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [lastPath, setLastPath] = useState(pathname);
@@ -509,13 +552,14 @@ export function TopBar({
 
         {org && modules && (
           <nav aria-label="Main" className="ml-1 hidden items-center xl:flex">
-            {NAV.map((tab) => (
+            {tabs.map((tab) => (
               <TabMenu
                 key={tab.key}
                 tab={tab}
                 base={base}
                 modules={modules}
                 active={activeKey(tab)}
+                count={tab.key === 'email' ? pending : undefined}
               />
             ))}
           </nav>
@@ -556,10 +600,11 @@ export function TopBar({
           aria-label="Main (mobile)"
           className="border-line max-h-[70vh] overflow-y-auto border-t px-4 py-3 xl:hidden"
         >
-          {NAV.map((tab) => (
+          {tabs.map((tab) => (
             <div key={tab.key} className="py-1">
               <Link href={`${base}${tab.href}`} className="text-ink block py-1.5 font-semibold">
                 {tab.label}
+                {tab.key === 'email' && <PendingBadge count={pending} />}
               </Link>
               {tab.items
                 ?.filter((i) => !i.module || modules[i.module])
@@ -578,4 +623,15 @@ export function TopBar({
       )}
     </header>
   );
+}
+
+function PendingBadge({ count }: { count?: number }) {
+  return Number.isInteger(count) && count! > 0 ? (
+    // Screen-reader text rather than aria-label: a label containing "email" made
+    // getByLabel('Email') match the badge as well as form fields.
+    <span className="bg-brand/15 text-brand-bright ml-1 rounded-full px-1.5 py-0.5 text-xs">
+      <span aria-hidden>{count}</span>
+      <span className="sr-only">, {count} waiting for your approval</span>
+    </span>
+  ) : null;
 }

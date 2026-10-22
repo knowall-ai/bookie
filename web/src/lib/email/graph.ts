@@ -1,6 +1,6 @@
 import 'server-only';
 // Approvals: copied from knowall-ai/agents-portal src/lib/providers/approvals.ts @ d0f5af6
-// (PR #143); keep in step. Mailbox reads below are Bookie's (shared with knowall-ai/sallie).
+// (PR #143), in step with knowall-ai/sallie web/src/lib/approvals*.ts (origin/main, sallie#217). Mailbox reads below are Bookie's (shared with knowall-ai/sallie).
 // Microsoft Graph: Exchange moderation requests in the signed-in moderator's
 // own mailbox (/me), and the decisions sent back. The token is the user's
 // delegated Mail.ReadWrite + Mail.Send, so the portal can only ever see and
@@ -70,36 +70,51 @@ async function graph<T>(
   label: string,
   init: { method?: string; body?: unknown; headers?: Record<string, string> } = {}
 ): Promise<T> {
-  const response = await fetch(path.startsWith('https://') ? path : `${GRAPH}${path}`, {
-    method: init.method ?? 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...init.headers,
-    },
-    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
-    signal: AbortSignal.timeout(15_000),
-  });
+  const send = () =>
+    fetch(path.startsWith('https://') ? path : `${GRAPH}${path}`, {
+      method: init.method ?? 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...init.headers,
+      },
+      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+      signal: AbortSignal.timeout(15_000),
+    });
+  let response = await send();
+  // Throttled or briefly unavailable: wait as Graph asks (capped) and try once more.
+  // Never for a send: a vote must not go twice.
+  if ((response.status === 429 || response.status === 503) && !path.endsWith('/send')) {
+    await new Promise((resolve) => setTimeout(resolve, retryAfterMs(response)));
+    response = await send();
+  }
   if (!response.ok) throw new ApprovalGraphError(response.status, label);
   if (response.status === 202 || response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
+/** Graph's Retry-After (seconds), capped so a request never hangs: 1 s if absent */
+function retryAfterMs(response: Response): number {
+  const seconds = Number(response.headers.get('Retry-After'));
+  return Math.min(Number.isFinite(seconds) && seconds > 0 ? seconds : 1, 5) * 1000;
+}
+
 /** Plain-text bodies: the request's text names the recipients and quotes the email */
 const TEXT_BODY = { Prefer: 'outlook.body-content-type="text"' };
 
-async function inboxId(token: string): Promise<string> {
-  const inbox = await graph<{ id?: string }>(
+/** Deleted Items: a request deleted there was dealt with (see approvalStatus) */
+async function deletedItemsId(token: string): Promise<string> {
+  const folder = await graph<{ id?: string }>(
     token,
-    '/me/mailFolders/inbox?$select=id',
-    'inbox lookup'
+    '/me/mailFolders/deleteditems?$select=id',
+    'deleted items lookup'
   );
-  if (!inbox.id) throw new ApprovalGraphError(502, 'inbox lookup');
-  return inbox.id;
+  if (!folder.id) throw new ApprovalGraphError(502, 'deleted items lookup');
+  return folder.id;
 }
 
-/** For reads, a failed inbox lookup only loses the moved-folder hint */
-const inboxIdIfAny = (token: string) => inboxId(token).catch(() => undefined);
+/** For reads, a failed Deleted Items lookup only loses the deleted-request hint */
+const deletedItemsIdIfAny = (token: string) => deletedItemsId(token).catch(() => undefined);
 
 export interface ApprovalList {
   items: EmailApproval[];
@@ -111,16 +126,17 @@ export interface ApprovalList {
 export async function listApprovals(
   token: string,
   senders: string[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  agentIds: ReadonlyMap<string, string> = new Map()
 ): Promise<ApprovalList> {
   const since = new Date(now.getTime() - HISTORY_DAYS * 24 * 60 * 60 * 1000);
   const query = new URLSearchParams({
     $filter: requestFilter(senders, since),
-    $select: 'id,subject,receivedDateTime,parentFolderId,body',
+    $select: 'id,subject,from,receivedDateTime,parentFolderId,body',
     $expand: REQUEST_PROPS_EXPAND,
     $top: String(PAGE_SIZE),
   });
-  const inbox = inboxIdIfAny(token);
+  const deleted = deletedItemsIdIfAny(token);
   const requests: GraphApprovalRequest[] = [];
   let next: string | undefined = `/me/messages?${query.toString()}`;
   for (let page = 0; next && page < MAX_PAGES; page++) {
@@ -133,9 +149,14 @@ export async function listApprovals(
     requests.push(...result.value);
     next = result['@odata.nextLink'];
   }
-  const folder = await inbox;
+  const folder = await deleted;
   return {
-    items: sortApprovals(requests.map((r) => toApproval(r, folder, now))),
+    items: sortApprovals(
+      requests.map((r) => ({
+        ...toApproval(r, folder, now),
+        agentId: agentIds.get(r.from?.emailAddress?.address?.trim().toLowerCase() ?? ''),
+      }))
+    ),
     incomplete: Boolean(next),
   };
 }
@@ -194,12 +215,13 @@ export async function getApprovalDetail(
   token: string,
   messageId: string,
   senders: string[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  agentIds: ReadonlyMap<string, string> = new Map()
 ): Promise<EmailApprovalDetail | null> {
   const request = await getRequest(token, messageId, senders);
   if (!request) return null;
-  const [inbox, attachments] = await Promise.all([
-    inboxIdIfAny(token),
+  const [deleted, attachments] = await Promise.all([
+    deletedItemsIdIfAny(token),
     graph<{ value: { '@odata.type'?: string; item?: HeldItem }[] }>(
       token,
       `/me/messages/${encodeURIComponent(messageId)}/attachments?$expand=microsoft.graph.itemattachment/item`,
@@ -209,9 +231,12 @@ export async function getApprovalDetail(
   const held = attachments.value.find(
     (a) => a['@odata.type'] === '#microsoft.graph.itemAttachment' && a.item
   )?.item;
-  const summary = toApproval(request, inbox, now);
+  const summary = toApproval(request, deleted, now);
   return {
     ...summary,
+    agentId:
+      agentIds.get(request.from?.emailAddress?.address?.trim().toLowerCase() ?? '') ??
+      agentIds.get(held?.from?.emailAddress?.address?.trim().toLowerCase() ?? ''),
     subject: held?.subject ? held.subject : summary.subject,
     ...(held?.from?.emailAddress?.address ? { from: addresses([held.from])[0] } : {}),
     to: addresses(held?.toRecipients),
@@ -257,7 +282,7 @@ export async function resolveSenders(
   } catch (error) {
     console.warn(
       'Could not read the agent account addresses:',
-      error instanceof Error ? error.message : error
+      error instanceof Error ? error.name : 'failed'
     );
     return senderAddresses(upn);
   }
@@ -296,15 +321,15 @@ async function sendDecision(
   now: Date
 ): Promise<DecideResult> {
   // Both reads must succeed: an unverified folder could hide a request already dealt with
-  const [request, inbox] = await Promise.all([
+  const [request, deleted] = await Promise.all([
     getRequest(token, messageId, senders),
-    inboxId(token),
+    deletedItemsId(token),
   ]);
   if (!request) return { ok: false, reason: 'not-found' };
-  if (approvalStatus(request, inbox, now) !== 'pending') {
+  if (approvalStatus(request, deleted, now) !== 'pending') {
     return { ok: false, reason: 'not-pending' };
   }
-  const arbitration = arbitrationAddress(request);
+  const arbitration = arbitrationAddress(request, senders);
   const tag = reportTag(request);
   if (!arbitration || !tag) return { ok: false, reason: 'unanswerable' };
 
@@ -343,7 +368,10 @@ async function sendDecision(
       break;
     } catch (error) {
       if (attempt === MARKER_ATTEMPTS) {
-        console.warn('Could not mark the approval request:', error);
+        console.warn(
+          'Could not mark the approval request:',
+          error instanceof Error ? error.name : 'failed'
+        );
       } else {
         await new Promise((resolve) => setTimeout(resolve, MARKER_RETRY.ms * attempt));
       }
@@ -450,4 +478,19 @@ export async function readMailbox(
   // No folder readable at all: the person has no access to the mailbox.
   if (views.every((v) => v.noAccess)) return { ok: false, reason: 'no-access' };
   return { ok: true, folders: views };
+}
+
+/** Has this mailbox ever received a moderation request from Bookie? */
+export async function isApprover(token: string, senders: string[]): Promise<boolean> {
+  const query = new URLSearchParams({
+    $filter: requestFilter(senders, new Date(0)),
+    $top: '1',
+    $select: 'id',
+  });
+  const result = await graph<{ value: { id: string }[] }>(
+    token,
+    `/me/messages?${query}`,
+    'approver lookup'
+  );
+  return result.value.length > 0;
 }

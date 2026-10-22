@@ -11,6 +11,13 @@ const GUEST_BASE_URL = process.env.GUEST_BASE_URL ?? 'http://localhost:3121';
 test.describe('guest accountant', () => {
   test.use({ baseURL: GUEST_BASE_URL });
 
+  test('guests have no Email navigation tab', async ({ page }) => {
+    await page.goto('/portal/demo.contoso');
+    await expect(page.getByRole('link', { name: /^Email/ })).toHaveCount(0);
+    const response = await page.request.get('/api/email/pending');
+    expect(await response.json()).toEqual({ count: 0 });
+  });
+
   test('sees only the organisation they were given', async ({ page }) => {
     await page.goto('/portal');
     const list = page.getByTestId('org-list');
@@ -93,25 +100,29 @@ test.describe('People and access (member)', () => {
 
     const picker = page.getByRole('combobox', { name: 'Add a person' });
     await picker.fill('s');
-    await expect(page.getByRole('option')).toHaveCount(0);
+    // The people picker's own list; Settings has other drop-downs (Email › Agent) with options.
+    await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(0);
 
     // Search as you type: name, email and Member/Guest, keyboard to choose.
     await picker.fill('sam');
-    const option = page.getByRole('option', { name: /Sam Taylor/ });
+    const option = page.getByRole('listbox').getByRole('option', { name: /Sam Taylor/ });
     await expect(option).toBeVisible();
     await expect(option).toContainText('sam.taylor@contoso.example');
     await expect(option).toContainText('Member');
     await picker.fill('fabrikam');
-    await expect(page.getByRole('option', { name: /Jordan Lee/ })).toContainText('Guest');
-    await expect(page.getByRole('option', { name: /Jordan Lee/ })).toContainText('Already listed');
+    await expect(
+      page.getByRole('listbox').getByRole('option', { name: /Jordan Lee/ })
+    ).toContainText('Guest');
+    await expect(
+      page.getByRole('listbox').getByRole('option', { name: /Jordan Lee/ })
+    ).toContainText('Already listed');
     await picker.fill('nobody-like-this');
     await expect(card.getByTestId('combobox-message')).toHaveText(/No one in .* directory matches/);
 
     await picker.fill('sam');
-    await expect(page.getByRole('option', { name: /Sam Taylor/ })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    );
+    await expect(
+      page.getByRole('listbox').getByRole('option', { name: /Sam Taylor/ })
+    ).toHaveAttribute('aria-selected', 'true');
     await picker.press('Enter');
     await expect(person.getByText('No organisations')).toBeVisible();
     await expect(picker).toHaveValue('');

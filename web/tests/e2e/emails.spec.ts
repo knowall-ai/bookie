@@ -5,16 +5,19 @@ import { expect, test } from '@playwright/test';
  * mail (lib/email/demo.ts). Demo decisions live in a browser cookie, so every test
  * starts with both sample emails pending, however often the suite runs.
  */
-const PAGE = '/portal/emails';
+const PAGE = '/portal/demo.contoso/email';
 
 test.describe('Bookie’s emails', () => {
-  test('opens from the account menu and lists held emails, pending first', async ({ page }) => {
+  test('opens from the Email tab and lists held emails, pending first', async ({ page }) => {
     await page.goto('/portal/demo.contoso');
-    await page.getByRole('button', { name: 'Account menu' }).click();
-    await page.getByRole('menuitem', { name: 'Bookie’s emails' }).click();
-    await expect(page).toHaveURL(/\/portal\/emails$/);
-    await expect(page.getByRole('heading', { name: 'Bookie’s emails' })).toBeVisible();
-    await expect(page.getByRole('tab', { name: /Awaiting approval/ })).toHaveAttribute(
+    const nav = page.getByRole('navigation', { name: 'Main', exact: true });
+    await expect(
+      nav.getByRole('link', { name: /^Email\W+2 waiting for your approval$/ })
+    ).toBeVisible();
+    await nav.getByRole('link', { name: /Email/ }).click();
+    await expect(page).toHaveURL(/\/portal\/demo\.contoso\/email$/);
+    await expect(page.getByRole('heading', { name: 'Email' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /Approvals/ })).toHaveAttribute(
       'aria-selected',
       'true'
     );
@@ -57,10 +60,19 @@ test.describe('Bookie’s emails', () => {
 
   test('shows the accounts inbox and bill capture folders', async ({ page }) => {
     await page.goto(PAGE);
-    await page.getByRole('tab', { name: /Accounts inbox/ }).click();
-    await expect(page).toHaveURL(/status=inbox/);
+    await page.getByRole('tab', { name: /accounts@ inbox/ }).click();
+    await expect(page).toHaveURL(/status=mb-0/);
     await expect(page.getByTestId('mailbox-message').first()).toContainText(
       'Invoice 7781 from Northwind Packaging'
+    );
+    await page.getByRole('tab', { name: /Enquiries \(hello@ inbox\)/ }).click();
+    await expect(page).toHaveURL(/status=mb-1/);
+    await expect(page.getByTestId('mailbox-message')).toHaveCount(2);
+    await expect(page.getByTestId('mailbox-message').first()).toContainText(
+      'Fabrikam wholesale enquiry'
+    );
+    await expect(page.getByTestId('mailbox-message').last()).toContainText(
+      'Northwind delivery enquiry'
     );
     await page.getByRole('tab', { name: /Needs review/ }).click();
     await expect(page).toHaveURL(/status=needs-review/);
@@ -72,7 +84,20 @@ test.describe('Bookie’s emails', () => {
 
   test('Settings has Bookie’s email addresses', async ({ page }) => {
     await page.goto('/portal/settings#email');
-    await expect(page.getByLabel('Bookie’s email address')).toHaveValue('bookie@contoso.example');
-    await expect(page.getByLabel('Accounts mailbox')).toHaveValue('accounts@contoso.example');
+    await expect(page.getByLabel('Agent 1 name')).toHaveValue('Bookie');
+    await expect(page.getByLabel('Agent 1 mailbox')).toHaveValue('bookie@contoso.example');
+    await expect(page.getByLabel('Mailbox 1 agent')).toHaveValue('bookie');
+    await expect(page.getByLabel('Mailbox 2 agent')).toHaveValue('');
+    await expect(page.getByLabel('Mailbox 1 address')).toHaveValue('accounts@contoso.example');
+    await expect(page.getByLabel('Mailbox 2 address')).toHaveValue('hello@contoso.example');
+    await expect(page.getByRole('radio', { name: 'Bill capture files here' }).nth(0)).toBeChecked();
+    await expect(
+      page.getByRole('radio', { name: 'Bill capture files here' }).nth(1)
+    ).not.toBeChecked();
   });
+});
+
+test('the previous emails address redirects into the first organisation', async ({ page }) => {
+  await page.goto('/portal/emails');
+  await expect(page).toHaveURL('/portal/demo.contoso/email');
 });

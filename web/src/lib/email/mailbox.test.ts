@@ -1,8 +1,11 @@
+import { mailSetup } from './mailbox';
 import { describe, expect, it } from 'vitest';
 import {
   canModerate,
   canReadShared,
   childFolderFilter,
+  inboxLabel,
+  recipientSummary,
   folderSegments,
   isNoAccess,
   toMailboxMessage,
@@ -68,5 +71,57 @@ describe('mailbox helpers', () => {
     expect(tokenScopes('not-a-token')).toBeNull();
     expect(canModerate(null)).toBe(true);
     expect(canReadShared(null)).toBe(true);
+  });
+});
+
+describe('inboxLabel', () => {
+  it('names the inbox by its address, as Outlook does', () => {
+    expect(inboxLabel('accounts@example.com')).toBe('accounts@ inbox');
+    expect(inboxLabel(undefined)).toBe('Inbox');
+  });
+});
+
+describe('mailSetup', () => {
+  it('handles absent settings and agent-only settings', () => {
+    expect(mailSetup()).toEqual({ agents: [], sharedMailboxes: [] });
+    expect(mailSetup({ agentAddress: 'bookie@example.com' })).toEqual({
+      agents: [{ id: 'bookie', displayName: 'Bookie', mailbox: 'bookie@example.com' }],
+      sharedMailboxes: [],
+    });
+  });
+  it('migrates legacy reads and gives an explicit list precedence', () => {
+    const legacy = { accountsMailbox: 'accounts@example.com' };
+    expect(mailSetup(legacy).sharedMailboxes).toEqual([
+      { address: 'accounts@example.com', capture: true },
+    ]);
+    expect(mailSetup({ ...legacy, sharedMailboxes: [] }).sharedMailboxes).toEqual([]);
+    const rows = [{ address: 'hello@example.com', label: 'Enquiries' }];
+    expect(mailSetup({ ...legacy, sharedMailboxes: rows }).sharedMailboxes).toEqual(rows);
+    expect(legacy).toEqual({ accountsMailbox: 'accounts@example.com' });
+  });
+});
+
+it('assigns legacy capture only to a migrated legacy agent and honours stored empty lists', () => {
+  const legacy = { agentAddress: 'bookie@example.com', accountsMailbox: 'accounts@example.com' };
+  expect(mailSetup(legacy).sharedMailboxes).toEqual([
+    { address: legacy.accountsMailbox, agentId: 'bookie', capture: true },
+  ]);
+  expect(mailSetup({ ...legacy, agents: [], sharedMailboxes: [] })).toEqual({
+    agents: [],
+    sharedMailboxes: [],
+  });
+  expect(mailSetup({ ...legacy, agents: [] }).sharedMailboxes).toEqual([
+    { address: legacy.accountsMailbox, capture: true },
+  ]);
+  const agents = [{ id: 'ava', displayName: 'Ava', mailbox: 'ava@example.com' }];
+  expect(mailSetup({ ...legacy, agents }).agents).toEqual(agents);
+});
+
+describe('recipientSummary', () => {
+  it('shows two recipients, then a count', () => {
+    expect(recipientSummary(['Sam Ortiz'])).toBe('Sam Ortiz');
+    expect(recipientSummary(['A', 'B'])).toBe('A, B');
+    expect(recipientSummary(['A', 'B', 'C', ' ', 'D'])).toBe('A, B + 2 more');
+    expect(recipientSummary([])).toBe('');
   });
 });

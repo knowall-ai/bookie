@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import { Check, ChevronDown, ChevronUp, MailCheck, Paperclip, X } from 'lucide-react';
@@ -11,7 +11,9 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Textarea } from '@/components/ui/Field';
 import { EmptyState } from '@/components/ui/States';
 import { MAX_REASON_LENGTH } from '@/lib/email/approvals';
+import { recipientSummary } from '@/lib/email/mailbox';
 import type {
+  MailAgent,
   ApprovalStatus,
   EmailAddress,
   EmailApproval,
@@ -19,6 +21,7 @@ import type {
 } from '@/lib/email/types';
 import { decideEmailApprovalAction, emailApprovalDetailAction } from '@/lib/portal/actions/email';
 import { formatDateTimeUk } from '@/lib/ui/format';
+import { PENDING_CHANGED } from './pending';
 
 // Modelled on knowall-ai/agents-portal's ApprovalsPanel (PR #143), so Bookie's held
 // email looks and behaves the same in both portals.
@@ -35,7 +38,7 @@ const STATUS: Record<ApprovalStatus, { label: string; tone: Tone; title?: string
   expired: {
     label: 'Expired',
     tone: 'neutral',
-    title: 'Nobody decided within two days, so Exchange returned it to Bookie',
+    title: 'Nobody decided within two days, so Exchange returned it to the sending agent',
   },
 };
 
@@ -84,7 +87,7 @@ function EmailView({ detail }: { detail: EmailApprovalDetail }) {
         {rows.map(([label, value]) => (
           <div key={label} className="contents">
             <dt className="text-muted">{label}</dt>
-            <dd className="text-ink min-w-0 break-words">{value}</dd>
+            <dd className="text-ink min-w-0 [overflow-wrap:anywhere]">{value}</dd>
           </div>
         ))}
       </dl>
@@ -118,6 +121,8 @@ function When({ iso, prefix = '' }: { iso: string; prefix?: string }) {
 
 function ApprovalRow({
   item,
+  agentName,
+  showAgent,
   expanded,
   onToggle,
   busy,
@@ -125,12 +130,19 @@ function ApprovalRow({
   onReject,
 }: {
   item: EmailApproval;
+  agentName: string;
+  showAgent: boolean;
   expanded: boolean;
   onToggle: () => void;
   busy: boolean;
   onApprove: () => void;
   onReject: (reason: string) => void;
 }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const [detail, setDetail] = useState<EmailApprovalDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [loading, startLoading] = useTransition();
@@ -166,21 +178,32 @@ function ApprovalRow({
           </span>
           <span className="min-w-0 flex-1">
             <span className="text-ink block truncate font-medium">{item.subject}</span>
+            {showAgent && <span className="text-muted block text-sm">From {agentName}</span>}
             <span className="text-body mt-0.5 block truncate text-sm">
-              To {item.recipients.join(', ') || 'recipients not shown by Exchange'}
+              To {recipientSummary(item.recipients) || 'recipients not shown by Exchange'}
               <span className="text-muted">
                 {' · '}
                 <When iso={item.requestedAt} />
                 {pending && (
                   <>
                     {' · '}
-                    <When iso={item.expiresAt} prefix="expires " />
+                    <span
+                      className={
+                        new Date(item.expiresAt).getTime() - now < 6 * 60 * 60 * 1000
+                          ? 'text-warn'
+                          : undefined
+                      }
+                    >
+                      <When iso={item.expiresAt} prefix="expires " />
+                    </span>
                   </>
                 )}
               </span>
             </span>
             {!expanded && item.preview && (
-              <span className="text-muted mt-1 line-clamp-1 block text-sm">{item.preview}</span>
+              <span className="text-muted mt-1 line-clamp-2 block text-sm [overflow-wrap:anywhere]">
+                {item.preview}
+              </span>
             )}
           </span>
         </button>
@@ -224,7 +247,7 @@ function ApprovalRow({
       {expanded && rejecting && pending && (
         <div className="border-line space-y-3 border-t p-4">
           <label htmlFor={`${bodyId}-reason`} className="text-body block text-sm font-medium">
-            Why are you rejecting it? Bookie gets this with the rejection notice and passes it on.
+            Why are you rejecting it? {agentName} gets this with the rejection notice.
           </label>
           <Textarea
             id={`${bodyId}-reason`}
@@ -232,7 +255,7 @@ function ApprovalRow({
             maxLength={MAX_REASON_LENGTH}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="What should Bookie change before sending again?"
+            placeholder={`What should ${agentName} change before sending again?`}
             autoFocus
           />
           <div className="flex justify-end gap-2">
@@ -267,7 +290,10 @@ function ApprovalRow({
  * opens to the full email; Approve (confirmed) or Reject with a reason sends the same
  * vote Outlook's buttons do. Pending first; the last two weeks' decided ones below.
  */
-export function ApprovalsList({ items }: { items: EmailApproval[] }) {
+export function ApprovalsList({ items, agents }: { items: EmailApproval[]; agents: MailAgent[] }) {
+  const agentName = (item: EmailApproval) =>
+    agents.find((a) => a.id === item.agentId)?.displayName ??
+    (agents.length === 1 ? agents[0].displayName : 'The agent');
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<EmailApproval | null>(null);
@@ -292,8 +318,17 @@ export function ApprovalsList({ items }: { items: EmailApproval[] }) {
       toast.success(
         decision === 'approve'
           ? 'Approved. Exchange is sending the email.'
-          : 'Rejected. Bookie will get your reason.'
+          : `Rejected. ${agentName(item)} will get your reason.`
       );
+      // The Email tab's badge: drop its cached count so it re-reads now.
+      try {
+        for (const k of Object.keys(sessionStorage)) {
+          if (k.startsWith('["email-pending"')) sessionStorage.removeItem(k);
+        }
+      } catch {
+        /* Storage may be disabled. */
+      }
+      window.dispatchEvent(new Event(PENDING_CHANGED));
       router.refresh();
     });
   };
@@ -302,6 +337,8 @@ export function ApprovalsList({ items }: { items: EmailApproval[] }) {
     <ApprovalRow
       key={item.id}
       item={item}
+      agentName={agentName(item)}
+      showAgent={agents.length > 1}
       expanded={expanded === item.id}
       onToggle={() => setExpanded((e) => (e === item.id ? null : item.id))}
       busy={busy && busyId === item.id}
@@ -316,7 +353,7 @@ export function ApprovalsList({ items }: { items: EmailApproval[] }) {
         <EmptyState
           icon={<MailCheck className="h-6 w-6" />}
           title="Nothing waiting for you"
-          body="When Exchange holds an email Bookie sends outside your organisation, it appears here for you to approve or reject."
+          body={`When Exchange holds an email ${agents.length === 1 ? agents[0].displayName + ' sends' : 'an agent sends'} outside your organisation, it appears here for you to approve or reject.`}
         />
       ) : (
         <ul className="space-y-3" aria-label="Awaiting approval">
@@ -337,11 +374,11 @@ export function ApprovalsList({ items }: { items: EmailApproval[] }) {
         <ConfirmDialog
           title="Approve this email?"
           body={
-            <>
+            <span className="[overflow-wrap:anywhere]">
               Exchange sends “{confirming.subject}” to{' '}
-              {confirming.recipients.join(', ') || 'its recipients'} straight away. This can’t be
-              undone.
-            </>
+              {recipientSummary(confirming.recipients) || 'its recipients'} straight away. This
+              can’t be undone.
+            </span>
           }
           cta="Approve and send"
           busy={busy}

@@ -184,12 +184,7 @@ export default async function SettingsPage({
           />
         )}
 
-        {!storeError && (
-          <EmailSettings
-            agentAddress={settings.email?.agentAddress}
-            accountsMailbox={settings.email?.accountsMailbox}
-          />
-        )}
+        {!storeError && <EmailSettings {...settings.email} />}
 
         <section className="card p-5" aria-labelledby="data-title">
           <div className="flex items-start gap-4">

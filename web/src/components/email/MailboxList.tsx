@@ -4,10 +4,10 @@ import type { MailboxFolderView } from '@/lib/email/types';
 import { formatDateTimeUk } from '@/lib/ui/format';
 
 const EMPTY: Record<MailboxFolderView['key'], string> = {
-  inbox: 'Nothing waiting. Bookie picks up new invoices and receipts from here.',
+  inbox: 'Nothing waiting in this mailbox.',
   'needs-review':
-    'Nothing needs review. Bookie files anything he couldn’t capture confidently here, with his reason in the capture log.',
-  captured: 'No captured invoices yet. Bookie files each one here once its draft bill is made.',
+    'Nothing needs review. Emails that could not be captured confidently are filed here, with the reason in the capture log.',
+  captured: 'No captured invoices yet. Each is filed here once its draft bill is made.',
 };
 
 /** One folder of the accounts mailbox, newest first. Read-only: it opens in Outlook. */
@@ -26,7 +26,7 @@ export function MailboxList({ folder, mailbox }: { folder: MailboxFolderView; ma
       <EmptyState
         icon={<FolderX className="h-6 w-6" />}
         title={`There’s no “${folder.path}” folder in ${mailbox}`}
-        body="Bill capture files emails into folders a person creates once under the mailbox’s Inbox (agent deploy step 10). Until it exists, Bookie leaves the emails in the Inbox."
+        body="Bill capture files emails into folders a person creates once under the mailbox’s Inbox (agent deploy step 10). Until it exists, emails remain in the Inbox."
       />
     );
   }

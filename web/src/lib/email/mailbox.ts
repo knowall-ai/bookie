@@ -1,3 +1,5 @@
+import type { EmailSettings } from '@/lib/config/types';
+import type { AgentMailSetup } from './types';
 // Reading a shared mailbox (Bookie's accounts@) as the signed-in person: pure
 // helpers, shared with knowall-ai/sallie (whose portal runs them in the browser),
 // so no Node or server-only imports. Keep the two copies in step.
@@ -10,7 +12,7 @@ import type { EmailAddress, MailboxFolderKey, MailboxMessage } from './types';
 
 /** The Inbox, then bill capture's folders under it (agent deploy step 10, BILL_CAPTURE_*_FOLDER). */
 export const MAILBOX_FOLDERS: { key: MailboxFolderKey; label: string; path: string }[] = [
-  { key: 'inbox', label: 'Accounts inbox', path: '' },
+  { key: 'inbox', label: 'Inbox', path: '' },
   { key: 'needs-review', label: 'Needs review', path: 'Bookie/Needs review' },
   { key: 'captured', label: 'Captured', path: 'Bookie/Processed' },
 ];
@@ -20,6 +22,15 @@ export const MAILBOX_PAGE_SIZE = 25;
 
 export const MESSAGE_SELECT =
   'id,subject,from,receivedDateTime,bodyPreview,hasAttachments,isRead,webLink';
+
+/**
+ * The inbox's tab label: its address as people see it in Outlook, "accounts@ inbox"
+ * (agreed with knowall-ai/sallie, whose is "hello@ inbox"); "Inbox" without an address.
+ */
+export function inboxLabel(mailbox?: string): string {
+  const local = mailbox?.split('@')[0]?.trim();
+  return local ? `${local}@ inbox` : 'Inbox';
+}
 
 /** Folder names in a path under the Inbox: "Bookie/Needs review" → ["Bookie", "Needs review"]. */
 export function folderSegments(path: string): string[] {
@@ -103,4 +114,37 @@ export function canReadShared(scopes: Set<string> | null): boolean {
 /** Unknown scopes pass: Graph refuses if consent is missing. */
 export function canModerate(scopes: Set<string> | null): boolean {
   return !scopes || APPROVAL_SCOPES.every((s) => scopes.has(s));
+}
+
+/** Resolve per-tenant settings, preserving legacy configuration on reads only. */
+export function mailSetup(email?: EmailSettings): AgentMailSetup {
+  const legacyAgent = !email?.agents && !!email?.agentAddress;
+  return {
+    agents:
+      email?.agents ??
+      (email?.agentAddress
+        ? [{ id: 'bookie', displayName: 'Bookie', mailbox: email.agentAddress }]
+        : []),
+    sharedMailboxes:
+      email?.sharedMailboxes ??
+      (email?.accountsMailbox
+        ? [
+            {
+              address: email.accountsMailbox,
+              ...(legacyAgent ? { agentId: 'bookie' } : {}),
+              capture: true,
+            },
+          ]
+        : []),
+  };
+}
+
+/**
+ * Recipients for one line: the first `shown`, then "+ n more" (agreed with knowall-ai/sallie;
+ * real threads carry long tracking addresses that would otherwise fill the row).
+ */
+export function recipientSummary(recipients: string[], shown = 2): string {
+  const names = recipients.map((r) => r.trim()).filter(Boolean);
+  if (names.length <= shown) return names.join(', ');
+  return `${names.slice(0, shown).join(', ')} + ${names.length - shown} more`;
 }
