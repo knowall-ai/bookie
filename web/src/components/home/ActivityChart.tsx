@@ -125,7 +125,7 @@ export function ActivityChart({ days, base }: { days: ActivityDay[]; base: strin
             role="group"
             aria-label={`Activity over the last 12 months: ${total} ${total === 1 ? noun : nouns}`}
             viewBox={`0 0 ${width} ${height}`}
-            className="block h-auto w-full max-w-[1040px] min-w-[700px]"
+            className="block h-auto w-full min-w-[700px]"
             onMouseLeave={() => setHover(null)}
           >
             {months.map((m) => (
@@ -230,7 +230,7 @@ export function ActivityChartSkeleton() {
         <span className="text-ink text-[15px] font-semibold">Activity</span>
       </div>
       <div className="animate-pulse px-5 pt-4 pb-3">
-        <div className="bg-surface-2 h-[110px] w-full max-w-[1040px] rounded-lg" />
+        <div className="bg-surface-2 h-[110px] w-full rounded-lg" />
         <div className="bg-surface-2 mt-3 h-3 w-56 rounded" />
       </div>
     </div>
