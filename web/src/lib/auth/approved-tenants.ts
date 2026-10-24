@@ -1,16 +1,14 @@
 /**
  * Which organisations may use Bookie. Only Microsoft Entra tenants KnowAll has
- * approved can sign in: KnowAll's own tenant, plus every tenant id listed in
- * APPROVED_TENANT_IDS (comma-separated GUIDs). Everyone else is shown the
- * "not set up yet" page and gets no data. See docs/ACCESS.adoc.
+ * approved can sign in: the tenant ids listed in APPROVED_TENANT_IDS (GUIDs
+ * separated by commas, semicolons or spaces). There is no built-in tenant, so
+ * whoever runs Bookie lists their own tenant there too. Everyone else is shown
+ * the "not set up yet" page and gets no data. See docs/ACCESS.adoc.
  *
  * Guests invited into an approved tenant (Entra B2B, such as an external
  * accountant) sign in through that tenant, so their token carries its id and
  * they are allowed; per-person access (`access.ts`) still decides what they see.
  */
-
-/** KnowAll AI's own Entra tenant: always approved. */
-export const KNOWALL_TENANT_ID = 'f36f6414-cb7d-4545-9cf2-7574f7b5c584';
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -24,13 +22,20 @@ export function normaliseTenantId(tenantId: unknown): string | undefined {
 /** Parse APPROVED_TENANT_IDS. Malformed entries are skipped with a warning. */
 export function parseApprovedTenantIds(raw: string | undefined): Set<string> {
   const ids = new Set<string>();
-  for (const part of raw?.split(',') ?? []) {
-    if (!part.trim()) continue;
+  for (const part of raw?.split(/[\s,;]+/) ?? []) {
+    if (!part) continue;
     const id = normaliseTenantId(part);
     if (id) ids.add(id);
-    else console.warn(`[bookie] ignoring malformed APPROVED_TENANT_IDS entry "${part.trim()}"`);
+    else console.warn(`[bookie] ignoring malformed APPROVED_TENANT_IDS entry "${part}"`);
   }
   return ids;
+}
+
+// Parsed once per value, so a typo in the setting warns once rather than on every request.
+let parsed: { raw: string | undefined; ids: Set<string> } | undefined;
+function approvedIds(raw: string | undefined): Set<string> {
+  if (parsed?.raw !== raw || !parsed) parsed = { raw, ids: parseApprovedTenantIds(raw) };
+  return parsed.ids;
 }
 
 /**
@@ -43,5 +48,5 @@ export function isApprovedTenant(
 ): boolean {
   const id = normaliseTenantId(tenantId);
   if (!id) return false;
-  return id === KNOWALL_TENANT_ID || parseApprovedTenantIds(raw).has(id);
+  return approvedIds(raw).has(id);
 }

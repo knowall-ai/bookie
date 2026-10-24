@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  isApprovedTenant,
-  KNOWALL_TENANT_ID,
-  normaliseTenantId,
-  parseApprovedTenantIds,
-} from './approved-tenants';
+import { isApprovedTenant, normaliseTenantId, parseApprovedTenantIds } from './approved-tenants';
 
 const FABRIKAM = '11111111-2222-3333-4444-555555555555';
 const NORTHWIND = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
@@ -12,9 +7,23 @@ const NORTHWIND = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 describe('approved organisations', () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("always approves KnowAll's own tenant, in any case", () => {
-    expect(isApprovedTenant(KNOWALL_TENANT_ID, '')).toBe(true);
-    expect(isApprovedTenant(KNOWALL_TENANT_ID.toUpperCase(), undefined)).toBe(true);
+  it('approves nobody when APPROVED_TENANT_IDS is empty: there is no built-in tenant', () => {
+    expect(isApprovedTenant(FABRIKAM, '')).toBe(false);
+    expect(isApprovedTenant(FABRIKAM, undefined)).toBe(false);
+  });
+
+  it('accepts commas, semicolons and spaces between tenant ids', () => {
+    for (const sep of [',', ';', ' ', '\n']) {
+      expect(isApprovedTenant(NORTHWIND, `${FABRIKAM}${sep}${NORTHWIND}`)).toBe(true);
+    }
+  });
+
+  it('warns about a malformed entry once, not on every check', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const raw = `${FABRIKAM},not-a-guid`;
+    for (let i = 0; i < 3; i++) expect(isApprovedTenant(FABRIKAM, raw)).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 
   it('approves tenants listed in APPROVED_TENANT_IDS, compared lowercased', () => {

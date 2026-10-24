@@ -10,11 +10,10 @@ until someone in your organisation gives them access.
 == Approved organisations
 
 Only organisations KnowAll AI has approved can use Bookie. When someone signs in, Bookie takes the
-Microsoft Entra tenant id (the `tid` claim) from the verified sign-in and allows them only if it is:
-
-* KnowAll AI's own tenant (`f36f6414-cb7d-4545-9cf2-7574f7b5c584`), or
-* listed in the `APPROVED_TENANT_IDS` app setting: comma-separated tenant GUIDs, compared in lower
-  case. Malformed entries are ignored with a warning.
+Microsoft Entra tenant id (the `tid` claim) from the verified sign-in and allows them only if it is
+listed in the `APPROVED_TENANT_IDS` app setting: tenant GUIDs separated by commas, semicolons or
+spaces, compared in lower case. Malformed entries are ignored with a warning. No tenant is built in,
+so the organisation running Bookie (KnowAll AI, on bookie.knowall.ai) lists its own tenant there too.
 
 A sign-in with a missing or malformed `tid` is never allowed; there is no default tenant.
 

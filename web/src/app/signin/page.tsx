@@ -38,7 +38,7 @@ export default async function SignInPage({
             className="bg-danger/10 text-danger border-danger/30 mt-5 rounded-lg border px-3 py-2 text-sm"
           >
             {error === 'AccessDenied'
-              ? 'Your organisation has not approved Bookie yet. Ask an administrator to install it.'
+              ? 'Your organisation hasn’t given Bookie admin consent yet. Ask an administrator to install it.'
               : 'Sign-in did not complete. Please try again.'}
           </p>
         )}

@@ -14,6 +14,20 @@ export const dynamic = 'force-dynamic';
 
 const NAME_LOOKUP_MS = 3000;
 
+/** The lookup's result, or `undefined` if it fails or takes longer than `ms`. */
+async function withinTimeLimit<T>(lookup: Promise<T>, ms: number): Promise<T | undefined> {
+  let cancel = () => {};
+  const timeout = new Promise<undefined>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    cancel = () => clearTimeout(timer);
+  });
+  try {
+    return await Promise.race([lookup.catch(() => undefined), timeout]);
+  } finally {
+    cancel();
+  }
+}
+
 /**
  * Shown to someone who signed in from an organisation KnowAll hasn't approved
  * (`lib/auth/approved-tenants.ts`). No app data and no navigation: just who
@@ -25,10 +39,7 @@ export default async function NotApprovedPage() {
   if (isApprovedSignIn(auth)) redirect('/portal');
 
   // Never let a slow token or Graph call keep someone from asking for access or signing out.
-  const organisation = await Promise.race([
-    tenantDisplayName(auth).catch(() => undefined),
-    new Promise<undefined>((resolve) => setTimeout(resolve, NAME_LOOKUP_MS)),
-  ]);
+  const organisation = await withinTimeLimit(tenantDisplayName(auth), NAME_LOOKUP_MS);
   const { tenantId, email } = auth.user;
   const mailto = accessRequestMailto({ organisation, tenantId, email });
 

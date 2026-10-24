@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KNOWALL_TENANT_ID } from './approved-tenants';
 
 /*
  * The approved-organisations gate, end to end through the real auth context:
@@ -24,6 +23,9 @@ vi.mock('./tokens', () => ({
     throw new Error('no tokens in tests');
   },
 }));
+
+/** Fictional: the organisation running this Bookie, listed like any other. */
+const OPERATOR = '99999999-8888-7777-6666-555555555555';
 
 const { getAuthContext, getSignIn, requireAuth } = await import('./context');
 const { bookieContext } = await import('@/lib/bookie/session');
@@ -52,10 +54,11 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('approved organisations gate', () => {
-  it("lets KnowAll's own tenant in, members and B2B guests alike", async () => {
-    signedIn(KNOWALL_TENANT_ID);
-    expect((await getAuthContext())?.user.tenantId).toBe(KNOWALL_TENANT_ID);
-    signedIn(KNOWALL_TENANT_ID, 'Guest');
+  it('lets the operator’s own listed tenant in, members and B2B guests alike', async () => {
+    vi.stubEnv('APPROVED_TENANT_IDS', OPERATOR);
+    signedIn(OPERATOR);
+    expect((await getAuthContext())?.user.tenantId).toBe(OPERATOR);
+    signedIn(OPERATOR, 'Guest');
     const guest = await getAuthContext();
     // Approval doesn't make a guest a member: per-person access still applies.
     expect(guest?.user.userType).toBe('Guest');
@@ -63,7 +66,7 @@ describe('approved organisations gate', () => {
   });
 
   it('lets in a tenant listed in APPROVED_TENANT_IDS', async () => {
-    vi.stubEnv('APPROVED_TENANT_IDS', `${KNOWALL_TENANT_ID},${FABRIKAM.toUpperCase()}`);
+    vi.stubEnv('APPROVED_TENANT_IDS', `${OPERATOR},${FABRIKAM.toUpperCase()}`);
     signedIn(FABRIKAM);
     expect((await getAuthContext())?.user.tenantId).toBe(FABRIKAM);
   });

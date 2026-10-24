@@ -90,8 +90,8 @@ The workflow deploys code only. Runtime settings (`NEXTAUTH_SECRET`, `AZURE_AD_*
 settings, mostly Key Vault references, and are managed in Azure, not in GitHub.
 
 `APPROVED_TENANT_IDS` lists the organisations (Entra tenant ids, comma-separated) that may use
-Bookie besides KnowAll AI's own. Set it *before* deploying a release that includes the approved
-organisations gate, or every other organisation is shown "not set up yet". To approve an
+Bookie, including KnowAll AI's own: no tenant is built in. Set it *before* deploying a release that
+includes the approved organisations gate, or everyone, KnowAll included, is shown "not set up yet". To approve an
 organisation, add its tenant id there (see _Approved organisations_ in `docs/ACCESS.adoc`).
 
 == One-off setup for the release workflow
