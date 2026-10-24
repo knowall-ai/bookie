@@ -3,10 +3,14 @@ import type { SupplierEvidence } from './match';
 
 /**
  * The new supplier contact proposed from an emailed invoice: what the document prints
- * (the sender's address when it prints no email). Never its bank details: those are
+ * (the sender's address when it prints no email). Email and phone require verified
+ * mail. Never its bank details: those are
  * checked with the supplier by phone and entered by a person.
  */
-export function newSupplierInput(evidence: SupplierEvidence): ContactInput | undefined {
+export function newSupplierInput(
+  evidence: SupplierEvidence,
+  trust: string
+): ContactInput | undefined {
   const name = evidence.name?.value?.trim();
   if (!name) return undefined;
   const a = evidence.address?.value;
@@ -23,8 +27,12 @@ export function newSupplierInput(evidence: SupplierEvidence): ContactInput | und
       : undefined;
   return {
     name: name.slice(0, 255),
-    email: (evidence.email?.value ?? evidence.senderAddress?.value)?.slice(0, 255),
-    phone: evidence.phone?.value?.slice(0, 50),
+    ...(trust === 'trusted'
+      ? {
+          email: (evidence.email?.value ?? evidence.senderAddress?.value)?.slice(0, 255),
+          phone: evidence.phone?.value?.slice(0, 50),
+        }
+      : {}),
     taxNumber: evidence.taxNumber?.value?.slice(0, 50),
     address,
     isSupplier: true,

@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache as reactCache } from 'react';
 import type { AuthContext } from '@/lib/auth/context';
 import { configStoreFor } from '@/lib/config';
 import type { AccountingConnector } from '@/lib/connectors/types';
@@ -143,7 +144,9 @@ async function read(
   }
   const value = reader.attachment(messageId, attachmentId).then((file) => extractDocument(file));
   cache.set(key, { at: Date.now(), value });
-  value.catch(() => cache.delete(key));
+  value.catch(() => {
+    if (cache.get(key)?.value === value) cache.delete(key);
+  });
   return value;
 }
 
@@ -173,7 +176,7 @@ export interface BooksLookup {
   bills(supplierId: string, invoiceNumber: string | null): Promise<Invoice[]>;
 }
 
-export function booksLookup(connector: AccountingConnector): BooksLookup {
+export const booksLookup = reactCache((connector: AccountingConnector): BooksLookup => {
   let contacts: Promise<Contact[]> | undefined;
   const one = new Map<string, Promise<Contact | undefined>>();
   const bills = new Map<string, Promise<Invoice[]>>();
@@ -223,7 +226,7 @@ export function booksLookup(connector: AccountingConnector): BooksLookup {
       return bills.get(key)!;
     },
   };
-}
+});
 
 async function trustOf(message: MailMessage, books: BooksLookup, ownDomains: string[]) {
   const contacts = await books.contacts();

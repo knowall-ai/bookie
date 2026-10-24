@@ -3,6 +3,7 @@ import type { InvoiceInput } from '@/lib/domain/types';
 const mocks = vi.hoisted(() => ({
   review: vi.fn(),
   update: vi.fn(),
+  create: vi.fn(),
   upload: vi.fn(),
   remove: vi.fn(),
   save: vi.fn(),
@@ -14,7 +15,7 @@ vi.mock('@/lib/portal/context', () => ({
   orgContext: async () => ({
     base: '/portal/demo.contoso',
     connector: {
-      contacts: { update: mocks.update },
+      contacts: { update: mocks.update, create: mocks.create },
       invoices: { delete: mocks.remove },
       attachments: { entities: ['bill'], upload: mocks.upload },
     },
@@ -25,7 +26,11 @@ vi.mock('@/lib/accounts-inbox/review', () => ({
   reviewOne: mocks.review,
 }));
 vi.mock('./invoices', () => ({ saveInvoice: mocks.save }));
-import { createBillFromMail, updateSupplierFromMail } from './accounts-inbox';
+import {
+  createSupplierFromMail,
+  createBillFromMail,
+  updateSupplierFromMail,
+} from './accounts-inbox';
 const item = (level = 'unverified') => ({
   verdict: { kind: 'new' },
   trust: { level },
@@ -48,7 +53,7 @@ beforeEach(() => {
   mocks.upload.mockRejectedValue(new Error('Upload failed'));
   mocks.remove.mockResolvedValue(undefined);
 });
-it.each(['email', 'phone', 'address'])(
+it.each(['email', 'phone', 'address', 'taxNumber'])(
   'rejects unverified %s updates on the server',
   async (field) => {
     expect(await updateSupplierFromMail('demo.contoso', 'message', 'att', [field])).toEqual({
@@ -61,11 +66,18 @@ it.each(['email', 'phone', 'address'])(
 it('allows verified contact details but rejects bank detail input', async () => {
   mocks.review.mockResolvedValue(item('trusted'));
   expect(
-    (await updateSupplierFromMail('demo.contoso', 'message', 'att', ['email', 'phone', 'address']))
-      .ok
+    (
+      await updateSupplierFromMail('demo.contoso', 'message', 'att', [
+        'email',
+        'phone',
+        'address',
+        'taxNumber',
+      ])
+    ).ok
   ).toBe(true);
   expect(mocks.update).toHaveBeenCalledWith('supplier', {
     name: 'Contoso',
+    taxNumber: 'printed',
     email: 'printed',
     phone: 'printed',
     address: { city: 'Leeds' },
@@ -90,3 +102,29 @@ it('reports the retained draft if compensating delete fails', async () => {
     await createBillFromMail('demo.contoso', 'message', 'att', {} as InvoiceInput)
   ).toMatchObject({ ok: false, error: expect.stringContaining('saved as a draft') });
 });
+
+it.each(['trusted', 'unverified'])(
+  'creates a %s supplier with only permitted fields',
+  async (trust) => {
+    const evidence = Object.fromEntries(
+      Object.entries({
+        name: 'Contoso',
+        email: 'orders@example.com',
+        phone: '01234567890',
+        taxNumber: 'GB123456789',
+        address: { city: 'Leeds' },
+      }).map(([key, value]) => [key, { value, source: 'document' }])
+    );
+    mocks.review.mockResolvedValue({ ...item(trust), supplier: { status: 'none' }, evidence });
+    mocks.create.mockResolvedValue({ id: 'new', name: 'Contoso' });
+    expect((await createSupplierFromMail('demo.contoso', 'message', 'att')).ok).toBe(true);
+    const input = mocks.create.mock.calls[0][0];
+    expect(input).toMatchObject({
+      name: 'Contoso',
+      taxNumber: 'GB123456789',
+      address: { city: 'Leeds' },
+    });
+    expect(input.email).toBe(trust === 'trusted' ? 'orders@example.com' : undefined);
+    expect(input.phone).toBe(trust === 'trusted' ? '01234567890' : undefined);
+  }
+);

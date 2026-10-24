@@ -399,7 +399,7 @@ export function supplierDiff(contact: Contact, evidence: SupplierEvidence): Fiel
 
 export type BankCheck =
   | { status: 'none-on-document' }
-  | { status: 'matches' }
+  | { status: 'matches'; note?: string }
   /** The supplier's record has different bank details. Suspicious. */
   | { status: 'differs'; printed: string }
   /** The record has no bank details, the invoice brings some. Suspicious. */
@@ -440,6 +440,11 @@ export function bankCheck(
   const sort = alnum(printed.sortCode);
   const ibanOk = !iban || on.includes(iban);
   const accountOk = !account || on.includes(account) || (!!iban && iban.endsWith(account));
+  const recordCompact = record.replace(/[ \-]/g, '');
+  const sortComparable =
+    /(?<!\d)\d{6}(?!\d)/.test(recordCompact) || /[A-Z]{2}\d{2}[A-Z0-9]{11,30}/i.test(recordCompact);
+  if (sort && !sortComparable && !iban && account && on.includes(account))
+    return { status: 'matches', note: 'sort code not on file' };
   const sortOk = !sort || on.includes(sort) || (!!iban && iban.includes(sort));
   return ibanOk && accountOk && sortOk
     ? { status: 'matches' }

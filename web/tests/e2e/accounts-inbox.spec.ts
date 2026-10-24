@@ -108,6 +108,10 @@ test.describe('accounts inbox', () => {
     await expect(panel).toContainText('Wingtip Office Supplies Ltd');
     await expect(panel).toContainText('(from the PDF)');
     await expect(panel).not.toContainText('41009999');
+    await expect(panel).toContainText('Only from an email Exchange verified');
+    await expect(panel).not.toContainText('orders@wingtip.example');
+    await expect(panel).not.toContainText('0113 496 0142');
+    await expect(panel).toContainText('09990142');
     await add.click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toContainText('Add this supplier?');

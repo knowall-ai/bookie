@@ -3,7 +3,10 @@ import { createDemoConnector, DEMO_ORGS } from '@/lib/connectors/demo';
 import { DEMO_MEMBER } from '@/lib/auth/dev';
 import type { AuthContext } from '@/lib/auth/context';
 import { DemoMailbox } from '@/lib/email/demo';
-import { reviewOne } from './review';
+import { reviewOne, clearReadings, booksLookup } from './review';
+import { extractDocument } from './extract';
+import { reviewExtraction } from './extraction';
+vi.mock('./extract', () => ({ extractionConfigured: () => true, extractDocument: vi.fn() }));
 
 const auth: AuthContext = {
   mode: 'demo',
@@ -82,4 +85,43 @@ it('a failed detail lookup leaves bank details unknown even if the list reports 
   const item = await reviewOne(auth, new DemoMailbox(), connector, 'demo-mail-new', 'att-1');
   expect(item?.bank?.status).toBe('unknown');
   expect(item?.verdict.kind).toBe('new');
+});
+
+it.each(['TimeoutError', 'AbortError'])(
+  'evicts a failed %s reading so the next review retries',
+  async (name) => {
+    clearReadings();
+    const demo = new DemoMailbox();
+    const reader = {
+      mailbox: demo.mailbox,
+      message: demo.message.bind(demo),
+      attachment: vi.fn(demo.attachment.bind(demo)),
+    };
+    vi.mocked(extractDocument)
+      .mockRejectedValueOnce(new DOMException('Cannot read right now', name))
+      .mockResolvedValue(reviewExtraction(demo.reading('demo-mail-new', 'att-1')!));
+    const connector = createDemoConnector(DEMO_ORGS[0]);
+    const first = await reviewOne(auth, reader, connector, 'demo-mail-new', 'att-1');
+    expect(first?.verdict).toEqual({ kind: 'unread', reason: 'Cannot read right now' });
+    expect((await reviewOne(auth, reader, connector, 'demo-mail-new', 'att-1'))?.verdict.kind).toBe(
+      'new'
+    );
+    await reviewOne(auth, reader, connector, 'demo-mail-new', 'att-1');
+    expect(reader.attachment).toHaveBeenCalledTimes(2);
+    clearReadings();
+  }
+);
+it('shares concurrent contacts and bill lookups within a review', async () => {
+  const connector = createDemoConnector(DEMO_ORGS[0]);
+  const contacts = vi.spyOn(connector.contacts!, 'list');
+  const bills = vi.spyOn(connector.invoices!, 'list');
+  const books = booksLookup(connector);
+  await Promise.all([
+    books.contacts(),
+    books.contacts(),
+    books.bills('supplier', 'INV-1'),
+    books.bills('supplier', 'INV-1'),
+  ]);
+  expect(contacts).toHaveBeenCalledTimes(1);
+  expect(bills).toHaveBeenCalledTimes(2);
 });

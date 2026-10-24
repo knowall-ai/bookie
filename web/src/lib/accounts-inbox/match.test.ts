@@ -314,7 +314,8 @@ describe('the bank-details rule', () => {
         name: 'Wingtip Office Supplies Ltd',
         bankDetails: printed('04-00-99', '41009999'),
         senderAddress: 'orders@wingtip.example',
-      })
+      }),
+      'trusted'
     );
     expect(input).toMatchObject({
       name: 'Wingtip Office Supplies Ltd',
@@ -352,3 +353,26 @@ it.each(['voided', 'deleted'] as const)(
     ).toBeUndefined();
   }
 );
+
+it('compares account-only records without claiming the missing sort code differs', () => {
+  const bank = {
+    accountNumber: '41009999',
+    sortCode: '04-00-99',
+    iban: null,
+    bic: null,
+    accountName: null,
+  };
+  expect(bankCheck('Account 41009999', bank)).toEqual({
+    status: 'matches',
+    note: 'sort code not on file',
+  });
+  expect(bankCheck('Account 41009998', bank)).toMatchObject({ status: 'differs' });
+});
+it.each(['trusted', 'unverified'])('gates sender fallback for %s suppliers', (trust) => {
+  const input = newSupplierInput(
+    ev({ name: 'Contoso', senderAddress: 'orders@example.com', phone: '01234567890' }),
+    trust
+  );
+  expect(input?.email).toBe(trust === 'trusted' ? 'orders@example.com' : undefined);
+  expect(input?.phone).toBe(trust === 'trusted' ? '01234567890' : undefined);
+});

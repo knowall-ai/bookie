@@ -100,6 +100,11 @@ The model copies fields exactly as printed and leaves anything it can't read as 
 What was read is cached in memory for ten minutes, keyed by tenant, user, mailbox and attachment, so
 moving between the list and a document doesn't read it twice. Nothing is written to disk.
 
+Document extraction times out after 60 seconds. Failed readings show as unread and are evicted
+from the reading cache so the next review can retry. Folder IDs and messages are reused within
+one mailbox reader, and books lookups are shared within a React server render.
+
+
 == The supplier
 
 The supplier is taken from both sources, and each value keeps its source on screen: the invoice's
@@ -117,7 +122,7 @@ It shows why it matched. If several contacts match, or none does, it says so and
   supplier* asks for confirmation and then updates only the ticked fields through the connector
   (Xero `POST Contacts`; Business Central `PATCH vendors` with `addressLine1/2`, `city`, `state`,
   `postalCode`, `country`, `email`, `phoneNumber`, `taxRegistrationNumber`). Nothing is applied
-  automatically. Address, email and phone changes require `trust.level === trusted`; unverified
+  automatically. Address, email, phone and VAT number changes require `trust.level === trusted`; unverified
   emails show disabled boxes labelled "Only from an email Exchange verified", enforced again by
   the server action. A printed street line replaces both street lines; any other part of the address
   the invoice doesn't print (country, say) keeps the record's value. In Xero the contact's other
@@ -129,9 +134,12 @@ It shows why it matched. If several contacts match, or none does, it says so and
   makes the email *suspicious* with the warning "verify by phone using a number you already hold,
   not the one on the invoice", and there is no button to change them. Business Central's API
   doesn't expose vendor bank accounts, so there Bookie shows the invoice's bank details as a
-  warning to check by phone.
+  warning to check by phone. When the record has an account number but no sort code or IBAN,
+  a matching account number is shown with "sort code not on file".
 * *New supplier.* With no match, Bookie proposes a new contact from the document (name, address,
   VAT number, email, phone; never bank details) with its own confirmation, before the bill.
+  Email (including the sender fallback) and phone are only offered and saved when Exchange
+  verified the email. Company numbers remain visible as document evidence.
 
 Missing Xero bank details mean "none on file" only after a successful `Contacts/{id}` read.
 List contacts and failed detail lookups mean unknown and show a warning. Voided and deleted

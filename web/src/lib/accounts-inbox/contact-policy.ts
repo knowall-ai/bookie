@@ -1,5 +1,3 @@
 export function canUpdateFromMail(field: string, trust: string): boolean {
-  return (
-    field === 'taxNumber' || (trust === 'trusted' && ['email', 'phone', 'address'].includes(field))
-  );
+  return trust === 'trusted' && ['email', 'phone', 'address', 'taxNumber'].includes(field);
 }

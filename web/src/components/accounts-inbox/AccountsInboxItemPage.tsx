@@ -324,7 +324,9 @@ export async function AccountsInboxItemPage({
           reason={item.supplier.reason}
           proposed={sourced(item.evidence)}
           canCreate={
-            v.kind === 'new' && !!connector.contacts?.create && !!newSupplierInput(item.evidence)
+            v.kind === 'new' &&
+            !!connector.contacts?.create &&
+            !!newSupplierInput(item.evidence, item.trust.level)
           }
         />
       )
@@ -384,6 +386,12 @@ export async function AccountsInboxItemPage({
                 </p>
               </div>
             </div>
+          )}
+
+          {bank?.status === 'matches' && bank.note && (
+            <p className="text-muted text-sm" role="note">
+              Bank account matches ({bank.note}).
+            </p>
           )}
 
           {bank?.status === 'unknown' && !suspicious && (

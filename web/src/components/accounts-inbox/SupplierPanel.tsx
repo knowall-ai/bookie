@@ -96,15 +96,22 @@ export function SupplierPanel(props: Props) {
 
       {props.status === 'none' && (
         <>
+          {props.trust !== 'trusted' && (
+            <p className="text-muted mt-3 text-xs">
+              Email and phone: Only from an email Exchange verified
+            </p>
+          )}
           <dl className="mt-3 grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[auto_1fr]">
-            {props.proposed.map((p) => (
-              <div key={p.label} className="contents">
-                <dt className="text-muted">{p.label}</dt>
-                <dd className="text-ink break-words">
-                  {p.value} <span className="text-faint text-xs">({p.source})</span>
-                </dd>
-              </div>
-            ))}
+            {props.proposed
+              .filter((p) => props.trust === 'trusted' || !['Email', 'Phone'].includes(p.label))
+              .map((p) => (
+                <div key={p.label} className="contents">
+                  <dt className="text-muted">{p.label}</dt>
+                  <dd className="text-ink break-words">
+                    {p.value} <span className="text-faint text-xs">({p.source})</span>
+                  </dd>
+                </div>
+              ))}
           </dl>
           <p className="text-faint mt-3 text-xs">
             Bank details are never copied from an invoice. Check them with the supplier by phone and

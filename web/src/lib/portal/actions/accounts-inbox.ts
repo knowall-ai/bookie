@@ -117,7 +117,7 @@ export async function createSupplierFromMail(
     if (refused) return { ok: false, error: refused };
     if (item.supplier?.status !== 'none')
       return { ok: false, error: 'This supplier already has a contact in the books.' };
-    const input = item.evidence && newSupplierInput(item.evidence);
+    const input = item.evidence && newSupplierInput(item.evidence, item.trust.level);
     if (!input) return { ok: false, error: "The document doesn't print the supplier's name." };
     const create = connector.contacts?.create;
     if (!create)

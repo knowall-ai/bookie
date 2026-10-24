@@ -513,7 +513,23 @@ export class GraphMailbox {
       throw new MailboxGraphError(403, undefined, 'Shared mail consent required');
     return token;
   }
-  async message(id: string): Promise<MailMessage> {
+  private allowedFolders?: Promise<(string | null)[]>;
+  private messages = new Map<string, Promise<MailMessage>>();
+
+  message(id: string): Promise<MailMessage> {
+    let message = this.messages.get(id);
+    if (!message) {
+      message = this.readMessage(id);
+      this.messages.set(id, message);
+      const pending = message;
+      message.catch(() => {
+        if (this.messages.get(id) === pending) this.messages.delete(id);
+      });
+    }
+    return message;
+  }
+
+  private async readMessage(id: string): Promise<MailMessage> {
     const token = await this.accessToken();
     const path = `${this.base}/messages/${encodeURIComponent(id)}`;
     const message = await mailboxGraph<MailMessage>(
@@ -521,7 +537,7 @@ export class GraphMailbox {
       `${path}?$select=id,subject,receivedDateTime,from,sender,replyTo,internetMessageHeaders,parentFolderId`,
       'mailbox message'
     );
-    const allowed = await Promise.all(
+    const allowed = await (this.allowedFolders ??= Promise.all(
       MAILBOX_FOLDERS.map(async (folder) => {
         try {
           if (!folder.path)
@@ -539,7 +555,7 @@ export class GraphMailbox {
           throw error;
         }
       })
-    );
+    ));
     if (!message.parentFolderId || !allowed.includes(message.parentFolderId))
       throw new MailboxGraphError(
         403,
@@ -557,9 +573,21 @@ export class GraphMailbox {
       attachments.push(...page.value);
       next = page['@odata.nextLink'];
       if (next) {
-        if (!next.startsWith(`${GRAPH}${path}/attachments?`))
+        const url = new URL(next);
+        const graphUrl = new URL(GRAPH);
+        const decoded = decodeURIComponent(url.pathname);
+        const odataKey = (value: string) => value.replace(/'/g, "''");
+        const suffixes = [
+          `/messages/${id}/attachments`,
+          `/messages('${odataKey(id)}')/attachments`,
+        ];
+        if (
+          url.origin !== graphUrl.origin ||
+          !decoded.startsWith(`${graphUrl.pathname}/`) ||
+          !suffixes.some((suffix) => decoded.endsWith(suffix))
+        )
           throw new MailboxGraphError(502, undefined, 'Invalid attachment page');
-        next = next.slice(GRAPH.length);
+        next = url.pathname.slice(graphUrl.pathname.length) + url.search;
       }
     }
     return { ...message, attachments };

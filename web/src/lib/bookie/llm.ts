@@ -103,6 +103,7 @@ export async function respondJson(
     throw new Error('Bookie is not configured on this server (AZURE_OPENAI_ENDPOINT).');
   const response = await fetch(`${endpoint.replace(/\/$/, '')}/openai/v1/responses`, {
     method: 'POST',
+    signal: AbortSignal.timeout(60_000),
     headers: { 'Content-Type': 'application/json', ...(await azureHeaders()) },
     body: JSON.stringify({
       model: process.env.BOOKIE_CHAT_DEPLOYMENT ?? 'gpt-6.1-sol',

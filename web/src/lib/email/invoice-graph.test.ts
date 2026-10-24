@@ -1,7 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GraphMailbox } from './graph';
 
-const mailbox = new GraphMailbox('accounts@contoso.example', async () => 'opaque');
+let mailbox: GraphMailbox;
+beforeEach(() => {
+  mailbox = new GraphMailbox('accounts@contoso.example', async () => 'opaque');
+});
 function graph(parentFolderId: string) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
     expect(init?.signal).toBeInstanceOf(AbortSignal);
@@ -54,4 +57,57 @@ describe('invoice mailbox folder boundary', () => {
     );
     await expect(mailbox.message('missing')).rejects.toMatchObject({ status });
   });
+});
+
+it('resolves folders once per instance and reuses messages for downloads', async () => {
+  const fetch = graph('inbox-id');
+  await Promise.all([mailbox.message('message'), mailbox.message('message')]);
+  const folderCalls = () =>
+    fetch.mock.calls.filter(([url]) => String(url).includes('/mailFolders/')).length;
+  const initial = folderCalls();
+  await mailbox.attachment('message', 'att');
+  await mailbox.message('second');
+  expect(folderCalls()).toBe(initial);
+  expect(
+    fetch.mock.calls.filter(([url]) => String(url).includes('/messages/message?'))
+  ).toHaveLength(1);
+  const other = new GraphMailbox('accounts@contoso.example', async () => 'opaque');
+  await other.message('message');
+  expect(folderCalls()).toBe(initial * 2);
+});
+it.each([
+  'https://graph.microsoft.com/v1.0/users/mailbox-id/messages/message/attachments?$skiptoken=next',
+  'https://graph.microsoft.com/v1.0/users/accounts@contoso.example/messages/message/attachments?$skiptoken=next',
+  "https://graph.microsoft.com/v1.0/users('accounts%40contoso.example')/messages('message')/attachments?$skiptoken=next",
+])('accepts equivalent Graph attachment pagination: %s', async (nextLink) => {
+  const fetch = graph('inbox-id');
+  const base = fetch.getMockImplementation()!;
+  fetch.mockImplementation(async (url, init) => {
+    if (String(url) === nextLink)
+      return Response.json({ value: [{ id: 'second-att', name: 'second.pdf' }] });
+    if (String(url).includes('/attachments?'))
+      return Response.json({
+        value: [{ id: 'att', name: 'invoice.pdf' }],
+        '@odata.nextLink': nextLink,
+      });
+    return base(url, init);
+  });
+  expect((await mailbox.message('message')).attachments.map((a) => a.id)).toEqual([
+    'att',
+    'second-att',
+  ]);
+});
+it.each([
+  'https://example.com/v1.0/users/accounts@contoso.example/messages/message/attachments',
+  'https://graph.microsoft.com/v1.0/users/accounts@contoso.example/messages/other/attachments',
+])('refuses unrelated attachment pages: %s', async (nextLink) => {
+  const fetch = graph('inbox-id');
+  const base = fetch.getMockImplementation()!;
+  fetch.mockImplementation(async (url, init) =>
+    String(url).includes('/attachments?')
+      ? Response.json({ value: [], '@odata.nextLink': nextLink })
+      : base(url, init)
+  );
+  await expect(mailbox.message('message')).rejects.toThrow('Invalid attachment page');
+  expect(fetch.mock.calls.some(([url]) => String(url) === nextLink)).toBe(false);
 });
