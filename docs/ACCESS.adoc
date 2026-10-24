@@ -21,8 +21,8 @@ A sign-in with a missing or malformed `tid` is never allowed; there is no defaul
 Everyone else sees _Your organisation isn't set up on Bookie yet_, with their organisation's name
 and tenant id, a *Request access* button (it opens their own mail app with a message to
 `hello@knowall.ai` that already holds the app, organisation, tenant id and their email), the address
-itself, and *Sign out*. They get no organisations, navigation or data, and every portal route,
-server action and API route treats them as signed out (401). Bookie's public helper on the website
+itself, and *Sign out*. They get no organisations, navigation or data: portal pages and server
+actions send them to that page, and API routes answer 401 as if they were signed out. Bookie's public helper on the website
 (`PUBLIC_BOOKIE_ENABLED`) doesn't need a sign-in and is unaffected.
 
 Guests invited into an approved tenant (Entra B2B, such as an external accountant) sign in through

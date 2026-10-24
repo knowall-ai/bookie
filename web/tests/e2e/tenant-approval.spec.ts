@@ -55,6 +55,7 @@ test.describe('organisation not approved', () => {
       '/api/orgs/demo.contoso/events',
       '/api/orgs/demo.contoso/invoices/x/pdf',
       '/api/me/photo',
+      '/api/email/pending',
     ]) {
       expect((await page.request.get(path)).status(), path).toBe(401);
     }

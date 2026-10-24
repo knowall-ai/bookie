@@ -77,7 +77,7 @@ describe('approved organisations gate', () => {
 
     expect((await photo()).status).toBe(401);
     expect(await bookieContext('demo.contoso')).toMatchObject({ ok: false, status: 401 });
-    expect(await (await pending()).json()).toEqual({ count: 0 });
+    expect((await pending()).status).toBe(401);
   });
 
   it('blocks a sign-in with a missing or malformed tid', async () => {

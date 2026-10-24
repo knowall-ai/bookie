@@ -12,6 +12,8 @@ import { SignOutLink } from './SignOutLink';
 export const metadata = { title: 'Not set up yet', robots: { index: false } };
 export const dynamic = 'force-dynamic';
 
+const NAME_LOOKUP_MS = 3000;
+
 /**
  * Shown to someone who signed in from an organisation KnowAll hasn't approved
  * (`lib/auth/approved-tenants.ts`). No app data and no navigation: just who
@@ -22,7 +24,11 @@ export default async function NotApprovedPage() {
   if (!auth) redirect('/signin');
   if (isApprovedSignIn(auth)) redirect('/portal');
 
-  const organisation = await tenantDisplayName(auth);
+  // Never let a slow token or Graph call keep someone from asking for access or signing out.
+  const organisation = await Promise.race([
+    tenantDisplayName(auth).catch(() => undefined),
+    new Promise<undefined>((resolve) => setTimeout(resolve, NAME_LOOKUP_MS)),
+  ]);
   const { tenantId, email } = auth.user;
   const mailto = accessRequestMailto({ organisation, tenantId, email });
 
