@@ -14,6 +14,7 @@ describe('access request email', () => {
     expect(url.pathname).toBe('hello@knowall.ai');
     expect(url.searchParams.get('subject')).toBe('Bookie access request');
     const body = url.searchParams.get('body') ?? '';
+    expect(body).toContain('Please could you set up our organisation on Bookie?');
     expect(body).toContain('App: Bookie');
     expect(body).toContain('Organisation: Fabrikam, Inc.');
     expect(body).toContain('Tenant ID: 00000000-0000-0000-0000-00000000fab1');
@@ -22,6 +23,6 @@ describe('access request email', () => {
 
   it('encodes spaces as %20 so mail apps never show plus signs', () => {
     expect(accessRequestMailto({})).not.toContain('+');
-    expect(accessRequestMailto({})).toContain('Organisation%3A%20Not%20known');
+    expect(accessRequestMailto({})).toContain('Organisation%3A%20Unknown');
   });
 });

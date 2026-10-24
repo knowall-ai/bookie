@@ -42,12 +42,14 @@ export default async function NotApprovedPage() {
         <Link href="/" className="hidden min-[900px]:inline-flex">
           <Logo size="lg" />
         </Link>
-        <h1 className="text-ink text-3xl leading-tight font-bold tracking-tight text-balance min-[900px]:mt-8 sm:text-5xl">
+        <p className="text-brand-bright text-xs font-semibold tracking-[0.14em] uppercase min-[900px]:mt-8">
+          Awaiting approval
+        </p>
+        <h1 className="text-ink mt-3 text-3xl leading-tight font-bold tracking-tight text-balance sm:text-5xl">
           Your organisation isn’t set up on Bookie yet.
         </h1>
         <p className="text-body mt-4 text-base sm:text-lg">
-          Bookie is open to organisations KnowAll AI has approved. Get in touch and we’ll set yours
-          up.
+          Bookie is open to organisations KnowAll has approved. Get in touch and we’ll set yours up.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">

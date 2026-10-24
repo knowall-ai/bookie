@@ -20,9 +20,9 @@ export function accessRequestMailto({ organisation, tenantId, email }: AccessReq
     'Please could you set up our organisation on Bookie?',
     '',
     'App: Bookie',
-    `Organisation: ${organisation || 'Not known'}`,
-    `Tenant ID: ${tenantId || 'Not known'}`,
-    `Email: ${email || 'Not known'}`,
+    `Organisation: ${organisation || 'Unknown'}`,
+    `Tenant ID: ${tenantId || 'Unknown'}`,
+    `Email: ${email || 'Unknown'}`,
     '',
     'Thank you',
   ].join('\n');
