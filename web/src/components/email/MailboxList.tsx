@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { ExternalLink, FolderX, Inbox, Paperclip, UserLock } from 'lucide-react';
 import { EmptyState } from '@/components/ui/States';
 import type { MailboxFolderView } from '@/lib/email/types';
@@ -11,7 +12,15 @@ const EMPTY: Record<MailboxFolderView['key'], string> = {
 };
 
 /** One folder of the accounts mailbox, newest first. Read-only: it opens in Outlook. */
-export function MailboxList({ folder, mailbox }: { folder: MailboxFolderView; mailbox: string }) {
+export function MailboxList({
+  folder,
+  mailbox,
+  checkBase,
+}: {
+  folder: MailboxFolderView;
+  mailbox: string;
+  checkBase?: string;
+}) {
   if (folder.noAccess) {
     return (
       <EmptyState
@@ -70,6 +79,16 @@ export function MailboxList({ folder, mailbox }: { folder: MailboxFolderView; ma
               </p>
               {m.preview && <p className="text-muted mt-1 line-clamp-1 text-sm">{m.preview}</p>}
             </div>
+            {checkBase &&
+              m.hasAttachments &&
+              (folder.key === 'inbox' || folder.key === 'needs-review') && (
+                <Link
+                  className="text-brand-bright text-sm hover:underline"
+                  href={`${checkBase}/check/${encodeURIComponent(m.id)}`}
+                >
+                  Bookie suggests
+                </Link>
+              )}
             {m.webLink && (
               <a
                 href={m.webLink}

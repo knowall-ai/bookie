@@ -87,3 +87,49 @@ export async function respond(
   }
   return { output: body.output, text, calls };
 }
+
+/**
+ * One structured-output call: the model must answer with JSON matching `schema`.
+ * Used to read emailed documents (Accounts inbox). Nothing is stored on the Azure side
+ * (`store: false`), and Azure OpenAI doesn't train on it.
+ */
+export async function respondJson(
+  instructions: string,
+  input: ResponseItem[],
+  schema: { name: string; schema: Record<string, unknown> }
+): Promise<string> {
+  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  if (!endpoint)
+    throw new Error('Bookie is not configured on this server (AZURE_OPENAI_ENDPOINT).');
+  const response = await fetch(`${endpoint.replace(/\/$/, '')}/openai/v1/responses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await azureHeaders()) },
+    body: JSON.stringify({
+      model: process.env.BOOKIE_CHAT_DEPLOYMENT ?? 'gpt-6.1-sol',
+      instructions,
+      input,
+      text: {
+        format: { type: 'json_schema', name: schema.name, schema: schema.schema, strict: true },
+      },
+      store: false,
+      // Room for long invoices (up to 200 lines) without truncating the JSON.
+      max_output_tokens: 16000,
+    }),
+    cache: 'no-store',
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    output?: ResponseItem[];
+    error?: { message?: string };
+  };
+  if (!response.ok || !body.output) {
+    throw new Error(`Bookie's model call failed: ${body.error?.message ?? response.status}`);
+  }
+  let text = '';
+  for (const item of body.output) {
+    if (item.type !== 'message') continue;
+    for (const part of (item.content as { type: string; text?: string }[] | undefined) ?? []) {
+      if (part.type === 'output_text' && part.text) text += part.text;
+    }
+  }
+  return text;
+}

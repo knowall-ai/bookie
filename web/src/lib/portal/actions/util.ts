@@ -5,6 +5,7 @@ import { AccessChangeError, SettingsAccessError } from '@/lib/auth/access';
 import { DirectoryError } from '@/lib/directory/types';
 import { isConnectorError } from '@/lib/connectors/types';
 import { WalletError } from '@/lib/bitcoin/errors';
+import { MailboxGraphError } from '@/lib/email/errors';
 
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -33,6 +34,7 @@ export function describeError(error: unknown): string {
   unstable_rethrow(error);
   if (
     isConnectorError(error) ||
+    error instanceof MailboxGraphError ||
     error instanceof SettingsAccessError ||
     error instanceof AccessChangeError ||
     error instanceof DirectoryError ||

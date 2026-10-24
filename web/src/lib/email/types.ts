@@ -145,3 +145,26 @@ export interface AgentSuggestionAction {
   /** Writes are confirmed in a ConfirmDialog before they run. */
   confirm?: { title: string; body: string; cta: string };
 }
+
+import type { MailHeaders } from './trust';
+export interface MailAttachmentMeta {
+  id: string;
+  name: string;
+  contentType: string;
+  size?: number;
+  isInline?: boolean;
+}
+
+export interface MailMessage extends MailHeaders {
+  id: string;
+  parentFolderId?: string;
+  subject?: string;
+  receivedDateTime?: string;
+  attachments: MailAttachmentMeta[];
+}
+
+export interface MailFile {
+  fileName: string;
+  contentType: string;
+  bytes: ArrayBuffer;
+}

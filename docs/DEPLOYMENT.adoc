@@ -150,7 +150,8 @@ and who is assigned to it.
 Exchange moderation requests for Bookie's held external email in the signed-in moderator's own
 mailbox, and sends their Approve or Reject vote.
 | `Mail.Read.Shared` | Optional, for Bookie's emails | The accounts mailbox tabs: reads the
-mailbox bill capture uses, as the signed-in person. Exchange decides who can (FullAccess).
+mailbox bill capture uses, as the signed-in person, including invoice checks and attachment
+previews from *Bookie suggests*. Exchange decides who can (FullAccess).
 | `User.Read.All` | Optional | Bookie's email aliases, so held email sent from an alias is found too.
 Without it, only the address in Settings is matched.
 |===

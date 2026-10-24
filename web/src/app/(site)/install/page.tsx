@@ -50,6 +50,11 @@ const PERMISSIONS = [
     scope: 'GroupMember.Read.All (optional)',
     why: 'Check group membership for people assigned to Bookie through a group, for the same sign-in hint.',
   },
+  {
+    api: 'Microsoft Graph',
+    scope: 'Mail.Read.Shared',
+    why: 'Email › accounts mailbox: read the shared mailbox your suppliers send bills to, as you, and only mailboxes you can already open. Read only: nothing is sent, moved or kept.',
+  },
 ];
 
 export default async function InstallPage() {

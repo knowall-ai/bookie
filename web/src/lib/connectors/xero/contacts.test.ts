@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fromXeroContact, toXeroContact, type XeroContact } from './mappers';
+import { fromXeroContact, keepOtherXeroEntries, toXeroContact, type XeroContact } from './mappers';
 import { xeroContactsQuery } from './index';
 
 /** Shaped like a GET Contacts row (summaryOnly=false); fictional values. */
@@ -150,4 +150,49 @@ describe('xero contacts', () => {
     });
     expect(xeroContactsQuery({ search: '   ' }, 50).searchTerm).toBeUndefined();
   });
+});
+
+describe('keepOtherXeroEntries', () => {
+  it("keeps the contact's other addresses and phones when one is updated", () => {
+    const body = toXeroContact({
+      name: 'Trey Energy',
+      phone: '0117 496 0277',
+      address: { line1: 'Unit 7 Riverside Park', city: 'Bristol' },
+    });
+    const merged = keepOtherXeroEntries(body, {
+      Addresses: [
+        { AddressType: 'STREET', AddressLine1: '5 Harbour Road' },
+        { AddressType: 'POBOX', AddressLine1: 'Old PO box' },
+      ],
+      Phones: [
+        { PhoneType: 'MOBILE', PhoneNumber: '07700 900123' },
+        { PhoneType: 'DEFAULT', PhoneNumber: '0117 496 0203' },
+      ],
+    });
+    expect(merged.Addresses).toEqual([
+      { AddressType: 'STREET', AddressLine1: '5 Harbour Road' },
+      expect.objectContaining({ AddressType: 'POBOX', AddressLine1: 'Unit 7 Riverside Park' }),
+    ]);
+    expect(merged.Phones).toEqual([
+      { PhoneType: 'MOBILE', PhoneNumber: '07700 900123' },
+      expect.objectContaining({ PhoneType: 'DEFAULT', PhoneNumber: '0117 496 0277' }),
+    ]);
+  });
+
+  it('leaves collections alone when the update has none', () => {
+    const merged = keepOtherXeroEntries(toXeroContact({ name: 'X', email: 'a@b.example' }), {
+      Addresses: [{ AddressType: 'STREET', AddressLine1: '1 Road' }],
+    });
+    expect(merged.Addresses).toBeUndefined();
+  });
+});
+
+it('only a single-contact response establishes missing bank details as none on file', () => {
+  const contact = { ContactID: 'supplier', Name: 'Fabrikam' };
+  expect(fromXeroContact(contact).bankDetails).toBeUndefined();
+  expect(fromXeroContact(contact, true).bankDetails).toBeUndefined();
+  expect(fromXeroContact(contact, true, true).bankDetails).toBeNull();
+  expect(
+    fromXeroContact({ ...contact, BankAccountDetails: '  fictional bank  ' }).bankDetails
+  ).toBe('fictional bank');
 });

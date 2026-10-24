@@ -119,6 +119,16 @@ export function inboxFileUrl(orgKey: string, fileId: string, download = false): 
   return `/api/orgs/${encodeURIComponent(orgKey)}/attachments/inbox/${encodeURIComponent(fileId)}${download ? '?download=1' : ''}`;
 }
 
+/** One PDF or image in the shared accounts mailbox (Email › accounts mailbox). */
+export function accountsInboxFileUrl(
+  orgKey: string,
+  messageId: string,
+  attachmentId: string,
+  download = false
+): string {
+  return `/api/orgs/${encodeURIComponent(orgKey)}/accounts-inbox/${encodeURIComponent(messageId)}/${encodeURIComponent(attachmentId)}${download ? '?download=1' : ''}`;
+}
+
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function isGuid(value: string): boolean {
   return GUID.test(value);

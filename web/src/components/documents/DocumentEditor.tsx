@@ -142,6 +142,8 @@ export function DocumentEditor({
   approveLabel = 'Approve',
   approveBody,
   brandingThemes = [],
+  confirmDraft,
+  requireSourceValues = false,
 }: {
   heading: string;
   /** Empty or undefined when the source doesn't say: amounts then show without a symbol. */
@@ -177,13 +179,21 @@ export function DocumentEditor({
   approveBody?: string;
   /** Invoice templates; the picker only shows when there is a real choice (two or more). */
   brandingThemes?: EditorOption[];
+  /** Ask before saving the draft (it creates a document in the live books). */
+  confirmDraft?: { title: string; body: string; cta: string };
+  /** Emailed invoices must not inherit a currency or tax treatment the document did not give. */
+  requireSourceValues?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [confirmApprove, setConfirmApprove] = useState(false);
+  const [confirmingDraft, setConfirmingDraft] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
-  const multiCurrency = currencies.length > 0;
+  const multiCurrency = currencies.length > 0 || requireSourceValues;
+  const [amountsChosen, setAmountsChosen] = useState(
+    !requireSourceValues || !!initial?.lineAmountType
+  );
   /** A contact's own default currency if the org has it enabled, else the base currency. */
   const defaultCurrency = (contactId: string) => {
     const own = contacts.find((c) => c.value === contactId)?.currency;
@@ -191,7 +201,9 @@ export function DocumentEditor({
     return baseCurrency ?? currency;
   };
   // An existing document keeps its currency; a new one follows the contact until changed by hand.
-  const [currencyTouched, setCurrencyTouched] = useState(!!initial?.currency);
+  const [currencyTouched, setCurrencyTouched] = useState(
+    requireSourceValues || !!initial?.currency
+  );
   const [values, setValues] = useState<EditorValues>({
     contactId: initial?.contactId ?? '',
     date: initial?.date ?? today,
@@ -205,7 +217,8 @@ export function DocumentEditor({
     lineAmountType: initial?.lineAmountType ?? 'exclusive',
     lineItems: initial?.lineItems?.length ? initial.lineItems : [blankLine()],
     currency: multiCurrency
-      ? (initial?.currency ?? defaultCurrency(initial?.contactId ?? ''))
+      ? (initial?.currency ??
+        (requireSourceValues ? '' : defaultCurrency(initial?.contactId ?? '')))
       : undefined,
     currencyRate: initial?.currencyRate,
   });
@@ -254,12 +267,25 @@ export function DocumentEditor({
     });
   };
 
+  const usedLines = () =>
+    values.lineItems.filter((l) => l.description || l.unitAmount || l.itemCode);
+  const problem = () =>
+    requireSourceValues && !values.currency
+      ? 'Choose the currency printed on the invoice.'
+      : !amountsChosen
+        ? 'Choose whether the printed amounts include tax.'
+        : !values.contactId
+          ? `Choose a ${contactLabel.toLowerCase()}.`
+          : usedLines().length === 0
+            ? 'Add at least one line.'
+            : null;
+
   const submit = (intent: Intent) =>
     start(async () => {
       setError(null);
-      const lines = values.lineItems.filter((l) => l.description || l.unitAmount || l.itemCode);
-      if (!values.contactId) return setError(`Choose a ${contactLabel.toLowerCase()}.`);
-      if (lines.length === 0) return setError('Add at least one line.');
+      const lines = usedLines();
+      const invalid = problem();
+      if (invalid) return setError(invalid);
       const result = await save({
         ...values,
         // A rate only means something on a foreign-currency document.
@@ -269,6 +295,7 @@ export function DocumentEditor({
         status: intent === 'approve' ? 'authorised' : 'draft',
       });
       setConfirmApprove(false);
+      setConfirmingDraft(false);
       if (!result.ok) {
         setError(result.error);
         toast.error(result.error);
@@ -293,7 +320,10 @@ export function DocumentEditor({
       className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        submit('draft');
+        if (!confirmDraft) return submit('draft');
+        const invalid = problem();
+        setError(invalid);
+        if (!invalid) setConfirmingDraft(true);
       }}
     >
       <h1 className="text-ink text-2xl font-bold tracking-tight">{heading}</h1>
@@ -353,15 +383,23 @@ export function DocumentEditor({
         <Field label="Amounts are" htmlFor="lat">
           <Select
             id="lat"
-            value={values.lineAmountType}
-            onChange={(e) => set('lineAmountType', e.target.value as LineAmountType)}
+            value={amountsChosen ? values.lineAmountType : ''}
+            onChange={(e) => {
+              setAmountsChosen(!!e.target.value);
+              set('lineAmountType', e.target.value as LineAmountType);
+            }}
           >
+            {requireSourceValues && (
+              <option value="" disabled>
+                Choose tax treatment
+              </option>
+            )}
             <option value="exclusive">Tax exclusive</option>
             <option value="inclusive">Tax inclusive</option>
             <option value="none">No tax</option>
           </Select>
         </Field>
-        {currencies.length > 1 && (
+        {(currencies.length > 1 || requireSourceValues) && (
           <Field label="Currency" htmlFor="currency">
             <Select
               id="currency"
@@ -369,6 +407,11 @@ export function DocumentEditor({
               onChange={(e) => chooseCurrency(e.target.value)}
               data-testid="editor-currency"
             >
+              {requireSourceValues && (
+                <option value="" disabled>
+                  Choose currency
+                </option>
+              )}
               {currencyOptions.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}
@@ -613,7 +656,11 @@ export function DocumentEditor({
           )}
         </div>
         <dl className="ml-auto w-full max-w-sm space-y-2 text-sm" aria-label="Totals">
-          {preview ? (
+          {!amountsChosen || (requireSourceValues && !values.currency) ? (
+            <p className="text-muted">
+              Choose the printed currency and tax treatment to preview totals.
+            </p>
+          ) : preview ? (
             <>
               <div className="flex justify-between">
                 <dt className="text-muted">Subtotal</dt>
@@ -700,6 +747,24 @@ export function DocumentEditor({
           </Button>
         )}
       </div>
+
+      {confirmingDraft && confirmDraft && (
+        <ConfirmDialog
+          title={confirmDraft.title}
+          body={
+            <>
+              {confirmDraft.body}
+              {preview
+                ? ` Preview total ${formatMoney(preview.total, docCurrency)}; ${source} calculates the final figure.`
+                : ` ${source} calculates the tax and total.`}
+            </>
+          }
+          cta={confirmDraft.cta}
+          busy={pending}
+          onCancel={() => setConfirmingDraft(false)}
+          onConfirm={() => submit('draft')}
+        />
+      )}
 
       {confirmApprove && (
         <ConfirmDialog
