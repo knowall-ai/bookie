@@ -8,11 +8,17 @@ import { defineConfig, devices } from '@playwright/test';
  * The guest specs (*.guest.spec.ts) need a second server signed in as the demo
  * guest accountant (BOOKIE_DEV_AUTH=demo-guest): GUEST_BASE_URL, or one that
  * Playwright starts on port 3121.
+ *
+ * The approved-organisations spec needs a third server signed in as a user from
+ * an organisation that isn't approved (BOOKIE_DEV_AUTH=demo-unapproved):
+ * UNAPPROVED_BASE_URL, or one that Playwright starts on port 3122.
  */
 const PORT = 3120;
 const GUEST_PORT = 3121;
+const UNAPPROVED_PORT = 3122;
 const baseURL = process.env.BASE_URL ?? `http://localhost:${PORT}`;
 const guestBaseURL = process.env.GUEST_BASE_URL ?? `http://localhost:${GUEST_PORT}`;
+const unapprovedBaseURL = process.env.UNAPPROVED_BASE_URL ?? `http://localhost:${UNAPPROVED_PORT}`;
 
 const serverEnv = (url: string, auth: string, distDir: string) => ({
   NEXT_DIST_DIR: distDir,
@@ -46,6 +52,17 @@ const servers = [
           reuseExistingServer: !process.env.CI,
           timeout: 180_000,
           env: serverEnv(guestBaseURL, 'demo-guest', '.next-e2e-guest'),
+        },
+      ]),
+  ...(process.env.UNAPPROVED_BASE_URL
+    ? []
+    : [
+        {
+          command: `bunx next dev --port ${UNAPPROVED_PORT}`,
+          url: `${unapprovedBaseURL}/`,
+          reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
+          env: serverEnv(unapprovedBaseURL, 'demo-unapproved', '.next-e2e-unapproved'),
         },
       ]),
 ];
