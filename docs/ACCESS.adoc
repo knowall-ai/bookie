@@ -6,6 +6,47 @@ Bookie decides which organisations each person can open. By default everyone in 
 sees every organisation you have connected. *Guests*, such as your external accountant, see nothing
 until someone in your organisation gives them access.
 
+[[approved-organisations]]
+== Approved organisations
+
+Only organisations KnowAll AI has approved can use Bookie. When someone signs in, Bookie takes the
+Microsoft Entra tenant id (the `tid` claim) from the verified sign-in and allows them only if it is
+listed in the `APPROVED_TENANT_IDS` app setting: tenant GUIDs separated by commas, semicolons or
+spaces, compared in lower case. Malformed entries are ignored with a warning. No tenant is built in,
+so the organisation running Bookie (KnowAll AI, on bookie.knowall.ai) lists its own tenant there too.
+
+A sign-in with a missing or malformed `tid` is never allowed; there is no default tenant.
+
+Everyone else sees _Your organisation isn't set up on Bookie yet_, with their organisation's name
+and tenant id, a *Request access* button (it opens their own mail app with a message to
+`hello@knowall.ai` that already holds the app, organisation, tenant id and their email), the address
+itself, and *Sign out*. They get no organisations, navigation or data: portal pages and server
+actions send them to that page, and API routes answer 401 as if they were signed out. Bookie's public helper on the website
+(`PUBLIC_BOOKIE_ENABLED`) doesn't need a sign-in and is unaffected.
+
+Guests invited into an approved tenant (Entra B2B, such as an external accountant) sign in through
+that tenant (see <<signing-in-as-a-guest>>), so their sign-in carries its tenant id and they are
+allowed. If they use the main button instead they land in their own firm's tenant and see the
+"not set up yet" page, which also offers the *Sign in to <Name>* links. Everything below (members,
+guests, access entries) still applies on top.
+
+=== Approving an organisation
+
+. Ask the organisation for its tenant id: it is on the "not set up yet" page and in the access
+  request email, or in the Entra admin centre under *Overview › Tenant ID*.
+. Add it to the `APPROVED_TENANT_IDS` application setting on the `bookie-knowall` App Service
+  (*Settings › Environment variables*), separated from the others by a comma, and save. The app
+  restarts and the organisation can sign in straight away; nobody needs to sign in again.
+. To remove an organisation, take its id out again. Its people are shown the "not set up yet" page
+  on their next request.
+
+If the organisation's guests sign in through a host tenant in `BOOKIE_GUEST_TENANTS`, that host
+tenant must be approved as well.
+
+Enforced in `getAuthContext()` and `requireAuth()` (`web/src/lib/auth/context.ts`), which every
+page, server action and API route already uses, with the rule in
+`web/src/lib/auth/approved-tenants.ts`.
+
 == Members and guests
 
 Bookie reads the person's Microsoft Entra `userType` when they sign in:
@@ -151,6 +192,7 @@ An organisation that doesn't exist and one the person can't open look the same: 
 Every settings write (connections, Business Central, Live updates, people and access, the Xero
 connect and callback routes) refuses guests, so a guest can't widen their own access.
 
+[[signing-in-as-a-guest]]
 == Signing in as a guest
 
 A guest who signs in with the main *Sign in with Microsoft* button lands in their *home* tenant
@@ -190,6 +232,11 @@ custom domain).
 . Send them to Bookie's sign-in page and ask them to use *Sign in to <your organisation>*.
 
 == Testing
+
+* Approved organisations: `web/src/lib/auth/approved-tenants.test.ts` and
+  `web/src/lib/auth/context.test.ts` (the gate, with the session cookie mocked), and
+  `web/tests/e2e/tenant-approval.spec.ts`, which runs against a third dev server started with
+  `BOOKIE_DEV_AUTH=demo-unapproved`: a fictional Fabrikam user whose organisation isn't approved.
 
 * Unit tests: `web/src/lib/auth/access.test.ts` (the rules, including matching by `userId` then
   email), `web/src/lib/directory/graph.test.ts` (the Graph search, lookup and assignment check,
