@@ -42,6 +42,14 @@ export default function PrivacyPage() {
           copy.
         </li>
         <li>
+          <strong>Documents in your accounts mailbox</strong>, if your organisation uses the
+          Accounts inbox: emails and their PDF or image attachments are read live from your own
+          Microsoft 365, as you. Each attachment is sent to Azure OpenAI to read the invoice on it
+          (only the document itself, never anything from Xero or Business Central), and what it says
+          is held in memory for up to ten minutes, then discarded. Azure OpenAI does not keep it or
+          use it to train models.
+        </li>
+        <li>
           <strong>Conversations with Bookie the AI bookkeeper</strong>, if your organisation uses
           the agent add-on: your questions, his answers and your stated preferences, kept so he can
           remember context. Ledger figures are looked up afresh each time rather than stored.

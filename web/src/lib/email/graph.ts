@@ -387,28 +387,31 @@ async function sendDecision(
 type MailboxFolder = { key: MailboxFolderKey; label: string; path: string };
 
 /** A failed mailbox read: status and Graph's error code only (paths carry the mailbox address). */
-export class MailboxGraphError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string | undefined,
-    label: string
-  ) {
-    super(`Graph ${status} ${label}`);
-    this.name = 'MailboxGraphError';
-  }
-}
+export { MailboxGraphError } from './errors';
+import { MailboxGraphError } from './errors';
+import type { MailMessage, MailFile, MailAttachmentMeta } from './types';
+import { canReadShared, tokenScopes } from './mailbox';
 
-async function mailboxGraph<T>(token: string, path: string, label: string): Promise<T> {
-  const response = await fetch(`${GRAPH}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(15_000),
-    cache: 'no-store',
-  });
+async function mailboxResponse(token: string, path: string, label: string): Promise<Response> {
+  const send = () =>
+    fetch(`${GRAPH}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+      cache: 'no-store',
+    });
+  let response = await send();
+  if (response.status === 429 || response.status === 503) {
+    await new Promise((resolve) => setTimeout(resolve, retryAfterMs(response)));
+    response = await send();
+  }
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: { code?: string } };
     throw new MailboxGraphError(response.status, body.error?.code, label);
   }
-  return response.json() as Promise<T>;
+  return response;
+}
+async function mailboxGraph<T>(token: string, path: string, label: string): Promise<T> {
+  return (await mailboxResponse(token, path, label)).json() as Promise<T>;
 }
 
 /** A folder's id under the mailbox's Inbox, found name by name; null when it doesn't exist. */
@@ -493,4 +496,115 @@ export async function isApprover(token: string, senders: string[]): Promise<bool
     'approver lookup'
   );
   return result.value.length > 0;
+}
+
+/** Invoice checks use the same mailbox permissions, folders, retries and timeouts as Email. */
+export class GraphMailbox {
+  constructor(
+    readonly mailbox: string,
+    private readonly token: () => Promise<string>
+  ) {}
+  private get base() {
+    return `/users/${encodeURIComponent(this.mailbox)}`;
+  }
+  private async accessToken() {
+    const token = await this.token();
+    if (!canReadShared(tokenScopes(token)))
+      throw new MailboxGraphError(403, undefined, 'Shared mail consent required');
+    return token;
+  }
+  private allowedFolders?: Promise<(string | null)[]>;
+  private messages = new Map<string, Promise<MailMessage>>();
+
+  message(id: string): Promise<MailMessage> {
+    let message = this.messages.get(id);
+    if (!message) {
+      message = this.readMessage(id);
+      this.messages.set(id, message);
+      const pending = message;
+      message.catch(() => {
+        if (this.messages.get(id) === pending) this.messages.delete(id);
+      });
+    }
+    return message;
+  }
+
+  private async readMessage(id: string): Promise<MailMessage> {
+    const token = await this.accessToken();
+    const path = `${this.base}/messages/${encodeURIComponent(id)}`;
+    const message = await mailboxGraph<MailMessage>(
+      token,
+      `${path}?$select=id,subject,receivedDateTime,from,sender,replyTo,internetMessageHeaders,parentFolderId`,
+      'mailbox message'
+    );
+    const allowed = await (this.allowedFolders ??= Promise.all(
+      MAILBOX_FOLDERS.map(async (folder) => {
+        try {
+          if (!folder.path)
+            return (
+              await mailboxGraph<{ id: string }>(
+                token,
+                `${this.base}/mailFolders/inbox?$select=id`,
+                'mailbox inbox lookup'
+              )
+            ).id;
+          return await folderId(token, this.mailbox, folder.path);
+        } catch (error) {
+          if (error instanceof MailboxGraphError && isNoAccess(error.status, error.code))
+            return null;
+          throw error;
+        }
+      })
+    ));
+    if (!message.parentFolderId || !allowed.includes(message.parentFolderId))
+      throw new MailboxGraphError(
+        403,
+        'OutsideAccountsInbox',
+        'This message is not in the accounts inbox.'
+      );
+    const attachments: MailAttachmentMeta[] = [];
+    let next: string | undefined = `${path}/attachments?$select=id,name,contentType,size,isInline`;
+    while (next) {
+      const page: { value: MailAttachmentMeta[]; '@odata.nextLink'?: string } = await mailboxGraph(
+        token,
+        next,
+        'mailbox attachments'
+      );
+      attachments.push(...page.value);
+      next = page['@odata.nextLink'];
+      if (next) {
+        const url = new URL(next);
+        const graphUrl = new URL(GRAPH);
+        const decoded = decodeURIComponent(url.pathname);
+        const odataKey = (value: string) => value.replace(/'/g, "''");
+        const suffixes = [
+          `/messages/${id}/attachments`,
+          `/messages('${odataKey(id)}')/attachments`,
+        ];
+        if (
+          url.origin !== graphUrl.origin ||
+          !decoded.startsWith(`${graphUrl.pathname}/`) ||
+          !suffixes.some((suffix) => decoded.endsWith(suffix))
+        )
+          throw new MailboxGraphError(502, undefined, 'Invalid attachment page');
+        next = url.pathname.slice(graphUrl.pathname.length) + url.search;
+      }
+    }
+    return { ...message, attachments };
+  }
+  async attachment(messageId: string, attachmentId: string): Promise<MailFile> {
+    const message = await this.message(messageId);
+    const meta = message.attachments.find((a) => a.id === attachmentId);
+    if (!meta) throw new MailboxGraphError(404, undefined, 'Attachment not found');
+    const response = await mailboxResponse(
+      await this.accessToken(),
+      `${this.base}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/$value`,
+      'mailbox attachment'
+    );
+    return {
+      fileName: meta.name,
+      contentType: meta.contentType,
+      bytes: await response.arrayBuffer(),
+    };
+  }
 }

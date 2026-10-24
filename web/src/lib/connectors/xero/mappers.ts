@@ -46,6 +46,7 @@ export interface XeroContact {
   Website?: string;
   AccountNumber?: string;
   TaxNumber?: string;
+  BankAccountDetails?: string;
   ContactStatus?: 'ACTIVE' | 'ARCHIVED' | 'GDPRREQUEST';
   IsCustomer?: boolean;
   IsSupplier?: boolean;
@@ -249,7 +250,11 @@ const PHONE_PREFERENCE = ['DEFAULT', 'MOBILE', 'DDI'];
  * AUTHORISED invoice with an amount due.) Balances are in the organisation's
  * base currency (Xero converts foreign invoices) and net off unapplied credit.
  */
-export function fromXeroContact(contact: XeroContact, zeroWhenMissing = false): Contact {
+export function fromXeroContact(
+  contact: XeroContact,
+  zeroWhenMissing = false,
+  singleContact = false
+): Contact {
   const phone = [...(contact.Phones ?? [])]
     .filter((p) => p.PhoneNumber)
     .sort(
@@ -271,6 +276,8 @@ export function fromXeroContact(contact: XeroContact, zeroWhenMissing = false): 
     website: contact.Website || undefined,
     accountNumber: contact.AccountNumber || undefined,
     taxNumber: contact.TaxNumber || undefined,
+    // Only Contacts/{id} establishes that omitted bank details mean none on file.
+    bankDetails: contact.BankAccountDetails?.trim() || (singleContact ? null : undefined),
     address: fromXeroAddress(contact.Addresses),
     isCustomer: !!contact.IsCustomer,
     isSupplier: !!contact.IsSupplier,
@@ -291,6 +298,29 @@ export function fromXeroContact(contact: XeroContact, zeroWhenMissing = false): 
 function rank(order: string[], value: string) {
   const i = order.indexOf(value);
   return i === -1 ? order.length : i;
+}
+
+/**
+ * Xero replaces a contact's whole Addresses and Phones collections on update. Bookie edits
+ * one address (POBOX) and one phone (DEFAULT), so keep the others (street address,
+ * mobile, fax...) as they are.
+ */
+export function keepOtherXeroEntries(
+  body: Record<string, unknown>,
+  existing: Pick<XeroContact, 'Addresses' | 'Phones'> | undefined
+): Record<string, unknown> {
+  const out = { ...body };
+  if (Array.isArray(body.Addresses))
+    out.Addresses = [
+      ...(existing?.Addresses ?? []).filter((a) => a.AddressType !== 'POBOX'),
+      ...body.Addresses,
+    ];
+  if (Array.isArray(body.Phones))
+    out.Phones = [
+      ...(existing?.Phones ?? []).filter((p) => p.PhoneType !== 'DEFAULT'),
+      ...body.Phones,
+    ];
+  return out;
 }
 
 export function toXeroContact(input: ContactInput, id?: string): Record<string, unknown> {

@@ -63,7 +63,7 @@ test.describe('Bookie’s emails', () => {
     await page.getByRole('tab', { name: /accounts@ inbox/ }).click();
     await expect(page).toHaveURL(/status=mb-0/);
     await expect(page.getByTestId('mailbox-message').first()).toContainText(
-      'Invoice 7781 from Northwind Packaging'
+      'URGENT: overdue invoice CP-7781'
     );
     await page.getByRole('tab', { name: /Enquiries \(hello@ inbox\)/ }).click();
     await expect(page).toHaveURL(/status=mb-1/);
@@ -76,7 +76,7 @@ test.describe('Bookie’s emails', () => {
     );
     await page.getByRole('tab', { name: /Needs review/ }).click();
     await expect(page).toHaveURL(/status=needs-review/);
-    await expect(page.getByTestId('mailbox-message')).toContainText('Tailspin Roastery Supplies');
+    await expect(page.getByTestId('mailbox-message')).toContainText('Wingtip');
     await page.getByRole('tab', { name: /Captured/ }).click();
     await expect(page).toHaveURL(/status=captured/);
     await expect(page.getByTestId('mailbox-message')).toHaveCount(2);

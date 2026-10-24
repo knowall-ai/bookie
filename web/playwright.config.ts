@@ -26,6 +26,7 @@ const serverEnv = (url: string, auth: string, distDir: string) => ({
   BOOKIE_CONFIG_STORE: 'file',
   // Bookie's take and chat would call Azure OpenAI from .env.local: keep e2e offline.
   BOOKIE_DISABLE_AI: '1',
+  BOOKIE_E2E: '1',
   NEXTAUTH_URL: url,
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? 'e2e-only-secret-not-used-in-production',
   BOOKIE_CONFIG_KEY: process.env.BOOKIE_CONFIG_KEY ?? Buffer.alloc(32, 7).toString('base64'),

@@ -66,9 +66,11 @@ function ApprovalsTab({
 function MailboxTab({
   view,
   folder,
+  basePath,
 }: {
   view: EmailsOverview['mailboxes'][number];
   folder: string;
+  basePath: string;
 }) {
   switch (view.status) {
     case 'no-consent':
@@ -91,7 +93,15 @@ function MailboxTab({
       return <ErrorPanel title={`Couldn’t read ${view.mailbox}`} message={view.error} />;
     case 'ok': {
       const shown = view.folders.find((f) => f.key === folder);
-      return shown ? <MailboxList folder={shown} mailbox={view.mailbox} /> : null;
+      return shown ? (
+        <MailboxList
+          folder={shown}
+          mailbox={view.mailbox}
+          checkBase={
+            view.capture && /^\/portal\/[^/]+\/email$/.test(basePath) ? basePath : undefined
+          }
+        />
+      ) : null;
     }
   }
 }
@@ -204,7 +214,7 @@ export async function EmailsView({ basePath, status }: { basePath: string; statu
         {tab === 'approvals' ? (
           <ApprovalsTab view={overview.approvals} agents={overview.agents} />
         ) : active ? (
-          <MailboxTab view={active.mailbox} folder={active.folder} />
+          <MailboxTab view={active.mailbox} folder={active.folder} basePath={basePath} />
         ) : null}
       </div>
     </>
