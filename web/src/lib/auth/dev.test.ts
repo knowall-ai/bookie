@@ -10,7 +10,7 @@ describe('dev sign-in shortcuts', () => {
 
   it('throws in production for the demo and azure-cli modes', () => {
     vi.stubEnv('NODE_ENV', 'production');
-    for (const mode of ['demo', 'demo-guest', 'azure-cli']) {
+    for (const mode of ['demo', 'demo-guest', 'demo-unapproved', 'azure-cli']) {
       vi.stubEnv('BOOKIE_DEV_AUTH', mode);
       expect(() => devAuthMode()).toThrow(/must not be set in production/);
     }
@@ -28,6 +28,8 @@ describe('dev sign-in shortcuts', () => {
     expect(devAuthMode()).toBe('demo');
     vi.stubEnv('BOOKIE_DEV_AUTH', 'demo-guest');
     expect(devAuthMode()).toBe('demo-guest');
+    vi.stubEnv('BOOKIE_DEV_AUTH', 'demo-unapproved');
+    expect(devAuthMode()).toBe('demo-unapproved');
     vi.stubEnv('BOOKIE_DEV_AUTH', 'admin');
     expect(() => devAuthMode()).toThrow(/Unknown BOOKIE_DEV_AUTH/);
   });

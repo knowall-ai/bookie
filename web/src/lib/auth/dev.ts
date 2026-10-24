@@ -6,9 +6,9 @@ import type { AuthContext } from './context';
 
 const run = promisify(execFile);
 
-export type DevAuthMode = 'azure-cli' | 'demo' | 'demo-guest';
+export type DevAuthMode = 'azure-cli' | 'demo' | 'demo-guest' | 'demo-unapproved';
 
-const DEV_MODES: DevAuthMode[] = ['azure-cli', 'demo', 'demo-guest'];
+const DEV_MODES: DevAuthMode[] = ['azure-cli', 'demo', 'demo-guest', 'demo-unapproved'];
 
 export const DEMO_TENANT_ID = '00000000-0000-0000-0000-00000000d3e0';
 
@@ -32,6 +32,23 @@ export const DEMO_GUEST: AuthContext['user'] = {
 /** The demo tenant's display name, used in "Ask an administrator at …". */
 export const DEMO_TENANT_NAME = 'Contoso';
 
+/** A fictional organisation KnowAll hasn't approved, for the "not set up yet" page. */
+export const DEMO_UNAPPROVED_TENANT_ID = '00000000-0000-0000-0000-00000000fab1';
+export const DEMO_UNAPPROVED_TENANT_NAME = 'Fabrikam, Inc.';
+
+export const DEMO_UNAPPROVED: AuthContext['user'] = {
+  id: '00000000-0000-0000-0000-00000000fa01',
+  tenantId: DEMO_UNAPPROVED_TENANT_ID,
+  name: 'Casey Rivera',
+  email: 'casey.rivera@fabrikam.example',
+  userType: 'Member',
+};
+
+/** The display name of a fictional demo tenant. */
+export function demoTenantName(tenantId: string): string {
+  return tenantId === DEMO_UNAPPROVED_TENANT_ID ? DEMO_UNAPPROVED_TENANT_NAME : DEMO_TENANT_NAME;
+}
+
 /**
  * Development-only sign-in shortcuts, selected with BOOKIE_DEV_AUTH.
  *
@@ -41,6 +58,8 @@ export const DEMO_TENANT_NAME = 'Contoso';
  *   Used by Playwright and for public screenshots.
  * - `demo-guest`: a fictional external accountant, a guest in the demo tenant,
  *   with an access entry for Contoso Coffee Roasters only.
+ * - `demo-unapproved`: a fictional Fabrikam member whose organisation KnowAll
+ *   hasn't approved, so they see only the "not set up yet" page.
  *
  * All are refused outright in a production build.
  */
@@ -95,10 +114,15 @@ async function azureCliUser(): Promise<AuthContext['user']> {
 }
 
 export async function devAuthContext(mode: DevAuthMode): Promise<AuthContext> {
-  if (mode === 'demo' || mode === 'demo-guest') {
+  if (mode !== 'azure-cli') {
+    const users = {
+      demo: DEMO_MEMBER,
+      'demo-guest': DEMO_GUEST,
+      'demo-unapproved': DEMO_UNAPPROVED,
+    };
     return {
       mode: 'demo',
-      user: mode === 'demo' ? DEMO_MEMBER : DEMO_GUEST,
+      user: users[mode],
       getToken: async () => {
         throw new Error('The demo user has no Microsoft tokens.');
       },

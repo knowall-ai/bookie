@@ -1,6 +1,6 @@
 import 'server-only';
 import type { AuthContext } from './context';
-import { DEMO_TENANT_NAME } from './dev';
+import { demoTenantName } from './dev';
 import { guestTenantName } from './guest-tenants';
 
 const names = new Map<string, { at: number; name: string | undefined }>();
@@ -13,7 +13,7 @@ const TTL = 60 * 60_000;
  * often can't read the directory): callers then use a neutral phrase.
  */
 export async function tenantDisplayName(auth: AuthContext): Promise<string | undefined> {
-  if (auth.mode === 'demo') return DEMO_TENANT_NAME;
+  if (auth.mode === 'demo') return demoTenantName(auth.user.tenantId);
   const configured = guestTenantName(auth.user.tenantId);
   if (configured) return configured;
   const hit = names.get(`${auth.user.tenantId}:${auth.user.userType}`);

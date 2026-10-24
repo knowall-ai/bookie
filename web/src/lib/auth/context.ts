@@ -3,7 +3,8 @@ import { cookies } from 'next/headers';
 import { decode } from 'next-auth/jwt';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
-import { devAuthMode, devAuthContext } from './dev';
+import { isApprovedTenant } from './approved-tenants';
+import { DEMO_TENANT_ID, devAuthMode, devAuthContext } from './dev';
 import { redeemRefreshToken } from './tokens';
 import type { UserType } from './access';
 import type { ResourceName } from './resources';
@@ -28,8 +29,12 @@ export interface AuthContext {
 
 const SESSION_COOKIES = ['__Secure-next-auth.session-token', 'next-auth.session-token'];
 
-/** The signed-in user for this request, or `null`. Memoised per request. */
-export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
+/**
+ * Whoever signed in, whether or not their organisation is approved, or `null`.
+ * Only for the "not set up yet" page and for telling an unapproved sign-in
+ * from no sign-in: everything that reads data uses `getAuthContext`.
+ */
+export const getSignIn = cache(async (): Promise<AuthContext | null> => {
   const dev = devAuthMode();
   if (dev) return devAuthContext(dev);
 
@@ -57,9 +62,33 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   };
 });
 
-/** Like `getAuthContext`, but sends anonymous visitors to sign in. */
+/**
+ * Whether this sign-in's organisation may use Bookie (`approved-tenants.ts`).
+ * The fictional demo tenant is approved too; demo sign-ins are refused in production.
+ */
+export function isApprovedSignIn(auth: AuthContext): boolean {
+  if (auth.mode === 'demo' && auth.user.tenantId === DEMO_TENANT_ID) return true;
+  return isApprovedTenant(auth.user.tenantId);
+}
+
+/**
+ * The signed-in user for this request, or `null` when nobody is signed in or
+ * their organisation isn't approved. Every page, route and action that reads or
+ * writes data goes through this (or `requireAuth`), so an unapproved
+ * organisation gets no data and API routes answer 401. Memoised per request.
+ */
+export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
+  const auth = await getSignIn();
+  return auth && isApprovedSignIn(auth) ? auth : null;
+});
+
+/**
+ * Like `getAuthContext`, but sends anonymous visitors to sign in and people
+ * from an organisation that isn't approved to the "not set up yet" page.
+ */
 export async function requireAuth(returnTo = '/portal'): Promise<AuthContext> {
   const auth = await getAuthContext();
-  if (!auth) redirect(`/signin?callbackUrl=${encodeURIComponent(returnTo)}`);
-  return auth;
+  if (auth) return auth;
+  if (await getSignIn()) redirect('/not-approved');
+  redirect(`/signin?callbackUrl=${encodeURIComponent(returnTo)}`);
 }

@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from 'next-auth';
 import AzureADProvider from 'next-auth/providers/azure-ad';
 import type { UserType } from './access';
+import { normaliseTenantId } from './approved-tenants';
 import { guestTenants } from './guest-tenants';
 import { SIGN_IN_SCOPES, signInAuthority } from './resources';
 
@@ -111,7 +112,8 @@ export const authOptions: NextAuthOptions = {
         const claims = decodeJwtPayload(account.id_token);
         const identity = await signInIdentity(account.access_token, claims);
         token.refreshToken = account.refresh_token;
-        token.tenantId = (claims.tid as string) ?? undefined;
+        // Lowercased, and only when it is a real GUID: a missing or malformed `tid` is never approved.
+        token.tenantId = normaliseTenantId(claims.tid);
         token.oid = (claims.oid as string) ?? undefined;
         token.userType = identity.userType;
         token.email = identity.email || token.email;

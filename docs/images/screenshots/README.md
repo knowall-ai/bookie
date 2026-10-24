@@ -25,6 +25,7 @@ Every portal screenshot comes from **Microsoft's CRONUS sample company** in a Bu
 | `landing.webp` | The public website hero at getbook.ie |
 | `bitcoin-wallet.webp` | A Bitcoin wallet as a bank account. The one exception to CRONUS: it is the **demo organisation's fictional wallet** (`BOOKIE_DEV_AUTH=demo`), because a real wallet would publish its transactions; every transaction id, amount and price in it is made up and labelled so |
 | `bitcoin-reconcile.webp` | The same demo wallet's Reconcile tab against the demo organisation's fictional BTC bank account: matched by txid or amount, on chain but not in the books (with drafting), in the books but not on chain, pending |
+| `not-approved.webp`, `not-approved-mobile.webp` | The "not set up yet" page for an organisation KnowAll hasn't approved (1440x900 and 390x844), as the **fictional Fabrikam user** (`BOOKIE_DEV_AUTH=demo-unapproved`); the email, organisation and tenant id are made up |
 
 ## Regenerating
 
