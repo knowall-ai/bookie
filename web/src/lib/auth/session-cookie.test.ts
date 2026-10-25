@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { encode } from 'next-auth/jwt';
 
 vi.mock('server-only', () => ({}));
-const { readSessionToken } = await import('./session-cookie');
+const { readSessionToken, sessionCookieName } = await import('./session-cookie');
 
 /* Fictional values only. */
 const secret = 'test-secret-'.repeat(4);
@@ -20,6 +20,8 @@ const claims = (refreshToken: string) => ({
  * (node_modules/next-auth/core/lib/cookie.js, not exported): one cookie, or
  * `<name>.0`, `<name>.1`… of 4096 - 163 characters each when it's larger.
  */
+const SECURE = '__Secure-next-auth.session-token';
+const PLAIN = 'next-auth.session-token';
 const CHUNK_SIZE = 4096 - 163;
 function cookiesFor(name: string, value: string) {
   if (value.length <= CHUNK_SIZE) return [{ name, value }];
@@ -34,7 +36,9 @@ describe('readSessionToken', () => {
     const value = await encode({ token: claims('r'.repeat(1200)), secret });
     const cookies = cookiesFor('__Secure-next-auth.session-token', value);
     expect(cookies.map((c) => c.name)).toEqual(['__Secure-next-auth.session-token']);
-    expect((await readSessionToken(cookies, secret))?.oid).toBe(claims('').oid);
+    expect((await readSessionToken(cookies, { secret, cookieName: SECURE }))?.oid).toBe(
+      claims('').oid
+    );
   });
 
   it('puts back together a session next-auth split because a long refresh token made it large', async () => {
@@ -45,21 +49,42 @@ describe('readSessionToken', () => {
       '__Secure-next-auth.session-token.1',
     ]);
     // Cookie order in the request doesn't matter.
-    const token = await readSessionToken([...cookies].reverse(), secret);
+    const token = await readSessionToken([...cookies].reverse(), { secret, cookieName: SECURE });
     expect(token?.refreshToken).toBe('r'.repeat(3000));
   });
 
   it('reads the plain cookie name used over http in local development, split or not', async () => {
     const value = await encode({ token: claims('r'.repeat(3000)), secret });
-    const token = await readSessionToken(cookiesFor('next-auth.session-token', value), secret);
+    const token = await readSessionToken(cookiesFor('next-auth.session-token', value), {
+      secret,
+      cookieName: PLAIN,
+    });
     expect(token?.tenantId).toBe(claims('').tenantId);
   });
 
   it('is null with no session cookie, a wrong secret, or a missing piece', async () => {
-    expect(await readSessionToken([{ name: 'other', value: 'x' }], secret)).toBeNull();
+    expect(
+      await readSessionToken([{ name: 'other', value: 'x' }], { secret, cookieName: SECURE })
+    ).toBeNull();
     const value = await encode({ token: claims('r'.repeat(3000)), secret });
     const cookies = cookiesFor('__Secure-next-auth.session-token', value);
-    expect(await readSessionToken(cookies, 'another-secret-'.repeat(3))).toBeNull();
-    expect(await readSessionToken(cookies.slice(0, 1), secret)).toBeNull();
+    expect(
+      await readSessionToken(cookies, {
+        secret: 'another-secret-'.repeat(3),
+        cookieName: SECURE,
+      })
+    ).toBeNull();
+    expect(await readSessionToken(cookies.slice(0, 1), { secret, cookieName: SECURE })).toBeNull();
+  });
+
+  it('reads only the cookie name next-auth writes: __Secure- on https, plain on http', async () => {
+    expect(sessionCookieName('https://bookie.example')).toBe(SECURE);
+    expect(sessionCookieName('http://localhost:3103')).toBe(PLAIN);
+    expect(sessionCookieName(undefined)).toBe(PLAIN);
+    // On https a plain-named cookie (which an http page could plant) is ignored.
+    const value = await encode({ token: claims('r'.repeat(1200)), secret });
+    expect(
+      await readSessionToken([{ name: PLAIN, value }], { secret, cookieName: SECURE })
+    ).toBeNull();
   });
 });

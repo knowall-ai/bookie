@@ -1,8 +1,16 @@
 import 'server-only';
 import { getToken, type JWT } from 'next-auth/jwt';
 
-/** next-auth's session cookie: `__Secure-` on https, the plain name on http (local development). */
-export const SESSION_COOKIES = ['__Secure-next-auth.session-token', 'next-auth.session-token'];
+/**
+ * next-auth's session cookie name, chosen the way next-auth chooses it when writing:
+ * `__Secure-` when NEXTAUTH_URL is https, the plain name over http (local development).
+ * Only that one is read, so a plain-named cookie planted over http is never used in production.
+ */
+export function sessionCookieName(url = process.env.NEXTAUTH_URL): string {
+  return url?.startsWith('https://')
+    ? '__Secure-next-auth.session-token'
+    : 'next-auth.session-token';
+}
 
 /**
  * The decoded next-auth session token from the request's cookies, or `null`.
@@ -15,19 +23,14 @@ export const SESSION_COOKIES = ['__Secure-next-auth.session-token', 'next-auth.s
  */
 export async function readSessionToken(
   all: { name: string; value: string }[],
-  secret = process.env.NEXTAUTH_SECRET ?? ''
+  { secret = process.env.NEXTAUTH_SECRET ?? '', cookieName = sessionCookieName() } = {}
 ): Promise<JWT | null> {
   const cookies = Object.fromEntries(all.map((c) => [c.name, c.value]));
-  for (const cookieName of SESSION_COOKIES) {
-    // No headers: the session only ever comes from the cookie, never an Authorization header.
-    const token = await getToken({
-      req: { cookies, headers: {} } as unknown as Parameters<typeof getToken>[0]['req'],
-      cookieName,
-      secureCookie: cookieName.startsWith('__Secure-'),
-      secret,
-      logger: { error: () => {}, warn: () => {}, debug: () => {} },
-    }).catch(() => null);
-    if (token) return token;
-  }
-  return null;
+  // No headers: the session only ever comes from the cookie, never an Authorization header.
+  // getToken returns null for a missing or undecryptable cookie.
+  return getToken({
+    req: { cookies, headers: {} } as unknown as Parameters<typeof getToken>[0]['req'],
+    cookieName,
+    secret,
+  });
 }
