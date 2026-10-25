@@ -64,6 +64,19 @@ describe('fetchProfilePhoto', () => {
     expect(await fetchProfilePhoto(noToken)).toBe('unavailable');
   });
 
+  it('treats someone else’s photo it may not read as none, but not the user’s own', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 403 })));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await fetchProfilePhoto(auth(), 'bookie@contoso.example')).toBe('none');
+    expect(await fetchProfilePhoto(auth())).toBe('unavailable');
+  });
+
+  it('refuses non-raster images such as SVG', async () => {
+    const svg = new Response('<svg/>', { headers: { 'Content-Type': 'image/svg+xml' } });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(svg));
+    expect(await fetchProfilePhoto(auth(), 'bookie@contoso.example')).toBe('unavailable');
+  });
+
   it('never calls Graph in demo mode', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

@@ -87,29 +87,31 @@ test.describe('Bookie’s emails', () => {
     const agent = page.getByTestId('agent-card');
     await expect(agent).toHaveCount(1);
     await expect(agent).toContainText('bookie@contoso.example');
-    await expect(page.getByLabel('Agent 1 name')).toHaveValue('Bookie');
-    await expect(page.getByLabel('Agent 1 Teams user (optional)')).toHaveCount(0);
+    await expect(agent).toContainText('Teams calls go to bookie@contoso.example.');
+    await expect(agent.getByLabel('Name')).toHaveValue('Bookie');
     const mailboxes = page.getByTestId('mailbox-card');
     await expect(mailboxes.nth(0)).toContainText('accounts@contoso.example');
     await expect(mailboxes.nth(1)).toContainText('hello@contoso.example');
-    await expect(page.getByLabel('Mailbox 1 agent')).toHaveValue('bookie');
-    await expect(page.getByLabel('Mailbox 2 agent')).toHaveValue('');
+    await expect(mailboxes.nth(0).getByLabel('Read by')).toHaveValue('bookie');
+    await expect(mailboxes.nth(1).getByLabel('Read by')).toHaveValue('');
     const capture = page.getByRole('switch', { name: /Bill capture for/ });
     await expect(capture.nth(0)).toHaveAttribute('aria-checked', 'true');
     await expect(capture.nth(1)).toHaveAttribute('aria-checked', 'false');
   });
 
-  test('Settings adds a mailbox from the directory, with one bill capture mailbox', async ({
+  test('Settings adds a shared mailbox from the directory, with one bill capture mailbox', async ({
     page,
   }) => {
     await page.goto('/portal/settings#email');
     const save = page.locator('#email').getByRole('button', { name: 'Save' });
     await expect(save).toBeDisabled();
-    await page.getByTestId('mailbox-picker').getByRole('combobox').fill('Priya');
-    await page.getByRole('option', { name: /priya\.shah@contoso\.example/ }).click();
+    await page.getByTestId('mailbox-picker').getByRole('combobox').fill('Payables');
+    await page.getByRole('option', { name: /payables@contoso\.example/ }).click();
     const added = page.getByTestId('mailbox-card').nth(2);
-    await expect(added).toContainText('priya.shah@contoso.example');
-    await expect(page.getByLabel('Mailbox 3 tab name')).toHaveValue('Priya Shah');
+    await expect(added).toContainText('payables@contoso.example');
+    await expect(added.getByLabel('Tab name')).toHaveValue('Contoso Payables');
+    // With one agent, a new mailbox is read by it.
+    await expect(added.getByLabel('Read by')).toHaveValue('bookie');
     await expect(page.getByText('Unsaved changes')).toBeVisible();
     await expect(save).toBeEnabled();
 
@@ -119,18 +121,43 @@ test.describe('Bookie’s emails', () => {
     await expect(capture.nth(2)).toHaveAttribute('aria-checked', 'true');
     await expect(capture.nth(0)).toHaveAttribute('aria-checked', 'false');
 
-    await page.getByRole('button', { name: 'Remove priya.shah@contoso.example' }).click();
+    await page.getByRole('button', { name: 'Remove payables@contoso.example' }).click();
     await expect(page.getByTestId('mailbox-card')).toHaveCount(2);
   });
 
-  test('Settings refuses a typed address that is not a full email address', async ({ page }) => {
+  test('Settings: renaming an agent keeps its mailboxes; a nameless agent can’t be saved', async ({
+    page,
+  }) => {
+    await page.goto('/portal/settings#email');
+    const agent = page.getByTestId('agent-card');
+    const save = page.locator('#email').getByRole('button', { name: 'Save' });
+    await agent.getByLabel('Name').fill('Ava');
+    await expect(page.getByTestId('mailbox-card').nth(0).getByLabel('Read by')).toHaveValue('ava');
+    await agent.getByLabel('Name').fill('');
+    await expect(agent.getByText('Give the agent a name.')).toBeVisible();
+    await expect(save).toBeDisabled();
+  });
+
+  test('Settings: a typed address is checked, and Enter adds it without saving', async ({
+    page,
+  }) => {
     await page.goto('/portal/settings#email');
     await page.getByRole('button', { name: 'Or type the address' }).last().click();
-    await page.getByLabel('Add another shared mailbox').fill('accounts');
+    const typed = page.getByLabel('Add another shared mailbox');
+    await typed.fill('accounts');
     await expect(
       page.getByText('Use the full address, such as accounts@yourcompany.com.')
     ).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add', exact: true })).toBeDisabled();
+    await typed.fill('accounts@contoso.example');
+    await expect(page.getByText('That address is already listed.')).toBeVisible();
+    await typed.fill('purchasing@contoso.example');
+    await typed.press('Enter');
+    await expect(page.getByTestId('mailbox-card').nth(2)).toContainText(
+      'purchasing@contoso.example'
+    );
+    // Enter added the card; nothing was saved.
+    await expect(page.getByText('Email settings saved')).toHaveCount(0);
+    await expect(page.getByText('Unsaved changes')).toBeVisible();
   });
 });
 

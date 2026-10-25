@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import { Bot, Inbox, Mail, Trash2 } from 'lucide-react';
 import { mailSetup } from '@/lib/email/mailbox';
 import type { EmailSettings as Settings } from '@/lib/config/types';
@@ -16,7 +17,8 @@ import { Field, Input } from '@/components/ui/Field';
 import { Toggle } from '@/components/ui/Toggle';
 
 const MAX_ROWS = 10;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** The server's own rule (`email-settings-schema.ts`), so a typed address is never accepted here and refused on Save. */
+const email = z.string().trim().max(320).email();
 
 /** A stable id from the agent's name: lower-case letters, digits and dashes, unique in the list. */
 function agentId(displayName: string, taken: string[]): string {
@@ -24,7 +26,7 @@ function agentId(displayName: string, taken: string[]): string {
     displayName
       .toLowerCase()
       .normalize('NFKD')
-      .replace(/[̀-ͯ]/g, '')
+      .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 32) || 'agent';
@@ -63,11 +65,17 @@ function MailboxPicker({
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState('');
   const typedError =
-    typed && !EMAIL.test(typed.trim())
+    typed && !email.safeParse(typed).success
       ? 'Use the full address, such as accounts@yourcompany.com.'
       : taken.includes(typed.trim().toLowerCase())
         ? 'That address is already listed.'
         : undefined;
+
+  const add = () => {
+    onPick(typed.trim().toLowerCase());
+    setTyped('');
+    setTyping(false);
+  };
 
   if (typing)
     return (
@@ -79,7 +87,15 @@ function MailboxPicker({
             autoFocus
             placeholder={placeholder}
             value={typed}
+            aria-invalid={typedError ? true : undefined}
+            aria-describedby={typedError ? `${testId}-typed-error` : undefined}
             onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter adds the address; it must never submit (and save) the whole form.
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              if (typed && !typedError) add();
+            }}
           />
         </Field>
         <div className="flex gap-2 sm:mt-7">
@@ -88,11 +104,7 @@ function MailboxPicker({
             size="sm"
             variant="primary"
             disabled={!typed || !!typedError}
-            onClick={() => {
-              onPick(typed.trim().toLowerCase());
-              setTyped('');
-              setTyping(false);
-            }}
+            onClick={add}
           >
             Add
           </Button>
@@ -198,7 +210,15 @@ export function EmailSettings(props: Settings) {
   const [pending, start] = useTransition();
   const initial = mailSetup(props);
   const [agents, setAgents] = useState<MailAgent[]>(initial.agents);
-  const [rows, setRows] = useState<SharedMailbox[]>(initial.sharedMailboxes);
+  // A mailbox can name an agent that's gone (the shape is shared with other portals): show it
+  // as "No agent" and let Save store that, rather than send an id the server refuses.
+  const [rows, setRows] = useState<SharedMailbox[]>(() =>
+    initial.sharedMailboxes.map((row) =>
+      row.agentId && !initial.agents.some((a) => a.id === row.agentId)
+        ? { ...row, agentId: undefined }
+        : row
+    )
+  );
   const [saved, setSaved] = useState(JSON.stringify([initial.agents, initial.sharedMailboxes]));
   const changed = JSON.stringify([agents, rows]) !== saved;
   const named = agents.filter((a) => a.displayName.trim());
@@ -288,7 +308,7 @@ export function EmailSettings(props: Settings) {
               <legend className="text-ink font-medium">Agents</legend>
               <p className="text-muted text-xs">
                 AI agents with their own Microsoft 365 account, such as Bookie. Their emails to
-                people outside the organisation wait for approval. Teams calls use the same address.
+                people outside the organisation wait for approval.
               </p>
               {agents.map((agent, index) => (
                 <div
@@ -303,6 +323,9 @@ export function EmailSettings(props: Settings) {
                     removeLabel={`Remove ${agent.displayName || agent.mailbox}`}
                     onRemove={() => removeAgent(index)}
                   />
+                  <p className="text-faint text-xs">
+                    Teams calls go to {agent.teamsUser ?? agent.mailbox}.
+                  </p>
                   <Field
                     label="Name"
                     htmlFor={`agent-name-${index}`}
@@ -310,7 +333,10 @@ export function EmailSettings(props: Settings) {
                   >
                     <Input
                       id={`agent-name-${index}`}
-                      aria-label={`Agent ${index + 1} name`}
+                      aria-invalid={agent.displayName.trim() ? undefined : true}
+                      aria-describedby={
+                        agent.displayName.trim() ? undefined : `agent-name-${index}-error`
+                      }
                       maxLength={40}
                       value={agent.displayName}
                       onChange={(e) => renameAgent(index, e.target.value)}
@@ -352,7 +378,6 @@ export function EmailSettings(props: Settings) {
                     <Field label="Tab name" htmlFor={`label-${index}`}>
                       <Input
                         id={`label-${index}`}
-                        aria-label={`Mailbox ${index + 1} tab name`}
                         maxLength={40}
                         placeholder={row.address.split('@')[0]}
                         value={row.label ?? ''}
@@ -362,7 +387,6 @@ export function EmailSettings(props: Settings) {
                     <Field label="Read by" htmlFor={`mailbox-agent-${index}`}>
                       <select
                         id={`mailbox-agent-${index}`}
-                        aria-label={`Mailbox ${index + 1} agent`}
                         className="border-line-strong bg-surface text-ink h-10 rounded-lg border px-2 text-sm"
                         value={row.agentId ?? ''}
                         onChange={(e) => updateRow(index, { agentId: e.target.value || undefined })}
@@ -381,7 +405,9 @@ export function EmailSettings(props: Settings) {
                       <p className="text-body text-sm font-medium">Bill capture</p>
                       <p className="text-faint text-xs">
                         {row.capture
-                          ? `Bills and receipts arrive here. ${named.find((a) => a.id === row.agentId)?.displayName ?? 'The agent'} files them and checks them against the books.`
+                          ? named.some((a) => a.id === row.agentId)
+                            ? `Bills and receipts arrive here. ${named.find((a) => a.id === row.agentId)?.displayName} files them and checks them against the books.`
+                            : 'Bills and receipts arrive here. Choose an agent to read this mailbox, and it files them.'
                           : 'Turn on for the mailbox suppliers send bills to. Only one mailbox at a time.'}
                       </p>
                     </div>

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { canManageSettings } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { fetchProfilePhoto } from '@/lib/auth/photo';
 
@@ -13,6 +14,9 @@ const address = z.string().trim().toLowerCase().max(320).email();
 export async function GET(request: Request) {
   const auth = await getAuthContext();
   if (!auth) return new Response(null, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+  // Only Settings › Email shows these, which only members can open, like the directory search.
+  if (!canManageSettings(auth.user))
+    return new Response(null, { status: 403, headers: { 'Cache-Control': 'no-store' } });
   const user = address.safeParse(new URL(request.url).searchParams.get('user'));
   if (!user.success)
     return new Response(null, { status: 400, headers: { 'Cache-Control': 'no-store' } });

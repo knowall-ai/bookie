@@ -27,6 +27,8 @@ export function photoUrls(user = 'me'): string[] {
 export const PHOTO_URLS = photoUrls();
 
 const TIMEOUT_MS = 5_000;
+/** Raster images only: never serve, say, SVG from our own origin. */
+const PHOTO_TYPE = /^image\/(jpeg|png|gif|webp)\b/;
 
 /**
  * A Microsoft 365 profile photo, read with the signed-in user's own Graph token:
@@ -55,9 +57,12 @@ export async function fetchProfilePhoto(
       });
       if (response.ok) {
         const contentType = response.headers.get('content-type') ?? '';
-        if (!contentType.startsWith('image/')) return 'unavailable';
+        if (!PHOTO_TYPE.test(contentType)) return 'unavailable';
         return { bytes: await response.arrayBuffer(), contentType };
       }
+      // Someone else's photo the signed-in person may not read (no User.ReadBasic.All, or an
+      // address Graph can't resolve) is as good as none: the icon shows and is cached.
+      if (user !== 'me' && (response.status === 403 || response.status === 400)) return 'none';
       // 404: no photo at this size (or none at all); try the next one.
       if (response.status !== 404) {
         console.error('[bookie] Graph profile photo failed', response.status);

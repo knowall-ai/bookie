@@ -26,8 +26,15 @@ describe('GET /api/directory/photo', () => {
     expect(fetchProfilePhoto).not.toHaveBeenCalled();
   });
 
+  it('refuses guests, like the directory search', async () => {
+    getAuthContext.mockResolvedValue({ mode: 'entra', user: { userType: 'Guest' } });
+    const response = await get('bookie@contoso.example');
+    expect(response.status).toBe(403);
+    expect(fetchProfilePhoto).not.toHaveBeenCalled();
+  });
+
   it('refuses anything that is not an email address', async () => {
-    getAuthContext.mockResolvedValue({ mode: 'entra' });
+    getAuthContext.mockResolvedValue({ mode: 'entra', user: { userType: 'Member' } });
     for (const user of [undefined, '', 'bookie', '../me', 'a@b']) {
       expect((await get(user)).status).toBe(400);
     }
@@ -35,7 +42,7 @@ describe('GET /api/directory/photo', () => {
   });
 
   it('serves the photo for a lower-cased address with private caching', async () => {
-    const auth = { mode: 'entra' };
+    const auth = { mode: 'entra', user: { userType: 'Member' } };
     getAuthContext.mockResolvedValue(auth);
     fetchProfilePhoto.mockResolvedValue({
       bytes: new Uint8Array([1, 2, 3]).buffer,
@@ -49,7 +56,7 @@ describe('GET /api/directory/photo', () => {
   });
 
   it('is 404 with no photo and 503 when Graph is unavailable', async () => {
-    getAuthContext.mockResolvedValue({ mode: 'entra' });
+    getAuthContext.mockResolvedValue({ mode: 'entra', user: { userType: 'Member' } });
     fetchProfilePhoto.mockResolvedValueOnce('none').mockResolvedValueOnce('unavailable');
     expect((await get('accounts@contoso.example')).status).toBe(404);
     const down = await get('accounts@contoso.example');

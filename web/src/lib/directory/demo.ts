@@ -31,6 +31,13 @@ export const DEMO_DIRECTORY: DirectoryPerson[] = [
     email: 'morgan.blake@contoso.example',
     userType: 'Member',
   },
+  {
+    // A shared mailbox: they're in the directory too, so Settings › Email can find them.
+    id: '00000000-0000-0000-0000-00000000d307',
+    name: 'Contoso Payables',
+    email: 'payables@contoso.example',
+    userType: 'Member',
+  },
   { id: DEMO_GUEST.id, name: DEMO_GUEST.name, email: DEMO_GUEST.email, userType: 'Guest' },
 ];
 

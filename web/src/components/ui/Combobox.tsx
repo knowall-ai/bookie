@@ -131,10 +131,9 @@ export function Combobox<T>({
         }
         break;
       case 'Enter':
-        if (open && active >= 0 && items[active]) {
-          e.preventDefault();
-          void pick(items[active]);
-        }
+        // Never submit a surrounding form: Enter picks the highlighted option or does nothing.
+        e.preventDefault();
+        if (open && active >= 0 && items[active]) void pick(items[active]);
         break;
       case 'Escape':
         if (open) setOpen(false);
