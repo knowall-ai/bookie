@@ -284,7 +284,7 @@ VM's `config.env` and moves only when you move it. On the VM, from the admin's `
 1. `git -C ~/bookie pull --ff-only`, then bump the pins in `config.env` to reviewed versions:
    `PRESENCE_PIN` (the commit Poppie runs is a safe choice), `REVERIE_SERVER_SPEC`, `REVERIE_PLUGIN_REF`,
    `BC_MCP_PACKAGE`, `AGENT_PULSE_PLUGIN_REF`.
-2. Hermes: `sudo -u bookie -i hermes update --check`, then `hermes update --yes --no-gateway-restart`
+2. Hermes: `sudo -u bookie -i hermes update --check`, then `sudo -u bookie -i hermes update --yes --no-gateway-restart`
    (stable channel; the `+canary` tags are not releases).
 3. Re-run `./04-configure-hermes.sh` (SOUL, `config.yaml`, skill farm, cron), `./23-setup-call-bot.sh`
    (Presence), `./31-setup-telemetry.sh --vm` (agent-pulse: **always after a Hermes update**, which can
