@@ -160,7 +160,8 @@ shared mailbox; Exchange decides who sees each. The selected capture mailbox als
 capture folders, `Bookie/Needs review` and `Bookie/Processed` beneath its Inbox. Approvals appear
 for moderators across all configured agents, including their sending aliases.
 Agents may have any display name, such as Ava; Settings supports up to ten agents, each with
-an id, display name, mailbox and optional Teams user. Each shared mailbox can select the
+an id, display name and mailbox, picked from the directory; Teams calls go to the mailbox
+address (a `teamsUser` stored earlier is kept and still used). Each shared mailbox can select the
 agent that triages it, or None, independently of whether it is the capture target.
 The shared `AgentMailSetup { agents: MailAgent[]; sharedMailboxes: SharedMailbox[] }` shape
 uses `MailAgent { id, displayName, mailbox, teamsUser? }` and

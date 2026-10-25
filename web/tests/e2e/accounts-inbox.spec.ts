@@ -124,6 +124,8 @@ test.describe('accounts inbox', () => {
 
   test('Settings shows the accounts mailbox', async ({ page }) => {
     await page.goto('/portal/settings');
-    await expect(page.getByLabel('Mailbox 1 address')).toHaveValue('accounts@contoso.example');
+    await expect(page.getByTestId('mailbox-card').first()).toContainText(
+      'accounts@contoso.example'
+    );
   });
 });

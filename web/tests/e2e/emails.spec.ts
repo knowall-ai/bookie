@@ -84,16 +84,80 @@ test.describe('Bookie’s emails', () => {
 
   test('Settings has Bookie’s email addresses', async ({ page }) => {
     await page.goto('/portal/settings#email');
-    await expect(page.getByLabel('Agent 1 name')).toHaveValue('Bookie');
-    await expect(page.getByLabel('Agent 1 mailbox')).toHaveValue('bookie@contoso.example');
-    await expect(page.getByLabel('Mailbox 1 agent')).toHaveValue('bookie');
-    await expect(page.getByLabel('Mailbox 2 agent')).toHaveValue('');
-    await expect(page.getByLabel('Mailbox 1 address')).toHaveValue('accounts@contoso.example');
-    await expect(page.getByLabel('Mailbox 2 address')).toHaveValue('hello@contoso.example');
-    await expect(page.getByRole('radio', { name: 'Bill capture files here' }).nth(0)).toBeChecked();
+    const agent = page.getByTestId('agent-card');
+    await expect(agent).toHaveCount(1);
+    await expect(agent).toContainText('bookie@contoso.example');
+    await expect(agent).toContainText('Teams calls go to bookie@contoso.example.');
+    await expect(agent.getByLabel('Name')).toHaveValue('Bookie');
+    const mailboxes = page.getByTestId('mailbox-card');
+    await expect(mailboxes.nth(0)).toContainText('accounts@contoso.example');
+    await expect(mailboxes.nth(1)).toContainText('hello@contoso.example');
+    await expect(mailboxes.nth(0).getByLabel('Read by')).toHaveValue('bookie');
+    await expect(mailboxes.nth(1).getByLabel('Read by')).toHaveValue('');
+    const capture = page.getByRole('switch', { name: /Bill capture for/ });
+    await expect(capture.nth(0)).toHaveAttribute('aria-checked', 'true');
+    await expect(capture.nth(1)).toHaveAttribute('aria-checked', 'false');
+  });
+
+  test('Settings adds a shared mailbox from the directory, with one bill capture mailbox', async ({
+    page,
+  }) => {
+    await page.goto('/portal/settings#email');
+    const save = page.locator('#email').getByRole('button', { name: 'Save' });
+    await expect(save).toBeDisabled();
+    await page.getByTestId('mailbox-picker').getByRole('combobox').fill('Payables');
+    await page.getByRole('option', { name: /payables@contoso\.example/ }).click();
+    const added = page.getByTestId('mailbox-card').nth(2);
+    await expect(added).toContainText('payables@contoso.example');
+    await expect(added.getByLabel('Tab name')).toHaveValue('Contoso Payables');
+    // With one agent, a new mailbox is read by it.
+    await expect(added.getByLabel('Read by')).toHaveValue('bookie');
+    await expect(page.getByText('Unsaved changes')).toBeVisible();
+    await expect(save).toBeEnabled();
+
+    // Bill capture moves: turning it on for one mailbox turns it off for the others.
+    const capture = page.getByRole('switch', { name: /Bill capture for/ });
+    await capture.nth(2).click();
+    await expect(capture.nth(2)).toHaveAttribute('aria-checked', 'true');
+    await expect(capture.nth(0)).toHaveAttribute('aria-checked', 'false');
+
+    await page.getByRole('button', { name: 'Remove payables@contoso.example' }).click();
+    await expect(page.getByTestId('mailbox-card')).toHaveCount(2);
+  });
+
+  test('Settings: renaming an agent keeps its mailboxes; a nameless agent can’t be saved', async ({
+    page,
+  }) => {
+    await page.goto('/portal/settings#email');
+    const agent = page.getByTestId('agent-card');
+    const save = page.locator('#email').getByRole('button', { name: 'Save' });
+    await agent.getByLabel('Name').fill('Ava');
+    await expect(page.getByTestId('mailbox-card').nth(0).getByLabel('Read by')).toHaveValue('ava');
+    await agent.getByLabel('Name').fill('');
+    await expect(agent.getByText('Give the agent a name.')).toBeVisible();
+    await expect(save).toBeDisabled();
+  });
+
+  test('Settings: a typed address is checked, and Enter adds it without saving', async ({
+    page,
+  }) => {
+    await page.goto('/portal/settings#email');
+    await page.getByRole('button', { name: 'Or type the address' }).last().click();
+    const typed = page.getByLabel('Add another shared mailbox');
+    await typed.fill('accounts');
     await expect(
-      page.getByRole('radio', { name: 'Bill capture files here' }).nth(1)
-    ).not.toBeChecked();
+      page.getByText('Use the full address, such as accounts@yourcompany.com.')
+    ).toBeVisible();
+    await typed.fill('accounts@contoso.example');
+    await expect(page.getByText('That address is already listed.')).toBeVisible();
+    await typed.fill('purchasing@contoso.example');
+    await typed.press('Enter');
+    await expect(page.getByTestId('mailbox-card').nth(2)).toContainText(
+      'purchasing@contoso.example'
+    );
+    // Enter added the card; nothing was saved.
+    await expect(page.getByText('Email settings saved')).toHaveCount(0);
+    await expect(page.getByText('Unsaved changes')).toBeVisible();
   });
 });
 
