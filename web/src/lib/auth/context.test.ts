@@ -10,9 +10,11 @@ vi.mock('next/headers', () => ({
   cookies: async () => ({
     get: (name: string) =>
       name === 'next-auth.session-token' && token ? { value: 'cookie' } : undefined,
+    getAll: () => (token ? [{ name: 'next-auth.session-token', value: 'cookie' }] : []),
   }),
 }));
-vi.mock('next-auth/jwt', () => ({ decode: async () => token }));
+// The cookie itself is read by session-cookie.ts (tested there); here it yields the token.
+vi.mock('./session-cookie', () => ({ readSessionToken: async () => token }));
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT ${url}`);

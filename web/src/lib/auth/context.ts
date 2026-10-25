@@ -1,10 +1,10 @@
 import 'server-only';
 import { cookies } from 'next/headers';
-import { decode } from 'next-auth/jwt';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { isApprovedTenant } from './approved-tenants';
 import { DEMO_TENANT_ID, devAuthMode, devAuthContext } from './dev';
+import { readSessionToken } from './session-cookie';
 import { redeemRefreshToken } from './tokens';
 import type { UserType } from './access';
 import type { ResourceName } from './resources';
@@ -27,8 +27,6 @@ export interface AuthContext {
   getToken(resource: ResourceName): Promise<string>;
 }
 
-const SESSION_COOKIES = ['__Secure-next-auth.session-token', 'next-auth.session-token'];
-
 /**
  * Whoever signed in, whether or not their organisation is approved, or `null`.
  * Only for the "not set up yet" page and for telling an unapproved sign-in
@@ -39,12 +37,8 @@ export const getSignIn = cache(async (): Promise<AuthContext | null> => {
   if (dev) return devAuthContext(dev);
 
   const jar = await cookies();
-  const raw = SESSION_COOKIES.map((name) => jar.get(name)?.value).find(Boolean);
-  if (!raw) return null;
-
-  const token = await decode({ token: raw, secret: process.env.NEXTAUTH_SECRET ?? '' }).catch(
-    () => null
-  );
+  // Reassembles next-auth's split cookie (`.0`, `.1`…) when the session is large.
+  const token = await readSessionToken(jar.getAll());
   // Sessions from before userType was recorded sign in again rather than guess it.
   if (!token?.refreshToken || !token.tenantId || !token.oid || !token.userType) return null;
 
