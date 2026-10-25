@@ -63,4 +63,12 @@ describe('GET /api/directory/photo', () => {
     expect(down.status).toBe(503);
     expect(down.headers.get('cache-control')).toBe('no-store');
   });
+
+  it('gives the demo’s Bookie Bookie’s own avatar, without calling Graph', async () => {
+    getAuthContext.mockResolvedValue({ mode: 'demo', user: { userType: 'Member' } });
+    const response = await get('bookie@contoso.example');
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('http://localhost/bookie/avatar-64.png');
+    expect(fetchProfilePhoto).not.toHaveBeenCalled();
+  });
 });
