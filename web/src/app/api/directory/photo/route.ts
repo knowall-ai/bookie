@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { canManageSettings } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { fetchProfilePhoto } from '@/lib/auth/photo';
+import { DEMO_AGENT_ADDRESS } from '@/lib/email/demo';
 
 /**
  * Someone's Microsoft 365 profile photo by address, such as an agent or a shared
@@ -20,6 +21,9 @@ export async function GET(request: Request) {
   const user = address.safeParse(new URL(request.url).searchParams.get('user'));
   if (!user.success)
     return new Response(null, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+  // The demo has no Microsoft 365 behind it: its Bookie wears Bookie's own avatar.
+  if (auth.mode === 'demo' && user.data === DEMO_AGENT_ADDRESS)
+    return Response.redirect(new URL('/bookie/avatar-64.png', request.url), 307);
   const photo = await fetchProfilePhoto(auth, user.data);
   if (photo === 'unavailable')
     return new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store' } });
