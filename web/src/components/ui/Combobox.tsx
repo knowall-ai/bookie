@@ -131,6 +131,8 @@ export function Combobox<T>({
         }
         break;
       case 'Enter':
+        // Enter that confirms IME composition (Japanese, Chinese, Korean…) is the input's own.
+        if (e.nativeEvent.isComposing) return;
         // Never submit a surrounding form: Enter picks the highlighted option or does nothing.
         e.preventDefault();
         if (open && active >= 0 && items[active]) void pick(items[active]);

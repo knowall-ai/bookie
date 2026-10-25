@@ -92,7 +92,7 @@ function MailboxPicker({
             onChange={(e) => setTyped(e.target.value)}
             onKeyDown={(e) => {
               // Enter adds the address; it must never submit (and save) the whole form.
-              if (e.key !== 'Enter') return;
+              if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
               e.preventDefault();
               if (typed && !typedError) add();
             }}
