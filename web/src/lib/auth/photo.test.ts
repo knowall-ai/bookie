@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AuthContext } from './context';
 import { DEMO_MEMBER } from './dev';
-import { fetchProfilePhoto, PHOTO_URLS } from './photo';
+import { fetchProfilePhoto, PHOTO_URLS, photoUrls } from './photo';
 
 function auth(mode: AuthContext['mode'] = 'entra', getToken = vi.fn().mockResolvedValue('tok')) {
   return { mode, user: DEMO_MEMBER, getToken } satisfies AuthContext;
@@ -71,5 +71,15 @@ describe('fetchProfilePhoto', () => {
     expect(await fetchProfilePhoto(a)).toBe('none');
     expect(a.getToken).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('photoUrls', () => {
+  it('reads the signed-in user by default and anyone else by their encoded address', () => {
+    expect(photoUrls()).toEqual(PHOTO_URLS);
+    expect(photoUrls('bookie@contoso.example')).toEqual([
+      'https://graph.microsoft.com/v1.0/users/bookie%40contoso.example/photos/48x48/$value',
+      'https://graph.microsoft.com/v1.0/users/bookie%40contoso.example/photo/$value',
+    ]);
   });
 });

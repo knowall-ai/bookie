@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Bot, Inbox, Mail, Trash2 } from 'lucide-react';
 import { mailSetup } from '@/lib/email/mailbox';
@@ -134,7 +134,37 @@ function MailboxPicker({
   );
 }
 
-/** The icon, name and address heading one agent or mailbox card, with its remove button. */
+/** The address's Microsoft 365 photo, over an icon until (and unless) it loads. */
+function DirectoryPhoto({ address, icon }: { address: string; icon: React.ReactNode }) {
+  const [state, setState] = useState<'loading' | 'loaded' | 'failed'>('loading');
+  const img = useRef<HTMLImageElement>(null);
+  // The image can finish (or 404) before hydration attaches onLoad/onError.
+  useEffect(() => {
+    const el = img.current;
+    if (el?.complete) setState(el.naturalWidth > 0 ? 'loaded' : 'failed');
+  }, []);
+  return (
+    <span className="bg-surface-3 text-muted relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+      {icon}
+      {state !== 'failed' && (
+        // A plain <img>: a tiny private image from our own route, and it needs onError for the fallback.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={img}
+          src={`/api/directory/photo?user=${encodeURIComponent(address)}`}
+          alt=""
+          draggable={false}
+          decoding="async"
+          onLoad={() => setState('loaded')}
+          onError={() => setState('failed')}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity ${state === 'loaded' ? 'opacity-100' : 'opacity-0'}`}
+        />
+      )}
+    </span>
+  );
+}
+
+/** The photo, name and address heading one agent or mailbox card, with its remove button. */
 function CardHeader({
   icon,
   title,
@@ -150,9 +180,7 @@ function CardHeader({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="bg-surface-3 text-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-        {icon}
-      </span>
+      <DirectoryPhoto address={address} icon={icon} />
       <div className="min-w-0 flex-1">
         <p className="text-ink truncate font-medium">{title}</p>
         {title !== address && <p className="text-muted truncate text-xs">{address}</p>}
