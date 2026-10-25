@@ -69,8 +69,9 @@ render_config() {
 
 if [ "${1:-}" = "--check" ]; then
   if ! sudo test -f "${HERMES_DIR}/config.yaml"; then echo "config drift: no live config yet"; exit 0; fi
-  # The route secret is masked on both sides so a drift report never prints it.
-  mask() { sed -E 's/^([[:space:]]*secret:).*/\1 "<masked>"/'; }
+  # The route secret is masked on both sides so a drift report never prints it. _config_version is
+  # Hermes' own (`hermes update` bumps it; step 04 carries it over), so it is never drift.
+  mask() { sed -E 's/^([[:space:]]*secret:).*/\1 "<masked>"/; /^_config_version:/d'; }
   if diff -u <(sudo cat "${HERMES_DIR}/config.yaml" | mask) <(render_config | mask) >&2; then
     echo "config drift: none"
   else

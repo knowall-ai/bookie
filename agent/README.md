@@ -266,7 +266,7 @@ PowerShell 7 with ExchangeOnlineManagement and MicrosoftTeams (or IPPS) modules,
 | 22 | VM | `./42-install-xero-credentials.sh` | **Xero Custom Connection created and authorised first** |
 | 23 | VM | `./23-setup-call-bot.sh` | **deploy key on agent-presence**, `PRESENCE_PIN`, Teams password |
 | 24 | VM | `./21-setup-graph-webhooks.sh --vm` (export the three ids step 11 printed) | **device-code sign-in as bookie@ with MFA** |
-| 25 | VM | `./31-setup-telemetry.sh --vm` | |
+| 25 | VM | `./31-setup-telemetry.sh --vm` | **deploy key on poppie-hermes** (agent-pulse plugin, `AGENT_PULSE_PLUGIN_REF`) |
 | 26 | VM | `./33-setup-skills-sync.sh` | |
 | 27 | VM | `sudo systemctl start hermes-gateway-bookie`; restart the Presence units | first Teams sign-in in Edge over RDP |
 | 28 | VM | `sudo -u bookie -i hermes model`, `hermes config show`, `hermes memory setup` | confirm provider/MCP/toolset names (VERIFY items) |
@@ -275,6 +275,26 @@ Verify: message Bookie in Teams ("How much are we owed?"), call him, forward a t
 data only) to accounts@.
 
 Restarts with a live call are refused by `./safe-deploy.sh "<command>"`. Use it for every restart.
+
+### Keeping Bookie up to date
+
+The knowall-ai skill pack follows itself (step 33, every 30 minutes). Everything else is pinned in the
+VM's `config.env` and moves only when you move it. On the VM, from the admin's `~/bookie/agent/deploy`:
+
+1. `git -C ~/bookie pull --ff-only`, then bump the pins in `config.env` to reviewed versions:
+   `PRESENCE_PIN` (the commit Poppie runs is a safe choice), `REVERIE_SERVER_SPEC`, `REVERIE_PLUGIN_REF`,
+   `BC_MCP_PACKAGE`, `AGENT_PULSE_PLUGIN_REF`.
+2. Hermes: `sudo -u bookie -i hermes update --check`, then `hermes update --yes --no-gateway-restart`
+   (stable channel; the `+canary` tags are not releases).
+3. Re-run `./04-configure-hermes.sh` (SOUL, `config.yaml`, skill farm, cron), `./23-setup-call-bot.sh`
+   (Presence), `./31-setup-telemetry.sh --vm` (agent-pulse: **always after a Hermes update**, which can
+   build a new Python environment without it), and `./40-install-reverie.sh` / `./41-install-bc-mcp.sh --vm`
+   when their pins moved.
+4. `./safe-deploy.sh "sudo systemctl restart hermes-gateway-bookie && sudo systemctl restart pulse-setup-bookie teams-presence-bookie call-bot-bridge-bookie call-bot-bookie"`,
+   then `curl -s http://127.0.0.1:8644/health` and `curl -s http://127.0.0.1:3006/status`.
+
+Don't enable or disable plugins with `hermes plugins enable/disable`: it rewrites `config.yaml` and step 04
+then reports drift. The template's `plugins.enabled` is the switch.
 
 ## Avatar
 
@@ -297,7 +317,9 @@ backdrop and renderer identity are `assets/bookie-agent.png`, `assets/bookie-bg-
 5. **Access to private repos for self-hosters:** agent-presence and the knowall-ai skill pack (`xero.sh`)
    are KnowAll repos; a customer install needs licensed access (deploy keys) or vendored copies.
 6. **agent-pulse plugin** lives in poppie-hermes; move it to knowall-ai/agent-pulse and add Bookie events
-   (question answered, review sent, bill drafted).
+   (question answered, review sent, bill drafted). Publish the `agent-pulse` Python package to PyPI too:
+   Hermes 0.22.5+ installs a plugin's requirements only from an index, so step 31 installs the git
+   version by hand and must be re-run after each `hermes update`.
 7. **Xero outside AU/NZ/UK/US:** no Custom Connection; needs an OAuth 2.0 refresh-token flow in `xero.sh`.
 8. **Xero granular scopes:** confirm the current scope names before creating the Custom Connection.
 9. **BC attachments** on draft purchase invoices depend on the environment's API; confirm on the tenant.
