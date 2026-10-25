@@ -143,7 +143,7 @@ Nothing is stored. Transcripts are not logged; see <<logging>>.
 
 | Being embedded by another site
 | `Origin` (or `Referer`) must be one of the site origins; the site already sends
-  `X-Frame-Options: DENY`.
+  `X-Frame-Options: DENY` and a Content-Security-Policy with `frame-ancestors 'none'`.
 
 | A leaked public key
 | The public helper runs on its *own* Azure OpenAI resource (see <<azure>>). A leaked public key
@@ -185,7 +185,9 @@ Cloudflare, set `PUBLIC_BOOKIE_CLIENT_IP_HEADER=cf-connecting-ip`.
 === Bot check
 
 * *Cloudflare Turnstile* when `PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET` are both set: the panel
-  shows Cloudflare's check and the server verifies the token with `siteverify`.
+  shows Cloudflare's check and the server verifies the token with `siteverify`. The site's
+  Content-Security-Policy (`web/src/lib/security/headers.ts`) allows `https://challenges.cloudflare.com`
+  in `script-src` and `frame-src` for it; nothing else third-party.
 * Otherwise a *proof-of-work*: the server issues an HMAC-signed, IP-bound challenge valid 5 minutes;
   the browser finds a nonce whose SHA-256 has `PUBLIC_BOOKIE_POW_BITS` (default 16) leading zero
   bits, about 65,000 hashes, which a browser does in well under a second while the visitor reads
