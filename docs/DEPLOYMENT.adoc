@@ -164,10 +164,10 @@ scripts don't manage the app registration or its consents, so grant these in Ent
 === Email tab
 
 Agents and shared mailboxes are per-tenant settings under *Settings › Email*.
-Configure up to ten agents with any name (for example Ava), a Microsoft 365 mailbox and an
-optional Teams user. Each agent has a unique id generated from its name.
-Add up to ten shared mailboxes, with optional labels, and select the agent that triages each
-mailbox, or *None*. Choose at most one as the bill capture mailbox.
+Add up to ten agents by searching the directory (or typing the address); each gets a name you
+can change (for example Ava) and a unique id generated from it. Teams calls use the agent's
+mailbox address. Add up to ten shared mailboxes the same way, with an optional tab name, and
+choose the agent that reads each one, or *No agent*. Turn on *Bill capture* for at most one.
 
 The shared shape with knowall-ai/sallie is
 `AgentMailSetup { agents: MailAgent[]; sharedMailboxes: SharedMailbox[] }`.

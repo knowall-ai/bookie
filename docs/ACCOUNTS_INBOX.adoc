@@ -23,7 +23,7 @@ drafts only, and a person confirms every change to the books.
   the shared mailbox › Delegation › *Read and manage (Full Access)*, or Read permission on its
   folders). Bookie can never open a mailbox the person couldn't open in Outlook.
 . *Tell Bookie the address.* In *Settings › Email*, add the shared mailbox and select
-  *Bill capture files here*. Checks use that mailbox (`mailSetup(settings.email)`); without
+  turn on its *Bill capture* switch. Checks use that mailbox (`mailSetup(settings.email)`); without
   a capture mailbox the links are hidden. Settings remain sealed in the organisation's SharePoint.
 
 If the person can't open the mailbox (Graph answers 403 or 404) the page says so plainly, with

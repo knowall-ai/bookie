@@ -84,16 +84,53 @@ test.describe('Bookie’s emails', () => {
 
   test('Settings has Bookie’s email addresses', async ({ page }) => {
     await page.goto('/portal/settings#email');
+    const agent = page.getByTestId('agent-card');
+    await expect(agent).toHaveCount(1);
+    await expect(agent).toContainText('bookie@contoso.example');
     await expect(page.getByLabel('Agent 1 name')).toHaveValue('Bookie');
-    await expect(page.getByLabel('Agent 1 mailbox')).toHaveValue('bookie@contoso.example');
+    await expect(page.getByLabel('Agent 1 Teams user (optional)')).toHaveCount(0);
+    const mailboxes = page.getByTestId('mailbox-card');
+    await expect(mailboxes.nth(0)).toContainText('accounts@contoso.example');
+    await expect(mailboxes.nth(1)).toContainText('hello@contoso.example');
     await expect(page.getByLabel('Mailbox 1 agent')).toHaveValue('bookie');
     await expect(page.getByLabel('Mailbox 2 agent')).toHaveValue('');
-    await expect(page.getByLabel('Mailbox 1 address')).toHaveValue('accounts@contoso.example');
-    await expect(page.getByLabel('Mailbox 2 address')).toHaveValue('hello@contoso.example');
-    await expect(page.getByRole('radio', { name: 'Bill capture files here' }).nth(0)).toBeChecked();
+    const capture = page.getByRole('switch', { name: /Bill capture for/ });
+    await expect(capture.nth(0)).toHaveAttribute('aria-checked', 'true');
+    await expect(capture.nth(1)).toHaveAttribute('aria-checked', 'false');
+  });
+
+  test('Settings adds a mailbox from the directory, with one bill capture mailbox', async ({
+    page,
+  }) => {
+    await page.goto('/portal/settings#email');
+    const save = page.locator('#email').getByRole('button', { name: 'Save' });
+    await expect(save).toBeDisabled();
+    await page.getByTestId('mailbox-picker').getByRole('combobox').fill('Priya');
+    await page.getByRole('option', { name: /priya\.shah@contoso\.example/ }).click();
+    const added = page.getByTestId('mailbox-card').nth(2);
+    await expect(added).toContainText('priya.shah@contoso.example');
+    await expect(page.getByLabel('Mailbox 3 tab name')).toHaveValue('Priya Shah');
+    await expect(page.getByText('Unsaved changes')).toBeVisible();
+    await expect(save).toBeEnabled();
+
+    // Bill capture moves: turning it on for one mailbox turns it off for the others.
+    const capture = page.getByRole('switch', { name: /Bill capture for/ });
+    await capture.nth(2).click();
+    await expect(capture.nth(2)).toHaveAttribute('aria-checked', 'true');
+    await expect(capture.nth(0)).toHaveAttribute('aria-checked', 'false');
+
+    await page.getByRole('button', { name: 'Remove priya.shah@contoso.example' }).click();
+    await expect(page.getByTestId('mailbox-card')).toHaveCount(2);
+  });
+
+  test('Settings refuses a typed address that is not a full email address', async ({ page }) => {
+    await page.goto('/portal/settings#email');
+    await page.getByRole('button', { name: 'Or type the address' }).last().click();
+    await page.getByLabel('Add another shared mailbox').fill('accounts');
     await expect(
-      page.getByRole('radio', { name: 'Bill capture files here' }).nth(1)
-    ).not.toBeChecked();
+      page.getByText('Use the full address, such as accounts@yourcompany.com.')
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add', exact: true })).toBeDisabled();
   });
 });
 

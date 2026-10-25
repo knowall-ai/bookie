@@ -4,49 +4,221 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { Bot, Inbox, Mail, Trash2 } from 'lucide-react';
 import { mailSetup } from '@/lib/email/mailbox';
 import type { EmailSettings as Settings } from '@/lib/config/types';
 import type { MailAgent, SharedMailbox } from '@/lib/email/types';
-import { Mail } from 'lucide-react';
-import { saveEmailSettingsAction } from '@/lib/portal/actions/settings';
+import type { DirectoryPerson } from '@/lib/directory/types';
+import { saveEmailSettingsAction, searchDirectoryAction } from '@/lib/portal/actions/settings';
 import { Button } from '@/components/ui/Button';
+import { Combobox } from '@/components/ui/Combobox';
 import { Field, Input } from '@/components/ui/Field';
+import { Toggle } from '@/components/ui/Toggle';
+
+const MAX_ROWS = 10;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** A stable id from the agent's name: lower-case letters, digits and dashes, unique in the list. */
+function agentId(displayName: string, taken: string[]): string {
+  const base =
+    displayName
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 32) || 'agent';
+  let id = base;
+  for (let suffix = 2; taken.includes(id); suffix++)
+    id = base.slice(0, 32 - String(suffix).length - 1) + '-' + suffix;
+  return id;
+}
+
+function DirectoryOption({ person }: { person: DirectoryPerson }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-ink truncate text-sm font-medium">{person.name}</p>
+      <p className="text-muted truncate text-xs">{person.email}</p>
+    </div>
+  );
+}
+
+/**
+ * Pick a mailbox from the organisation's directory (people and shared mailboxes are both
+ * there), or type the address when search isn't available.
+ */
+function MailboxPicker({
+  label,
+  placeholder,
+  taken,
+  onPick,
+  testId,
+}: {
+  label: string;
+  placeholder: string;
+  taken: string[];
+  onPick: (address: string, name?: string) => void;
+  testId: string;
+}) {
+  const [typing, setTyping] = useState(false);
+  const [typed, setTyped] = useState('');
+  const typedError =
+    typed && !EMAIL.test(typed.trim())
+      ? 'Use the full address, such as accounts@yourcompany.com.'
+      : taken.includes(typed.trim().toLowerCase())
+        ? 'That address is already listed.'
+        : undefined;
+
+  if (typing)
+    return (
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+        <Field label={label} htmlFor={`${testId}-typed`} error={typedError} className="flex-1">
+          <Input
+            id={`${testId}-typed`}
+            type="email"
+            autoFocus
+            placeholder={placeholder}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+          />
+        </Field>
+        <div className="flex gap-2 sm:mt-7">
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            disabled={!typed || !!typedError}
+            onClick={() => {
+              onPick(typed.trim().toLowerCase());
+              setTyped('');
+              setTyping(false);
+            }}
+          >
+            Add
+          </Button>
+          <Button type="button" size="sm" onClick={() => setTyping(false)}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+
+  return (
+    <div>
+      <Combobox<DirectoryPerson>
+        label={label}
+        placeholder="Search your directory by name or email"
+        testId={testId}
+        search={searchDirectoryAction}
+        getKey={(p) => p.id}
+        renderOption={(p) => <DirectoryOption person={p} />}
+        onSelect={(p) => {
+          const address = p.email.toLowerCase();
+          if (taken.includes(address)) {
+            toast.error(`${p.email} is already listed.`);
+            return false;
+          }
+          onPick(address, p.name);
+          return true;
+        }}
+        emptyText="No one in your directory matches."
+      />
+      <button
+        type="button"
+        className="text-brand-bright mt-1.5 text-xs hover:underline"
+        onClick={() => setTyping(true)}
+      >
+        Or type the address
+      </button>
+    </div>
+  );
+}
+
+/** The icon, name and address heading one agent or mailbox card, with its remove button. */
+function CardHeader({
+  icon,
+  title,
+  address,
+  removeLabel,
+  onRemove,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  address: string;
+  removeLabel: string;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="bg-surface-3 text-muted flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-ink truncate font-medium">{title}</p>
+        {title !== address && <p className="text-muted truncate text-xs">{address}</p>}
+      </div>
+      <Button type="button" size="sm" variant="ghost" aria-label={removeLabel} onClick={onRemove}>
+        <Trash2 className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </div>
+  );
+}
 
 /** Settings › Email: agents and the shared mailboxes they triage. */
 export function EmailSettings(props: Settings) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const initial = mailSetup(props);
-  const emptyAgent = { id: '', displayName: '', mailbox: '' };
-  const [agents, setAgents] = useState<MailAgent[]>(
-    initial.agents.length ? initial.agents : [emptyAgent]
-  );
-  const storedAgents = agents.filter((a) => a.displayName || a.mailbox || a.teamsUser);
-  const updateAgent = (index: number, patch: Partial<MailAgent>) => {
-    setAgents(agents.map((agent, i) => (i === index ? { ...agent, ...patch } : agent)));
-  };
-  const nameAgent = (index: number, displayName: string) => {
-    const agent = agents[index];
-    const base =
-      displayName
-        .toLowerCase()
-        .normalize('NFKD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
-        .slice(0, 32) || 'agent';
-    let id = base;
-    for (let suffix = 2; agents.some((a, i) => i !== index && a.id === id); suffix++)
-      id = base.slice(0, 32 - String(suffix).length - 1) + '-' + suffix;
-    updateAgent(index, { displayName, id });
-    if (agent.id)
-      setRows(rows.map((row) => (row.agentId === agent.id ? { ...row, agentId: id } : row)));
-  };
+  const [agents, setAgents] = useState<MailAgent[]>(initial.agents);
   const [rows, setRows] = useState<SharedMailbox[]>(initial.sharedMailboxes);
   const [saved, setSaved] = useState(JSON.stringify([initial.agents, initial.sharedMailboxes]));
-  const changed = JSON.stringify([storedAgents, rows]) !== saved;
-  const update = (index: number, patch: Partial<SharedMailbox>) =>
+  const changed = JSON.stringify([agents, rows]) !== saved;
+  const named = agents.filter((a) => a.displayName.trim());
+  const incomplete = agents.length !== named.length;
+
+  const updateAgent = (index: number, patch: Partial<MailAgent>) =>
+    setAgents(agents.map((agent, i) => (i === index ? { ...agent, ...patch } : agent)));
+  const renameAgent = (index: number, displayName: string) => {
+    const agent = agents[index];
+    const id = agentId(
+      displayName,
+      agents.filter((_, i) => i !== index).map((a) => a.id)
+    );
+    updateAgent(index, { displayName, id });
+    setRows(rows.map((row) => (row.agentId === agent.id ? { ...row, agentId: id } : row)));
+  };
+  const addAgent = (mailbox: string, name?: string) => {
+    const displayName = (name ?? mailbox.split('@')[0]).slice(0, 40);
+    const agent = {
+      id: agentId(
+        displayName,
+        agents.map((a) => a.id)
+      ),
+      displayName,
+      mailbox,
+    };
+    setAgents([...agents, agent]);
+    // The first agent reads the mailboxes nobody has been given yet: most organisations have one.
+    if (!agents.length) setRows(rows.map((row) => ({ ...row, agentId: row.agentId ?? agent.id })));
+  };
+  const removeAgent = (index: number) => {
+    const agent = agents[index];
+    setAgents(agents.filter((_, i) => i !== index));
+    setRows(rows.map((row) => (row.agentId === agent.id ? { ...row, agentId: undefined } : row)));
+  };
+  const updateRow = (index: number, patch: Partial<SharedMailbox>) =>
     setRows(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const addRow = (address: string, name?: string) =>
+    setRows([
+      ...rows,
+      {
+        address,
+        ...(name ? { label: name.slice(0, 40) } : {}),
+        ...(agents.length === 1 ? { agentId: agents[0].id } : {}),
+      },
+    ]);
+  const setCapture = (index: number, on: boolean) =>
+    setRows(rows.map((row, i) => ({ ...row, capture: on && i === index ? true : undefined })));
 
   return (
     <section id="email" className="card p-5" aria-labelledby="email-title">
@@ -59,30 +231,26 @@ export function EmailSettings(props: Settings) {
             Email
           </h2>
           <p className="text-muted mt-1">
-            The{' '}
+            What the{' '}
             <Link href="/portal/emails" className="text-brand-bright hover:underline">
               Email
             </Link>{' '}
-            tab shows held external emails for moderators to approve or reject; people with access
-            to each shared mailbox see it, as Exchange allows. The portal stores only these
-            settings.
+            tab shows: emails your agents send outside the organisation, held for an approver, and
+            your shared mailboxes. Exchange still decides who can approve and who can open each
+            mailbox. The portal stores only these settings.
           </p>
           <form
-            className="mt-4 grid gap-4"
+            className="mt-5 grid gap-6 lg:grid-cols-2"
             onSubmit={(e) => {
               e.preventDefault();
               start(async () => {
-                const result = await saveEmailSettingsAction({
-                  agents: storedAgents,
-                  sharedMailboxes: rows,
-                });
+                const result = await saveEmailSettingsAction({ agents, sharedMailboxes: rows });
                 if (!result.ok) return void toast.error(result.error);
                 // Show what was stored: the server trims and lower-cases addresses.
-                setAgents(result.data.agents?.length ? result.data.agents : [emptyAgent]);
-                setRows(result.data.sharedMailboxes ?? []);
-                setSaved(
-                  JSON.stringify([result.data.agents ?? [], result.data.sharedMailboxes ?? []])
-                );
+                const stored = [result.data.agents ?? [], result.data.sharedMailboxes ?? []];
+                setAgents(stored[0] as MailAgent[]);
+                setRows(stored[1] as SharedMailbox[]);
+                setSaved(JSON.stringify(stored));
                 toast.success('Email settings saved');
                 router.refresh();
               });
@@ -91,170 +259,133 @@ export function EmailSettings(props: Settings) {
             <fieldset disabled={pending} className="space-y-3">
               <legend className="text-ink font-medium">Agents</legend>
               <p className="text-muted text-xs">
-                The AI agents whose outgoing email is held for approval. Most organisations have
-                one.
+                AI agents with their own Microsoft 365 account, such as Bookie. Their emails to
+                people outside the organisation wait for approval. Teams calls use the same address.
               </p>
               {agents.map((agent, index) => (
                 <div
-                  key={index}
-                  className="border-line grid gap-3 rounded-lg border p-3 sm:grid-cols-2"
+                  key={agent.mailbox}
+                  className="border-line space-y-3 rounded-lg border p-3"
+                  data-testid="agent-card"
                 >
-                  <Field label={`Agent ${index + 1} name`} htmlFor={`agent-name-${index}`}>
+                  <CardHeader
+                    icon={<Bot className="h-4 w-4" aria-hidden="true" />}
+                    title={agent.displayName || 'Unnamed agent'}
+                    address={agent.mailbox}
+                    removeLabel={`Remove ${agent.displayName || agent.mailbox}`}
+                    onRemove={() => removeAgent(index)}
+                  />
+                  <Field
+                    label="Name"
+                    htmlFor={`agent-name-${index}`}
+                    error={agent.displayName.trim() ? undefined : 'Give the agent a name.'}
+                  >
                     <Input
                       id={`agent-name-${index}`}
+                      aria-label={`Agent ${index + 1} name`}
                       maxLength={40}
                       value={agent.displayName}
-                      onChange={(e) => nameAgent(index, e.target.value)}
+                      onChange={(e) => renameAgent(index, e.target.value)}
                     />
                   </Field>
-                  <Field label={`Agent ${index + 1} mailbox`} htmlFor={`agent-mailbox-${index}`}>
-                    <Input
-                      id={`agent-mailbox-${index}`}
-                      type="email"
-                      value={agent.mailbox}
-                      onChange={(e) => updateAgent(index, { mailbox: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    label={`Agent ${index + 1} Teams user (optional)`}
-                    htmlFor={`agent-teams-${index}`}
-                  >
-                    <Input
-                      id={`agent-teams-${index}`}
-                      type="email"
-                      value={agent.teamsUser ?? ''}
-                      onChange={(e) =>
-                        updateAgent(index, { teamsUser: e.target.value || undefined })
-                      }
-                    />
-                  </Field>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      const remaining = agents.filter((_, i) => i !== index);
-                      setAgents(remaining.length ? remaining : [emptyAgent]);
-                      setRows(
-                        rows.map((row) =>
-                          row.agentId === agent.id ? { ...row, agentId: undefined } : row
-                        )
-                      );
-                    }}
-                  >
-                    Remove
-                  </Button>
                 </div>
               ))}
-              <Button
-                type="button"
-                size="sm"
-                disabled={agents.length >= 10}
-                onClick={() => setAgents([...agents, emptyAgent])}
-              >
-                Add
-              </Button>
+              {agents.length < MAX_ROWS && (
+                <MailboxPicker
+                  label={agents.length ? 'Add another agent' : 'Add an agent'}
+                  placeholder="bookie@yourcompany.com"
+                  taken={agents.map((a) => a.mailbox)}
+                  onPick={addAgent}
+                  testId="agent-picker"
+                />
+              )}
             </fieldset>
+
             <fieldset disabled={pending} className="space-y-3">
               <legend className="text-ink font-medium">Shared mailboxes</legend>
               <p className="text-muted text-xs">
-                Shared mailboxes, such as accounts@. Each gets a tab under Email; people see the
-                ones Exchange lets them open.
+                Mailboxes such as accounts@. Each gets a tab under Email, for the people Exchange
+                lets open it.
               </p>
               {rows.map((row, index) => (
                 <div
-                  key={index}
-                  className="border-line grid gap-3 rounded-lg border p-3 sm:grid-cols-2"
+                  key={row.address}
+                  className="border-line space-y-3 rounded-lg border p-3"
+                  data-testid="mailbox-card"
                 >
-                  <Field label={`Mailbox ${index + 1} address`} htmlFor={`mailbox-${index}`}>
-                    <Input
-                      id={`mailbox-${index}`}
-                      type="email"
-                      required
-                      value={row.address}
-                      onChange={(e) => update(index, { address: e.target.value })}
-                    />
-                  </Field>
-                  <Field label={`Mailbox ${index + 1} label (optional)`} htmlFor={`label-${index}`}>
-                    <Input
-                      id={`label-${index}`}
-                      maxLength={40}
-                      value={row.label ?? ''}
-                      onChange={(e) => update(index, { label: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    label={`Mailbox ${index + 1} agent`}
-                    htmlFor={`mailbox-agent-${index}`}
-                    hint="The agent that reads this mailbox and suggests what to do."
-                  >
-                    <select
-                      id={`mailbox-agent-${index}`}
-                      className="border-line bg-surface text-ink rounded-lg border p-2"
-                      value={row.agentId ?? ''}
-                      onChange={(e) => update(index, { agentId: e.target.value || undefined })}
-                    >
-                      <option value="">None</option>
-                      {storedAgents
-                        .filter((a) => a.id)
-                        .map((agent) => (
+                  <CardHeader
+                    icon={<Inbox className="h-4 w-4" aria-hidden="true" />}
+                    title={row.label || row.address}
+                    address={row.address}
+                    removeLabel={`Remove ${row.address}`}
+                    onRemove={() => setRows(rows.filter((_, i) => i !== index))}
+                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Tab name" htmlFor={`label-${index}`}>
+                      <Input
+                        id={`label-${index}`}
+                        aria-label={`Mailbox ${index + 1} tab name`}
+                        maxLength={40}
+                        placeholder={row.address.split('@')[0]}
+                        value={row.label ?? ''}
+                        onChange={(e) => updateRow(index, { label: e.target.value || undefined })}
+                      />
+                    </Field>
+                    <Field label="Read by" htmlFor={`mailbox-agent-${index}`}>
+                      <select
+                        id={`mailbox-agent-${index}`}
+                        aria-label={`Mailbox ${index + 1} agent`}
+                        className="border-line-strong bg-surface text-ink h-10 rounded-lg border px-2 text-sm"
+                        value={row.agentId ?? ''}
+                        onChange={(e) => updateRow(index, { agentId: e.target.value || undefined })}
+                      >
+                        <option value="">No agent</option>
+                        {named.map((agent) => (
                           <option key={agent.id} value={agent.id}>
                             {agent.displayName}
                           </option>
                         ))}
-                    </select>
-                  </Field>
-                  <label className="text-body flex items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="capture"
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-body text-sm font-medium">Bill capture</p>
+                      <p className="text-faint text-xs">
+                        {row.capture
+                          ? `Bills and receipts arrive here. ${named.find((a) => a.id === row.agentId)?.displayName ?? 'The agent'} files them and checks them against the books.`
+                          : 'Turn on for the mailbox suppliers send bills to. Only one mailbox at a time.'}
+                      </p>
+                    </div>
+                    <Toggle
                       checked={!!row.capture}
-                      onChange={() =>
-                        setRows(
-                          rows.map((item, i) => ({
-                            ...item,
-                            capture: i === index ? true : undefined,
-                          }))
-                        )
-                      }
+                      label={`Bill capture for ${row.address}`}
+                      onChange={(on) => setCapture(index, on)}
                     />
-                    Bill capture files here
-                  </label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => setRows(rows.filter((_, i) => i !== index))}
-                  >
-                    Remove
-                  </Button>
+                  </div>
                 </div>
               ))}
-              <p className="text-muted text-xs">
-                Bill capture files emails into the configured capture folders under this
-                mailbox&apos;s Inbox.
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={rows.length >= 10}
-                  onClick={() => setRows([...rows, { address: '' }])}
-                >
-                  Add
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!rows.some((row) => row.capture)}
-                  onClick={() => setRows(rows.map((row) => ({ ...row, capture: undefined })))}
-                >
-                  Clear bill capture
-                </Button>
-              </div>
+              {rows.length < MAX_ROWS && (
+                <MailboxPicker
+                  label={rows.length ? 'Add another shared mailbox' : 'Add a shared mailbox'}
+                  placeholder="accounts@yourcompany.com"
+                  taken={rows.map((r) => r.address)}
+                  onPick={addRow}
+                  testId="mailbox-picker"
+                />
+              )}
             </fieldset>
-            <div className="sm:col-span-2">
-              <Button type="submit" variant="primary" size="sm" disabled={pending || !changed}>
+
+            <div className="flex items-center gap-3 lg:col-span-2">
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                disabled={pending || !changed || incomplete}
+              >
                 {pending ? 'Saving…' : 'Save'}
               </Button>
+              {changed && !pending && <span className="text-faint text-xs">Unsaved changes</span>}
             </div>
           </form>
         </div>
