@@ -139,7 +139,7 @@ export function PublicBookieLauncher() {
         aria-controls={view === 'choice' ? choiceId : undefined}
         data-testid="public-bookie-launcher"
         hidden={view !== 'closed'}
-        className="border-brand/50 bg-surface/95 text-ink hover:border-brand hover:bg-surface-2 fixed right-4 bottom-4 z-40 flex items-center gap-2.5 rounded-full border py-1.5 pr-4 pl-1.5 text-sm font-semibold shadow-[0_10px_30px_-10px_rgb(34_197_94/0.55)] backdrop-blur motion-safe:transition-colors sm:right-5 sm:bottom-5"
+        className="border-brand/50 bg-surface/95 text-ink hover:border-brand hover:bg-surface-2 fixed right-4 bottom-4 z-40 flex items-center gap-2.5 rounded-full border py-1.5 pr-4 pl-1.5 text-sm font-semibold shadow-[0_10px_30px_-10px_rgb(157_255_10/0.55)] backdrop-blur motion-safe:transition-colors sm:right-5 sm:bottom-5"
       >
         <BookieAvatar className="h-9 w-9" />
         Ask Bookie

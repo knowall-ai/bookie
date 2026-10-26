@@ -17,7 +17,7 @@ import { cn } from '@/lib/ui/cn';
 /*
  * Two categorical series, validated for the dark surface (#111827) with the
  * dataviz palette checker: blue (income) and orange (expenses) pass lightness,
- * chroma, CVD (ΔE 26.8) and 3:1 contrast. Not brand green or danger red, which
+ * chroma, CVD (ΔE 26.8) and 3:1 contrast. Not success green or danger red, which
  * would read as "good" / "bad" status.
  */
 const SERIES = {

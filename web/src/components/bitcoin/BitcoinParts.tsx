@@ -15,7 +15,7 @@ export function BtcAmount({
   colour?: boolean;
   className?: string;
 }) {
-  const tint = colour ? (sats < 0 ? 'text-danger' : sats > 0 ? 'text-brand-bright' : '') : '';
+  const tint = colour ? (sats < 0 ? 'text-danger' : sats > 0 ? 'text-success' : '') : '';
   return (
     <span className={cn('num whitespace-nowrap', tint, className)}>
       {formatBtc(sats, { sign })}

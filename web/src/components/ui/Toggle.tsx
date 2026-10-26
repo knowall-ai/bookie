@@ -31,8 +31,8 @@ export function Toggle({
     >
       <span
         className={cn(
-          'inline-block h-4.5 w-4.5 rounded-full bg-white shadow transition-transform',
-          checked ? 'translate-x-5.5' : 'translate-x-1'
+          'inline-block h-4.5 w-4.5 rounded-full shadow transition-transform',
+          checked ? 'bg-brand-ink translate-x-5.5' : 'translate-x-1 bg-white'
         )}
       />
     </button>
