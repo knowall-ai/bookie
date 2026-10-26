@@ -60,6 +60,7 @@ vm_mode() {
   # Fetched as the agent user: poppie-hermes is private and the deploy key (ssh alias
   # gh-poppie-hermes) is his, as for agent-presence in step 23.
   SRC="$(as_agent 'mktemp -d')"
+  trap "sudo rm -rf '${SRC}'" EXIT
   as_agent "git -C '${SRC}' init -q && git -C '${SRC}' remote add origin '${AGENT_PULSE_PLUGIN_REPO}'"
   as_agent "git -C '${SRC}' fetch -q --depth 1 origin '${AGENT_PULSE_PLUGIN_REF}'" || die "cannot fetch ${AGENT_PULSE_PLUGIN_REPO}@${AGENT_PULSE_PLUGIN_REF}"
   as_agent "git -C '${SRC}' checkout -q FETCH_HEAD -- '${AGENT_PULSE_PLUGIN_PATH}'"
@@ -67,19 +68,19 @@ vm_mode() {
   sudo mkdir -p "${DEST}"
   sudo rsync -a --delete --exclude '__pycache__' "${SRC}/${AGENT_PULSE_PLUGIN_PATH}/" "${DEST}/"
   sudo chown -R "${AGENT_NAME}:${AGENT_NAME}" "${HERMES_DIR}/plugins"
-  sudo rm -rf "${SRC}"
   # The library, into the environment Hermes runs in. Since Hermes 0.22.5 that is a uv environment
   # under ~/.hermes/installs/<id>/environments/<stamp>/venv, and Hermes only installs a plugin's
   # requirements from a package index: agent-pulse is a git URL (not on PyPI), so it is put there
   # with Hermes' own uv. A `hermes update` that builds a new environment drops it: re-run this step
   # (the plugin logs "library not installed" and goes quiet; it never breaks the agent).
-  HERMES_PY="$(as_agent "hermes --run-module site 2>/dev/null" | grep -o "'[^']*/environments/[^']*/venv/" | head -1 | tr -d "'")bin/python"
+  HERMES_PY="$(as_agent "hermes --run-module site 2>/dev/null" | grep -m1 -o "'[^']*/environments/[^']*/venv/" | tr -d "'" || true)bin/python"
   case "${HERMES_PY}" in /*/venv/bin/python) ;; *) die "cannot find Hermes' environment (hermes --run-module site)" ;; esac
   UV="$(as_agent "command -v uv || ls -d '${HERMES_DIR}'/tools/uv-*/uv 2>/dev/null | sort -V | tail -1")"
   [ -n "${UV}" ] || die "no uv (Hermes ships one in ${HERMES_DIR}/tools)"
   info "Hermes' environment: ${HERMES_PY%/bin/python}"
   as_agent "cd && '${UV}' pip install --no-config --quiet --python '${HERMES_PY}' -r '${DEST}/requirements.txt'"
-  as_agent "'${HERMES_PY}' -c 'import agent_pulse'" && info "agent_pulse imports"
+  as_agent "'${HERMES_PY}' -c 'import agent_pulse'" || die "agent_pulse does not import in ${HERMES_PY}"
+  info "agent_pulse imports"
 
   CS="${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
   if [ -z "${CS}" ] && command -v az >/dev/null && az account show -o none 2>/dev/null; then

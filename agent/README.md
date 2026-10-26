@@ -266,7 +266,7 @@ PowerShell 7 with ExchangeOnlineManagement and MicrosoftTeams (or IPPS) modules,
 | 22 | VM | `./42-install-xero-credentials.sh` | **Xero Custom Connection created and authorised first** |
 | 23 | VM | `./23-setup-call-bot.sh` | **deploy key on agent-presence**, `PRESENCE_PIN`, Teams password |
 | 24 | VM | `./21-setup-graph-webhooks.sh --vm` (export the three ids step 11 printed) | **device-code sign-in as bookie@ with MFA** |
-| 25 | VM | `./31-setup-telemetry.sh --vm` | **deploy key on poppie-hermes** (agent-pulse plugin, `AGENT_PULSE_PLUGIN_REF`) |
+| 25 | VM | `./31-setup-telemetry.sh --vm` | **deploy key on poppie-hermes**, as the agent's ssh alias `gh-poppie-hermes` (agent-pulse plugin, `AGENT_PULSE_PLUGIN_REF`) |
 | 26 | VM | `./33-setup-skills-sync.sh` | |
 | 27 | VM | `sudo systemctl start hermes-gateway-bookie`; restart the Presence units | first Teams sign-in in Edge over RDP |
 | 28 | VM | `sudo -u bookie -i hermes model`, `hermes config show`, `hermes memory setup` | confirm provider/MCP/toolset names (VERIFY items) |
@@ -289,7 +289,8 @@ VM's `config.env` and moves only when you move it. On the VM, from the admin's `
 3. Re-run `./04-configure-hermes.sh` (SOUL, `config.yaml`, skill farm, cron), `./23-setup-call-bot.sh`
    (Presence), `./31-setup-telemetry.sh --vm` (agent-pulse: **always after a Hermes update**, which can
    build a new Python environment without it), and `./40-install-reverie.sh` / `./41-install-bc-mcp.sh --vm`
-   when their pins moved.
+   when their pins moved. If step 04 reports config drift after a Hermes update (a migration added or
+   renamed keys), read the diff, fold anything wanted into the template, and re-run with `FORCE_CONFIG=1`.
 4. `./safe-deploy.sh "sudo systemctl restart hermes-gateway-bookie && sudo systemctl restart pulse-setup-bookie teams-presence-bookie call-bot-bridge-bookie call-bot-bookie"`,
    then `curl -s http://127.0.0.1:8644/health` and `curl -s http://127.0.0.1:3006/status`.
 
