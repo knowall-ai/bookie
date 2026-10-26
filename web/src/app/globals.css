@@ -162,10 +162,12 @@
 }
 
 @media print {
-  /* Lime is unreadable on paper; print the brand in its deep shade. */
+  /* Lime is unreadable on paper; print the brand in its deep shade, with
+     white text on it (5:1) where it fills a button or badge. */
   :root {
     --color-brand: var(--color-brand-deep);
     --color-brand-bright: var(--color-brand-deep);
+    --color-brand-ink: #ffffff;
   }
   html,
   body {
