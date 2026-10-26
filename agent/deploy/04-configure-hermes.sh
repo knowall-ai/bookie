@@ -99,6 +99,8 @@ if sudo test -f "${HERMES_DIR}/config.yaml"; then
 fi
 tmp="$(mktemp)"
 bash "${SCRIPT_DIR}/render-hermes-config.sh" > "${tmp}" && [ -s "${tmp}" ] || { rm -f "${tmp}"; die "render failed; live config untouched"; }
+# Keep Hermes' own config format marker, or the next start migrates the file again.
+sudo grep -m1 '^_config_version:' "${HERMES_DIR}/config.yaml" 2>/dev/null >> "${tmp}" || true
 python3 -c 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))' "${tmp}" || { rm -f "${tmp}"; die "rendered config.yaml is not valid YAML"; }
 sudo install -o "${AGENT_NAME}" -g "${AGENT_NAME}" -m 600 "${tmp}" "${HERMES_DIR}/config.yaml"; rm -f "${tmp}"
 bash "${SCRIPT_DIR}/render-hermes-config.sh" --soul    | install_text "${HERMES_DIR}/SOUL.md" 644 "${AGENT_NAME}"
