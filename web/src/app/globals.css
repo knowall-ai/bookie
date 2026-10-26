@@ -1,9 +1,17 @@
 @import 'tailwindcss';
 
 /*
- * Bookie brand tokens. KnowAll family: green on near-black slate, as in
- * Thyme, ZapDesk and Wardie. Components use the Tailwind colours below
- * (bg-surface, text-muted, border-line, text-brand ...), never raw hex.
+ * Bookie brand tokens. KnowAll family: luminous lime (#9dff0a) on near-black
+ * slate, as in Thyme, ZapDesk and Wardie. Components use the Tailwind colours
+ * below (bg-surface, text-muted, border-line, text-brand ...), never raw hex.
+ *
+ * Lime is the brand and primary-action colour. Text on lime is always dark
+ * (text-brand-ink), never white. On light backgrounds (print, email, white
+ * previews) use brand-deep, which has the contrast lime lacks there.
+ *
+ * Success green is a separate status token for paid / reconciled / OK, kept
+ * clearly distinct from the lime and always paired with an icon or a label.
+ * Never use it for brand or primary actions.
  */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -22,11 +30,14 @@
   --color-muted: #94a3b8;
   --color-faint: #64748b;
 
-  --color-brand: #22c55e;
-  --color-brand-bright: #4ade80;
-  --color-brand-deep: #15803d;
+  --color-brand: #9dff0a;
+  --color-brand-bright: #b4ff3d;
+  --color-brand-deep: #4d7c0f;
   --color-brand-ink: #052e16;
-  --color-lime: #9dff0a;
+  /* The near-black of KnowAll's app-icon glyphs (dark glyph on the lime tile). */
+  --color-glyph: #06100a;
+
+  --color-success: #22c55e;
 
   --color-info: #60a5fa;
   --color-warn: #f59e0b;
@@ -35,7 +46,7 @@
 
   --radius-card: 14px;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px -12px rgb(0 0 0 / 0.6);
-  --shadow-glow: 0 0 0 1px rgb(34 197 94 / 0.35), 0 12px 40px -12px rgb(34 197 94 / 0.45);
+  --shadow-glow: 0 0 0 1px rgb(157 255 10 / 0.35), 0 12px 40px -12px rgb(157 255 10 / 0.45);
 }
 
 @layer base {
@@ -48,8 +59,8 @@
     font-feature-settings: 'cv11', 'ss01';
   }
   ::selection {
-    background: rgb(34 197 94 / 0.35);
-    color: white;
+    background: rgb(157 255 10 / 0.35);
+    color: var(--color-ink);
   }
   :focus-visible {
     outline: 2px solid var(--color-brand);
@@ -70,7 +81,7 @@
 
 @utility grid-glow {
   background-image:
-    radial-gradient(60% 50% at 50% 0%, rgb(34 197 94 / 0.12), transparent 70%),
+    radial-gradient(60% 50% at 50% 0%, rgb(157 255 10 / 0.12), transparent 70%),
     linear-gradient(rgb(148 163 184 / 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgb(148 163 184 / 0.05) 1px, transparent 1px);
   background-size:
@@ -151,6 +162,11 @@
 }
 
 @media print {
+  /* Lime is unreadable on paper; print the brand in its deep shade. */
+  :root {
+    --color-brand: var(--color-brand-deep);
+    --color-brand-bright: var(--color-brand-deep);
+  }
   html,
   body {
     background: white !important;

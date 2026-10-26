@@ -4,7 +4,7 @@ export type Tone = 'neutral' | 'green' | 'amber' | 'red' | 'blue' | 'violet';
 
 const tones: Record<Tone, string> = {
   neutral: 'bg-surface-3 text-body border-line-strong',
-  green: 'bg-brand/10 text-brand-bright border-brand/30',
+  green: 'bg-success/10 text-success border-success/30',
   amber: 'bg-warn/10 text-warn border-warn/30',
   red: 'bg-danger/10 text-danger border-danger/30',
   blue: 'bg-info/10 text-info border-info/30',

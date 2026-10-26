@@ -15,13 +15,13 @@ import {
 } from '@/lib/domain/activity';
 import { cn } from '@/lib/ui/cn';
 
-/** KnowAll greens, from "nothing" to "busiest day". */
+/** KnowAll lime ramp, from "nothing" to "busiest day". */
 const LEVEL_FILLS = [
   'var(--color-surface-3)',
-  '#14532d',
+  '#365314',
   'var(--color-brand-deep)',
+  '#84cc16',
   'var(--color-brand)',
-  'var(--color-brand-bright)',
 ];
 
 const BLOCK = 11;

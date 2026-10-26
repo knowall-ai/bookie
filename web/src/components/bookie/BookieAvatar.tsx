@@ -85,7 +85,7 @@ function BookieFace() {
       <rect x="8.6" y="10.6" width="14.8" height="7.6" rx="3.6" fill="#110b06" />
       <path
         d="M7 9.2c3-2.4 15-2.4 18 0l-1 2c-3-1.3-13-1.3-16 0z"
-        fill="#22c55e"
+        fill="var(--color-brand)"
         fillOpacity="0.9"
       />
       <circle cx="12.6" cy="14.4" r="2.4" fill="url(#bookie-eye)" />

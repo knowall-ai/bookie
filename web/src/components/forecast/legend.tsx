@@ -7,8 +7,7 @@ export const FLOW = {
   out: { label: 'Money out', colour: '#d95926' },
 } as const;
 
-/** The running balance: neutral ink, so it never borrows a flow's identity. */
-/** The running balance: Bookie's brand green, like Thyme's spend line (blue and orange are the flows). */
+/** The running balance: Bookie's brand lime, like Thyme's spend line (blue and orange are the flows). */
 export const BALANCE_COLOUR = 'var(--color-brand-bright)';
 
 export const LAYER_NAMES: Record<ForecastLayer, string> = {

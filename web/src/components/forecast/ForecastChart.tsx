@@ -24,7 +24,7 @@ import { FLOW, LAYER_NAMES, LayerSwatch, BALANCE_COLOUR } from './legend';
  * home chart (dataviz palette checker on #111827: CVD ΔE 26.8, 3:1 contrast).
  * The layer is the secondary encoding: Known solid, Drafts translucent,
  * Planned outlined, Projected hatched, Pipeline translucent violet (income only).
- * The running balance is drawn like Thyme's forecasts: a brand-green area, today's
+ * The running balance is drawn like Thyme's forecasts: a brand-lime area, today's
  * balance as a solid dot and the forecast after it dashed with hollow dots. Green
  * keeps it apart from both flows.
  */

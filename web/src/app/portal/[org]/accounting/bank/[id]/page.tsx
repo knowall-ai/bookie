@@ -142,7 +142,7 @@ export default async function Page({
       align: 'center',
       cell: (t) =>
         t.isReconciled ? (
-          <Check className="text-brand-bright mx-auto h-4 w-4" aria-label="Reconciled" />
+          <Check className="text-success mx-auto h-4 w-4" aria-label="Reconciled" />
         ) : (
           <span className="sr-only">Not reconciled</span>
         ),

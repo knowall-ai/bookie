@@ -14,7 +14,7 @@ import { formatDate, formatMoney } from '@/lib/ui/format';
 
 /*
  * One series, so no legend: the card names it. Blue is the portal's validated
- * series colour (see IncomeExpensesChart); not brand green, which would read as "good".
+ * series colour (see IncomeExpensesChart); not the success green, which would read as "good".
  */
 const LINE = '#3987e5';
 

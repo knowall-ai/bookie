@@ -61,9 +61,9 @@ The website video lives in `web/public/bookie/` (`bookie-intro.mp4`, poster, cap
 
 ### Signature items
 
-1. **The eyeshade.** A translucent KnowAll-green (`#22C55E`) celluloid banker's eyeshade
+1. **The eyeshade.** A translucent KnowAll-lime (`#9DFF0A`) celluloid banker's eyeshade
    on a dark headband, worn on the dome just above the visor. Short brim, held **flat**,
-   almost horizontal. Its green tints the top of the dome. It never covers the visor.
+   almost horizontal. Its lime tints the top of the dome. It never covers the visor.
    (When he looks down, you see the top of the brim, so it looks taller. That's
    perspective, not a different hat.)
 2. **The glasses.** Thin gold wire-rim **round** glasses with clear lenses, in front of
@@ -97,7 +97,7 @@ $IDENTITY $SIGNATURE $FACE {SCENE / POSE / FRAMING} $NEVER
 > Bookie, KnowAll AI's bookkeeper: EXACTLY the robot in the reference images, same design, proportions and materials. A friendly, calm, non-human robot with a smooth rounded helmet dome and two matching rounded ear cups, all in glossy ivory enamel (#F2E8D8) with thin polished gold trim lines (#D4A64A); a wide rounded-rectangle visor of dark smoked glass (#110B06) edged in gold; a dark ribbed graphite neck collar; rounded ivory shoulder pads and chest panels with fine gold seams. Clean, polished, well-kept finish: no wear, scratches, grime or patina. There is exactly ONE Bookie; he never splits, duplicates or changes design. Photoreal cinematic render, never a plastic toy, never a cartoon.
 
 **SIGNATURE ITEMS**
-> His signature items, always present and always the same: (1) a translucent KnowAll-green (#22C55E) celluloid banker's eyeshade on a dark headband, worn on the dome just above the visor like a cap brim, with a SHORT brim held FLAT, almost horizontal; its green light tints the top of the dome; it never covers the visor. (2) Thin gold wire-rim ROUND glasses with clear lenses, resting on the front of the visor directly in front of his two eyes, a small gold bridge between them and the arms running back to the ear cups. (3) The standard family antennae: two thin straight gold stalks with small round gold ball tips, one each side of the dome, rising behind the eyeshade band. NO bow tie, no tie, no scarf, no clothing: the ribbed neck collar is bare.
+> His signature items, always present and always the same: (1) a translucent KnowAll-lime (#9DFF0A) celluloid banker's eyeshade on a dark headband, worn on the dome just above the visor like a cap brim, with a SHORT brim held FLAT, almost horizontal; its lime light tints the top of the dome; it never covers the visor. (2) Thin gold wire-rim ROUND glasses with clear lenses, resting on the front of the visor directly in front of his two eyes, a small gold bridge between them and the arms running back to the ear cups. (3) The standard family antennae: two thin straight gold stalks with small round gold ball tips, one each side of the dome, rising behind the eyeshade band. NO bow tie, no tie, no scarf, no clothing: the ribbed neck collar is bare.
 
 **FACE RULES** (paste into every prompt)
 > FACE RULES: his face is the dark glass visor with exactly TWO separate round glowing warm gold-white eyes (#FFF1C2 centre, #FFC85A rim) and nothing else, one centred behind each round lens. Each eye is a SOLID, evenly glowing disc with no pupil, no iris, no dark centre and no ring; the eyes are only ever solid round discs or, when he smiles, softly squinted happy arcs, never with pupils, never merged into a bar. A short, dim, dashed amber line sits low on the visor below the eyes and never moves. He has NO mouth, no nose, no eyebrows and no eyelashes; the visor never turns into a screen and never shows a drawn or cartoon face.
@@ -148,7 +148,7 @@ Checklist for every new image. Reject and regenerate on any failure:
 
 1. **Head shape:** rounded dome and ear cups as in the profile (for profile framing,
    check with `bookie-overlay-sallie.png`'s method: 50% blend plus edges against Sallie).
-2. **Eyeshade:** green, translucent, short flat brim, above the visor, not covering it.
+2. **Eyeshade:** lime, translucent, short flat brim, above the visor, not covering it.
 3. **Glasses:** round, gold wire, clear lenses, one lens per eye.
 4. **Antennae:** two straight gold stalks with ball tips.
 5. **Eyes:** two solid warm discs or happy arcs. No pupils, no rings, no mouth.

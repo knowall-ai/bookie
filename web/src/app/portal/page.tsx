@@ -13,7 +13,7 @@ export const metadata = { title: 'My organisations' };
 const SOURCE_STYLE = {
   xero: 'bg-[#13b5ea]/15 text-[#5fd3f5] border-[#13b5ea]/30',
   'business-central': 'bg-[#0f9a8e]/15 text-[#4fd1c5] border-[#0f9a8e]/30',
-  demo: 'bg-lime/10 text-lime border-lime/30',
+  demo: 'bg-brand/10 text-brand border-brand/30',
 } as const;
 
 export default async function MyOrganisations() {

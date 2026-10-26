@@ -68,7 +68,7 @@ function sourceDot(kind: OrgRef['kind']) {
     ? 'bg-[#13b5ea]'
     : kind === 'business-central'
       ? 'bg-[#0f9a8e]'
-      : 'bg-lime';
+      : 'bg-brand';
 }
 
 export function OrgSwitcher({ org, orgs }: { org?: OrgRef; orgs: OrgRef[] }) {

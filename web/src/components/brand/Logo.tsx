@@ -1,9 +1,9 @@
 import { cn } from '@/lib/ui/cn';
 
 /**
- * Bookie's mark: his robot head, with a dark visor and his warm gold eyes (centre #FFF1C2,
- * rim #FFC85A, as in agent/assets/bookie-character.md), on the brand-green tile.
- * The same drawing as app/icon.svg; solid circles rather than gradients, so it needs no ids.
+ * Bookie's mark, in the KnowAll app-icon family: a near-black glyph (his robot head, two
+ * antennae and lime eyes) on the lime tile. The same drawing as app/icon.svg, coloured
+ * with the brand tokens.
  */
 export function LogoTile({ className }: { className?: string }) {
   return (
@@ -11,20 +11,21 @@ export function LogoTile({ className }: { className?: string }) {
       viewBox="0 0 32 32"
       aria-hidden="true"
       className={cn(
-        'inline-block shrink-0 rounded-lg shadow-[0_6px_20px_-6px_rgb(34_197_94/0.6)]',
+        'fill-brand inline-block shrink-0 rounded-lg shadow-[0_6px_20px_-6px_rgb(157_255_10/0.45)]',
         className ?? 'h-8 w-8'
       )}
     >
-      <rect width="32" height="32" rx="7" fill="#22c55e" />
-      <rect x="4" y="7" width="24" height="18" rx="8" fill="#ffffff" />
-      <rect x="7" y="11.5" width="18" height="9" rx="4.5" fill="#020817" />
-      {[11.8, 20.2].map((cx) => (
-        <g key={cx}>
-          <circle cx={cx} cy="16" r="3.3" fill="#FFC85A" fillOpacity="0.3" />
-          <circle cx={cx} cy="16" r="2.2" fill="#FFC85A" />
-          <circle cx={cx} cy="16" r="1.5" fill="#FFF1C2" />
-        </g>
-      ))}
+      <rect width="32" height="32" rx="7" />
+      <path
+        d="M11 9.5 9.8 5.2M21 9.5l1.2-4.3"
+        fill="none"
+        className="stroke-glyph"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+      <rect x="4" y="9" width="24" height="17" rx="7.5" className="fill-glyph" />
+      <circle cx="11.6" cy="17.5" r="3" />
+      <circle cx="20.4" cy="17.5" r="3" />
     </svg>
   );
 }

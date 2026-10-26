@@ -22,7 +22,7 @@ export function Money({
   if (amount === null || amount === undefined || Number.isNaN(amount)) {
     return <NotAvailableValue reason={missing} className={className} />;
   }
-  const tint = colour ? (amount < 0 ? 'text-danger' : amount > 0 ? 'text-brand-bright' : '') : '';
+  const tint = colour ? (amount < 0 ? 'text-danger' : amount > 0 ? 'text-success' : '') : '';
   return (
     <span className={cn('num whitespace-nowrap', tint, className)}>
       {formatMoney(amount, currency)}
